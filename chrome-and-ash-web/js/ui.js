@@ -95,6 +95,7 @@
     quickFaction: 'rust',
     newRaceMode: 'race',
     trackArchetype: 'horseshoe',
+    moveReady: false,
     helpOpen: false,
     helpFrom: 'lobby',
     onboardingStep: 0,
@@ -375,6 +376,7 @@
     UI.finalized = false;
     UI.resultsShownFor = null;
     UI.dirty = false;
+    UI.moveReady = false;
 
     showScreen('game');
     renderAll();
@@ -421,6 +423,7 @@
     UI.finalized = false;
     UI.resultsShownFor = null;
     UI.dirty = false;
+    UI.moveReady = false;
     showScreen('game');
     renderAll();
     if (UI.game.race && UI.game.race.over) showResults();
@@ -489,6 +492,7 @@
   function finishTurn() {
     if (!UI.game || !UI.game.race || UI.turnEnding) return;
     UI.turnEnding = true;
+    UI.moveReady = false;
     const end = CnA.endTurn(UI.game);
     UI.busy = false;
     UI.stage = UI.game.race.phase;
@@ -509,52 +513,10 @@
     return car && car.human && !UI.busy && UI.game && !UI.game.race.over;
   }
 
-  async function rollAndMaybeReroll(car) {
-    const res = CnA.rollMove(UI.game, car);
-    if (!res.ok || res.destroyed || car.flags.rerollUsed || UI.game.race.turn.brake) return res;
-    showDice(res.roll, res.total, res.mods, res.nitroRoll);
-    renderAll();
-    const choice = await modal(
-      '<h3>ПЕРЕБРОС d4</h3><p>Выпало <b>' + res.roll + '</b> → движение <b>' + res.total + '</b>. ' +
-      'Можно один раз за гонку перебросить кубик.</p>' +
-      '<div class="target-list">' +
-      '<button class="target-btn" data-keep><b>Оставить ' + res.roll + '</b><span>движение ' + res.total + '</span></button>' +
-      '<button class="target-btn" data-reroll><b>Перебросить d4</b><span>один раз за гонку</span></button>' +
-      '</div>',
-      (rootEl, close) => {
-        rootEl.querySelector('[data-keep]').addEventListener('click', () => close(false));
-        rootEl.querySelector('[data-reroll]').addEventListener('click', () => close(true));
-      });
-    if (!choice) return res;
-    const rr = CnA.rerollMove(UI.game, car);
-    if (!rr.ok) {
-      showToast(esc(rr.reason || 'Нельзя перебросить'), 'damage');
-      return res;
-    }
-    return Object.assign({}, res, rr, { mods: [] });
-  }
-
-  async function onRoll() {
-    if (!humanReady() || UI.game.race.phase !== 'prep') return;
-    const car = currentCar();
+  async function startMovement(car) {
+    UI.moveReady = false;
     UI.busy = true;
     UI.stage = 'move';
-    const res = await rollAndMaybeReroll(car);
-    if (!res) { UI.busy = false; renderAll(); return; }
-    if (!res.ok) {
-      UI.busy = false;
-      showToast(esc(res.reason || 'Нельзя двигаться'), 'damage');
-      renderAll();
-      return;
-    }
-    showDice(res.roll, res.total, res.mods, res.nitroRoll);
-    renderAll();
-    await sleep(400);
-    if (res.destroyed) {
-      showToast('Перегрев уничтожил машину.', 'kill');
-      await afterHumanMovement(car);
-      return;
-    }
     let guard = 0;
     while (guard++ < 14) {
       const opts = CnA.movementOptions(UI.game, car);
@@ -575,7 +537,46 @@
     await afterHumanMovement(car);
   }
 
+  async function onRoll() {
+    if (!humanReady() || UI.game.race.phase !== 'prep') return;
+    const car = currentCar();
+    UI.busy = true;
+    UI.stage = 'move';
+    const res = CnA.rollMove(UI.game, car);
+    if (!res.ok) {
+      UI.busy = false;
+      showToast(esc(res.reason || 'Нельзя двигаться'), 'damage');
+      renderAll();
+      return;
+    }
+    showDice(res.roll, res.total, res.mods, res.nitroRoll);
+    renderAll();
+    await sleep(250);
+    if (res.destroyed) {
+      UI.busy = false;
+      showToast('Перегрев уничтожил машину.', 'kill');
+      await afterHumanMovement(car);
+      return;
+    }
+    if (!car.flags.rerollUsed && !UI.game.race.turn.brake) {
+      UI.busy = false;
+      UI.moveReady = true;
+      UI.stage = 'move';
+      renderAll();
+      return;
+    }
+    await startMovement(car);
+  }
+
+  function onRide() {
+    if (!UI.moveReady || UI.busy) return;
+    const car = currentCar();
+    if (!car || !car.human) return;
+    startMovement(car);
+  }
+
   async function afterHumanMovement(car) {
+    UI.moveReady = false;
     const fin = CnA.finishMovement(UI.game, car);
     if (fin && fin.event) showEvent(fin.event);
     renderAll();
@@ -662,12 +663,18 @@
     renderAll();
   }
 
-  function onReroll() {
-    if (!humanReady() || UI.game.race.phase !== 'move') return;
+  async function onReroll() {
+    if (!UI.moveReady || UI.busy || !humanReady() || UI.game.race.phase !== 'move') return;
     const car = currentCar();
     const r = CnA.rerollMove(UI.game, car);
     if (!r.ok) { showToast(esc(r.reason || 'Нельзя перебросить'), 'damage'); return; }
     showDice(r.roll, r.total, [], 0);
+    if (r.destroyed) {
+      UI.moveReady = false;
+      showToast('Перегрев уничтожил машину.', 'kill');
+      await afterHumanMovement(car);
+      return;
+    }
     renderAll();
   }
 
@@ -1481,7 +1488,12 @@
         if (CnA.hasUpgrade(c, 'turbo') && !c.flags.turboUsed && !c.flags.turboArmed) actions += '<button id="turbo-btn" class="act-btn">ТУРБИНА</button>';
       } else if (phase === 'move') {
         const t = game.race.turn || { speed: 0, remaining: 0 };
-        hint = 'Движение: ' + t.speed + ' · осталось ' + t.remaining + '. Машина едет ровно на итог.';
+        if (UI.moveReady && !UI.busy) {
+          hint = 'Бросок сделан. Можно перебросить d4 или ехать.';
+          actions += '<button id="ride-btn" class="act-btn primary">ЕХАТЬ</button>';
+        } else {
+          hint = 'Движение: ' + t.speed + ' · осталось ' + t.remaining + '. Машина едет ровно на итог.';
+        }
       } else if (phase === 'fire') {
         const t = game.race.turn || {};
         const anyTarget = c.hand.some((h) => {
@@ -1501,6 +1513,9 @@
       } else {
         hint = 'Ход завершается…';
       }
+      const rerollUsed = !!c.flags.rerollUsed;
+      const canReroll = phase === 'move' && UI.moveReady && !UI.busy && !rerollUsed;
+      actions += '<button id="reroll-btn" class="act-btn' + (canReroll ? '' : ' muted') + '"' + (canReroll ? '' : ' disabled') + ' title="Реролл d4: один раз за гонку">РЕРОЛЛ ' + (rerollUsed ? '0' : '1') + '/1</button>';
     } else {
       hint = phase === 'prep' ? 'Соперник оценивает обстановку.' :
         phase === 'move' ? 'Соперник едет по трассе.' :
@@ -1523,6 +1538,8 @@
     const rustBtn = $('#rust-btn'); if (rustBtn) rustBtn.addEventListener('click', onRustRepair);
     const mineBtn = $('#mine-return-btn'); if (mineBtn) mineBtn.addEventListener('click', onReturnMine);
     const turboBtn = $('#turbo-btn'); if (turboBtn) turboBtn.addEventListener('click', onTurbo);
+    const rideBtn = $('#ride-btn'); if (rideBtn) rideBtn.addEventListener('click', onRide);
+    const rerollBtn = $('#reroll-btn'); if (rerollBtn) rerollBtn.addEventListener('click', onReroll);
     const wildfireBtn = $('#wildfire-btn'); if (wildfireBtn) wildfireBtn.addEventListener('click', onWildfire);
     const endBtn = $('#end-turn-btn'); if (endBtn) endBtn.addEventListener('click', () => { if (!UI.busy) finishTurn(); });
   }

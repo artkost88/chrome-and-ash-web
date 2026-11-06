@@ -437,6 +437,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .act-btn.ghost { background: transparent; color: var(--muted); border-color: rgba(245,240,232,.16); }
 .act-btn.ghost:hover { color: var(--text); border-color: rgba(245,240,232,.36); }
 .act-btn.sky { background: rgba(200,160,78,.14); border-color: rgba(200,160,78,.55); color: var(--brass); }
+.act-btn.muted, .act-btn[disabled] { opacity: .38; filter: grayscale(.85); cursor: not-allowed; }
+.act-btn.muted:hover, .act-btn[disabled]:hover { background: rgba(200,160,78,.10); }
 
 .hand-zone { border: 1px solid var(--line); background: rgba(36,31,26,.55); padding: 9px; }
 .hand-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
