@@ -51,6 +51,11 @@ test('finish window is two rounds after the leader', () => {
   assert.equal(game.options.extraRounds, 2);
 });
 
+test('mine limit defaults to 2', () => {
+  const game = gameFor('rust', 20);
+  assert.equal(game.options.mineLimit, 2);
+});
+
 test('mine card is 2d4', () => {
   assert.equal(CnA.CARDS.mine.dmg, '2d4');
 });

@@ -312,7 +312,7 @@
         checkpoints: opts.checkpoints !== false,
         spawnProtect: opts.spawnProtect !== false,
         extraRounds: opts.extraRounds === undefined ? 2 : opts.extraRounds,
-        mineLimit: opts.mineLimit === undefined ? 3 : opts.mineLimit,
+        mineLimit: opts.mineLimit === undefined ? 2 : opts.mineLimit,
       },
     };
     game.cars.forEach((car, i) => {
