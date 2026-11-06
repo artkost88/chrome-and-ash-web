@@ -285,7 +285,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .save-status.error { color: #ffb1a8; }
 
 .game-main {
-  display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 13vw, 380px);
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 16vw, 440px);
   gap: 12px; padding: 12px clamp(14px, 2vw, 28px); align-items: start; max-width: 2400px; margin: 0 auto;
 }
 .board-panel {
@@ -410,7 +410,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
    ================================================================ */
 .side { display: flex; flex-direction: column; gap: 10px; min-width: 0; align-self: stretch; }
 .side .log-panel { margin-top: auto; max-width: none; padding: 0; width: 100%; }
-.side .log { height: 170px; }
+.side .log { height: clamp(190px, 20vh, 250px); }
 .turn-card {
   border: 1px solid var(--line); border-top: 3px solid var(--fc, var(--brass));
   background: linear-gradient(170deg, rgba(58,51,44,.97), rgba(36,31,26,.98));
@@ -440,11 +440,11 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .act-btn.muted, .act-btn[disabled] { opacity: .38; filter: grayscale(.85); cursor: not-allowed; }
 .act-btn.muted:hover, .act-btn[disabled]:hover { background: rgba(200,160,78,.10); }
 
-.hand-zone { border: 1px solid var(--line); background: rgba(36,31,26,.55); padding: 9px; }
-.hand-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+.hand-zone { border: 1px solid var(--line); background: rgba(36,31,26,.55); padding: 8px; }
+.hand-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .hand-head h3 { font-family: var(--font-display); font-size: 10px; letter-spacing: .16em; color: var(--muted); }
 .hand-count { font-family: var(--font-mono); font-size: 10px; color: var(--brass); }
-.hand { display: flex; flex-wrap: nowrap; gap: 8px; min-height: 214px; overflow-x: auto; padding-bottom: 4px; justify-content: center; }
+.hand { display: flex; flex-wrap: nowrap; gap: 8px; min-height: 180px; overflow-x: auto; padding-bottom: 4px; justify-content: center; }
 .empty-hand { color: var(--muted); font-size: 11.5px; padding: 14px 4px; }
 
 /* Нижняя полоса: крупная рука + фазы хода (центр внимания игрока). */
@@ -482,7 +482,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 
 /* Карты — ржавые металлические пластины с оранжевой полосой фазы. */
 .card {
-  position: relative; width: 138px; min-height: 210px; padding: 9px 9px 8px;
+  position: relative; width: 126px; min-height: 180px; padding: 8px 8px 7px;
   background: linear-gradient(165deg, #4a4033 0%, #3a332c 38%, #241f1a 100%);
   border: 2px solid #241f1a; border-radius: 3px;
   box-shadow: inset 0 1px 0 rgba(245,240,232,.08), 3px 3px 0 rgba(0,0,0,.4);
@@ -513,20 +513,20 @@ code { font-family: var(--font-mono); color: var(--brass); }
 /* Иллюстрация карты: верхняя полоса во всю ширину карты (под фазовым баннером). */
 .card-illu {
   position: relative; z-index: 1;
-  display: block; width: calc(100% + 18px); height: 76px;
+  display: block; width: calc(100% + 18px); height: 68px;
   margin: 0 -9px 6px; object-fit: cover; object-position: center 42%;
   border-bottom: 1px solid rgba(245,240,232,.16);
 }
 .card .cname {
-  font-family: var(--font-display); font-size: 12px; line-height: 1.15; letter-spacing: .015em;
-  color: var(--chrome); margin-top: 4px; min-height: 28px;
+  font-family: var(--font-display); font-size: 11.5px; line-height: 1.15; letter-spacing: .015em;
+  color: var(--chrome); margin-top: 3px; min-height: 26px;
 }
 .card .cstats {
   margin-top: 5px; font-family: var(--font-mono); font-size: 11.5px; color: #f5f0e8;
   letter-spacing: .02em; background: rgba(0,0,0,.3); border: 1px solid rgba(245,240,232,.14);
   border-radius: 2px; padding: 1px 5px; display: inline-block; align-self: flex-start;
 }
-.card .cshort { margin-top: auto; font-size: 11px; line-height: 1.3; color: rgba(245,240,232,.62); padding-top: 4px; }
+.card .cshort { margin-top: auto; font-size: 10.5px; line-height: 1.3; color: rgba(245,240,232,.62); padding-top: 3px; }
 .card.attack { border-left: 4px solid #9e1f1a; }
 .card.prep { border-left: 4px solid #d8d8d2; }
 .card.trap { border-left: 4px solid #ff7a1e; }
@@ -587,7 +587,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .log-head { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); font-size: 10px; letter-spacing: .16em; color: var(--muted); padding: 5px 8px; border: 1px solid var(--line); border-bottom: 0; background: rgba(36,31,26,.72); }
 .log-toggle { background: none; border: 0; color: var(--muted); font-size: 10px; cursor: pointer; }
 .log-toggle:hover { color: var(--brass); }
-.log { border: 1px solid var(--line); background: rgba(11,15,18,.86); height: 132px; overflow-y: auto; padding: 6px 10px; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.55; }
+.log { border: 1px solid var(--line); background: rgba(11,15,18,.86); height: 132px; overflow-y: auto; padding: 8px 12px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.62; }
 .log.collapsed { display: none; }
 .log-entry { color: var(--text-dim); padding: 1px 0; border-bottom: 1px solid rgba(245,240,232,.03); }
 .log-entry .rn { color: rgba(169,156,136,.5); margin-right: 6px; }
@@ -748,13 +748,13 @@ code { font-family: var(--font-mono); color: var(--brass); }
   #board { max-height: calc(100vh - 620px); }
   .hand-head h3 { font-size: 11.5px; }
   .hand-count { font-size: 12px; }
-  .card { width: 170px; min-height: 250px; padding: 11px 11px 10px; }
+  .card { width: 150px; min-height: 200px; padding: 10px 10px 9px; }
   .card .phase { margin: -11px -11px 7px; font-size: 9.5px; padding: 3px 6px; }
-  .card-illu { width: calc(100% + 22px); height: 92px; margin: 0 -11px 8px; }
+  .card-illu { width: calc(100% + 20px); height: 82px; margin: 0 -10px 7px; }
   .card .cname { font-size: 14px; min-height: 32px; }
   .card .cstats { font-size: 13px; }
   .card .cshort { font-size: 13px; line-height: 1.35; }
-  .hand { min-height: 258px; gap: 10px; }
+  .hand { min-height: 205px; gap: 10px; }
   .phase-chip { font-size: 11px; padding: 6px 11px; }
   .phase-turn { font-size: 13px; }
   .phase-hint { font-size: 13px; }
@@ -768,8 +768,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .p-name { font-size: 13px; }
   .p-pos { font-size: 11.5px; }
   .p-stats { font-size: 11px; }
-  .side .log { font-size: 12px; }
-  .side .log-head { font-size: 11px; }
+  .side .log { font-size: 13.5px; height: clamp(270px, 25vh, 320px); }
+  .side .log-head { font-size: 11.5px; }
   .board-legend { font-size: 12px; }
 }
 
