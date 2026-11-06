@@ -121,28 +121,28 @@
   /* Справочник по фракциям для экрана выбора и вкладки «Фракции». */
   const FACTION_INFO = {
     chrome: {
-      role: 'Таран · стеклянная пушка',
-      strengths: 'Два d4 на таран и лучший результат; убийство тараном возвращает 4 корпуса.',
-      weakness: 'Корпус 16 — самый тонкий; неудачный таран наказывает.',
-      tip: 'Ищи добивание тараном: лечишься только уничтожением.',
+      role: 'Таран · риск',
+      strengths: 'На таране бросают два d4 и берут лучший результат. Если таран уничтожает цель, возвращают 4 корпуса.',
+      weakness: 'Корпус всего 16 — самый хрупкий в игре. Неудачный таран может стоить гонки.',
+      tip: 'Ищи момент добить тараном: только так «Ревун» лечится.',
     },
     rust: {
-      role: 'Танк · мастерская',
-      strengths: '26 корпуса, пит-стоп 2 хода, ремонт d4 на ходу раз за гонку.',
-      weakness: 'Мало слотов (4) и слабый темп на старте.',
-      tip: 'Тянись к пит-лейну и играй от ремонта.',
+      role: 'Танк · ремонт',
+      strengths: '26 корпусов. Пит-стоп на ход короче, а раз за гонку можно починить d4 корпуса на ходу.',
+      weakness: 'Всего 4 слота и медленный разгон.',
+      tip: 'Держись ближе к пит-лейну: ремонт — твоё главное оружие.',
     },
     carnival: {
       role: 'Ловушки · контроль',
-      strengths: 'Мины и масло бесплатно, не тратя фазу огня; мина возвращается в руку.',
-      weakness: '20 корпуса и мало прямого урона.',
-      tip: 'Готовь поле перед лидером и вынуждай его в мины.',
+      strengths: 'Первую ловушку в ход ставит бесплатно, не тратя фазу огня. Раз за гонку возвращает мину в руку.',
+      weakness: '20 корпусов и мало прямого урона.',
+      tip: 'Ставь ловушки на пути лидера — пусть сам в них въедет.',
     },
     swarm: {
-      role: 'Дальний бой · охота',
-      strengths: 'Дальность всего оружия +1; по текущему лидеру урон +2.',
-      weakness: '18 корпуса; наказывают в упор.',
-      tip: 'Держи дистанцию и фокусь лидера гонки.',
+      role: 'Дальний бой',
+      strengths: 'Дальность всего оружия +1. Урон по лидеру гонки +2.',
+      weakness: '18 корпусов — в ближнем бою не выживает.',
+      tip: 'Держи дистанцию и бей по лидеру.',
     },
   };
 
@@ -577,8 +577,8 @@
     }).join('');
     const isPitChoice = !!(curNode && curNode.pitEntry);
     const res = await modal(
-      '<h3>' + (isPitChoice ? 'ПИТ-ЛЕЙН' : 'РАЗВИЛКА') + '</h3><p>Осталось движения: <b>' +
-      (UI.game.race.turn ? UI.game.race.turn.remaining : 0) + '</b>. Выбери маршрут.</p>' +
+      '<h3>' + (isPitChoice ? 'ПИТ-ЛЕЙН' : 'РАЗВИЛКА') + '</h3><p>Осталось <b>' +
+      (UI.game.race.turn ? UI.game.race.turn.remaining : 0) + '</b> движения. Выбери маршрут.</p>' +
       '<div class="target-list">' + rows + '</div>',
       (rootEl, close) => {
         $$('[data-route]', rootEl).forEach((b) => b.addEventListener('click', () => close(opts[Number(b.dataset.route)])));
@@ -715,10 +715,10 @@
       const target = CnA.carById(UI.game, t.carId);
       const dir = t.dir === 'fwd' ? 'вперёд' : 'назад';
       const avg = card.dmg === 'd4' ? 2.5 : card.dmg === '2d4' ? 5 : card.dmg === '3d4' ? 7.5 : 0;
-      const valText = card.noDamage ? 'эффект' : '≈' + Math.round(avg * 10) / 10 + ' урона';
+      const valText = card.noDamage ? 'эффект' : '≈' + (Math.round(avg * 10) / 10).toFixed(1).replace('.', ',') + ' урона';
       return '<button class="target-btn" data-target="' + t.carId + '">' +
         '<b>' + esc(target.name) + '</b>' +
-        '<span>' + dir + ' · ' + t.dist + ' тайл(а) · корпус ' + target.hp + '/' + target.maxHp +
+        '<span>' + dir + ' · ' + t.dist + (t.dist === 1 ? ' тайл' : ' тайла') + ' · корпус ' + target.hp + '/' + target.maxHp +
         ' · <span class="tval">' + valText + '</span></span></button>';
     }).join('');
     return modal(
@@ -917,17 +917,17 @@
     const lf = leader ? faction(leader.factionId) : null;
     const atStart = !game.race.stats || game.race.stats.turns === 0;
     const totalPath = game.laps * game.race.track.count;
-    const modeLabel = game.mode === 'daily' ? 'ЕЖЕДНЕВНЫЙ' : 'ЗАЕЗД';
-    $('#game-mode-label').textContent = game.mode === 'daily' ? 'ежедневный' : 'заезд';
+    const modeLabel = game.mode === 'daily' ? 'ЕЖЕДНЕВНЫЙ' : 'СВОБОДНЫЙ';
+    $('#game-mode-label').textContent = game.mode === 'daily' ? 'ежедневный' : 'свободный';
     $('#race-meta').innerHTML =
       '<span class="pill">' + modeLabel + '</span>' +
       '<span>раунд <b>' + game.race.round + '</b></span>' +
-      '<span>круг <b>' + game.laps + '</b></span>' +
+      '<span>кругов <b>' + game.laps + '</b></span>' +
       '<span>сид <b>' + game.seed + '</b></span>';
     $('#track-label').textContent = game.race.track.label || (game.race.track.count + ' тайлов');
     $('#leader-label').innerHTML = lf
       ? 'ЛИДЕР: <b style="color:' + lf.color + '">' + esc(leader.name) + '</b> · ' +
-        (atStart ? 'на старте' : Math.round(CnA.progressOf(game, leader)) + ' / ' + totalPath + ' пути')
+        (atStart ? 'на старте' : Math.round(CnA.progressOf(game, leader)) + ' из ' + totalPath + ' тайлов')
       : 'ЛИДЕР: —';
   }
 
@@ -1351,14 +1351,14 @@
     if (c.spawnProtect) status.push('щит');
     if (c.shield > 0) status.push('броня ' + c.shield);
     if (c.emp || (game.race.turn && game.race.turn.empDisabled)) status.push('ЭМИ');
-    if (c.nextMovePenalty) status.push('−' + c.nextMovePenalty + ' след. ход');
+    if (c.nextMovePenalty) status.push('−' + c.nextMovePenalty + ' к следующему ходу');
     const lap = Math.min(game.laps, Math.max(1, c.lapsDone + 1));
 
     card.style.setProperty('--fc', f.color);
     card.innerHTML =
       '<div class="turn-head">' +
       '<div><div class="turn-who" style="color:' + f.color + '">' + esc(c.name) + '</div>' +
-      '<div class="turn-sub">' + (isHuman ? 'ВАШ ХОД' : 'ХОД ИИ') + ' · ' + esc(c.carName) + '</div></div>' +
+      '<div class="turn-sub">' + (isHuman ? 'ТВОЙ ХОД' : 'ХОД СОПЕРНИКА') + ' · ' + esc(c.carName) + '</div></div>' +
       '<div class="turn-phase">' + phaseLabel(phase) + '</div>' +
       '</div>' +
       '<div class="turn-sub" style="margin-top:8px">РАУНД ' + game.race.round + ' · КРУГ ' + lap + '/' + game.laps + '</div>' +
@@ -1388,7 +1388,7 @@
       hint = 'Гонка завершена.';
     } else if (isHuman) {
       if (phase === 'prep') {
-        hint = 'Сыграйте одну карту из руки, объявите пит-стоп или сразу бросайте движение.';
+        hint = 'Сыграй карту, объяви пит-стоп — или сразу бросай d4.';
         actions += '<button id="roll-btn" class="act-btn primary">БРОСОК d4</button>';
         if (CnA.isPitNode(game, c.node) && !c.flags.pitThisRace) actions += '<button id="pit-btn" class="act-btn sky">ПИТ-СТОП</button>';
         if (c.factionId === 'rust' && !c.flags.repairUsed && c.hp < c.maxHp) actions += '<button id="rust-btn" class="act-btn">ЛАТАЕМ НА ХОДУ</button>';
@@ -1405,7 +1405,7 @@
           if (card.kind === 'trap') return CnA.trapOptions(game, c, h.uid).length > 0;
           return CnA.attackTargets(game, c, h.type).length > 0;
         });
-        hint = t.fireUsed ? 'Действие огня использовано. Завершите ход.'
+        hint = t.fireUsed ? 'Действие огня использовано. Заверши ход.'
           : anyTarget ? 'Фаза огня: одна атака или ловушка. Карты в руке подсвечены.'
           : 'В радиусе нет целей. Можно поставить ловушку или завершить ход.';
         actions += '<button id="end-turn-btn" class="act-btn primary">ЗАВЕРШИТЬ ХОД</button>';
@@ -1416,11 +1416,11 @@
       hint = phase === 'prep' ? 'ИИ оценивает обстановку.' :
         phase === 'move' ? 'ИИ едет по трассе.' :
         phase === 'fire' ? 'ИИ выбирает, кого ударить.' : 'ИИ завершает ход.';
-      actions += '<button class="act-btn ghost" disabled>ХОД ИИ</button>';
+      actions += '<button class="act-btn ghost" disabled>ХОД СОПЕРНИКА</button>';
     }
 
     const lap = c ? Math.min(game.laps, Math.max(1, c.lapsDone + 1)) : 1;
-    const turnLine = 'РАУНД ' + game.race.round + ' · КРУГ ' + lap + '/' + game.laps + ' · ' + (isHuman ? 'ВАШ ХОД' : 'ХОД ИИ');
+    const turnLine = 'РАУНД ' + game.race.round + ' · КРУГ ' + lap + '/' + game.laps + ' · ' + (isHuman ? 'ТВОЙ ХОД' : 'ХОД СОПЕРНИКА');
     el.innerHTML =
       '<div class="phase-chips">' + chips + '</div>' +
       '<div class="phase-info"><span class="phase-turn">' + turnLine + '</span><span class="phase-hint">' + hint + '</span></div>' +
@@ -1480,7 +1480,7 @@
         if (card.kind === 'trap') return CnA.trapOptions(game, c, h.uid).length > 0;
         return CnA.attackTargets(game, c, h.type).length > 0;
       });
-      if (!anyTarget) hint = '<div class="empty-hand" style="min-height:0;padding:6px 4px 0">Нет целей в радиусе. Завершите ход.</div>';
+      if (!anyTarget) hint = '<div class="empty-hand" style="min-height:0;padding:6px 4px 0">Нет целей в радиусе. Заверши ход.</div>';
     }
     $('#hand-zone').innerHTML = head + '<div class="hand">' + (cards || '<div class="empty-hand">Рука пуста. Карты добираются в конце хода.</div>') + '</div>' + hint;
     $$('#hand-zone .card[data-uid]').forEach((el) => {
@@ -1664,7 +1664,7 @@
     el.innerHTML =
       box('заездов', s.runsTotal) +
       box('финишей', s.runsFinished) +
-      box('лучший день', s.dailyBest);
+      box('рекорд дня', s.dailyBest);
   }
 
   function renderHubContinue() {
@@ -1672,14 +1672,14 @@
     const sub = $('#hub-continue-sub');
     if (!btn || !sub) return;
     if (UI.activeSave && UI.activeRun) {
-      const mode = UI.activeRun.mode === 'daily' ? 'ежедневный' : 'заезд';
+      const mode = UI.activeRun.mode === 'daily' ? 'ежедневный заезд' : 'свободный заезд';
       const f = faction(UI.activeRun.faction);
-      const statusMap = { active: 'в пути', finished: 'финиш', abandoned: 'брошена', paused: 'пауза' };
+      const statusMap = { active: 'в пути', finished: 'финиш', abandoned: 'брошен', paused: 'пауза' };
       btn.disabled = false;
       sub.textContent = mode + ' · ' + f.name + ' · ' + (statusMap[UI.activeRun.status] || 'в пути');
     } else {
       btn.disabled = true;
-      sub.textContent = 'нет активной партии';
+      sub.textContent = 'нет активного заезда';
     }
   }
 
@@ -1731,7 +1731,7 @@
     if (sub) {
       sub.textContent = daily
         ? 'Ежедневный · ' + UI.daily.date + ' · сид ' + daily.seed + ' · ' + (daily.trackKind === 'mosaic' ? 'Пыльная подкова · 36' : 'Кольцо · ' + daily.trackSize) + ' · кругов ' + daily.laps + '. Фракция фиксирована.'
-        : 'Четыре характера. Один заезд. Выбор за тобой.';
+        : 'Четыре характера. Один заезд. Выбирай.';
     }
 
     grid.innerHTML = CnA.FACTIONS.map((f) => {
@@ -1746,8 +1746,8 @@
           '<div class="car-top"><h3>' + esc(f.name) + '</h3><span class="car-car">' + esc(f.car) + '</span></div>' +
           '<div class="car-meta"><span>КОРПУС <b>' + f.hp + '</b></span><span>СЛОТЫ <b>' + f.slots + '</b></span></div>' +
           '<div class="car-tags">' + (f.tags || []).map((t) => '<span class="car-tag">' + esc(t) + '</span>').join('') + '</div>' +
-          '<p class="car-ability"><b>' + esc(f.abilityName) + '.</b> ' + esc(f.ability) + '</p>' +
-          (info.role ? '<p class="car-ability" style="color:var(--muted)">' + esc(info.role) + '</p>' : '') +
+          (info.role ? '<p class="car-ability car-role">' + esc(info.role) + '</p>' : '') +
+          '<p class="car-ability car-desc"><b>' + esc(f.abilityName) + '</b> ' + esc(f.ability) + '</p>' +
           '<button class="car-more" type="button" data-more="' + f.id + '">ПОДРОБНЕЕ</button>' +
         '</div>' +
       '</article>';
@@ -1788,7 +1788,7 @@
     const daily = UI.newRaceMode === 'daily' && UI.daily;
     el.innerHTML = '<b>' + esc(f.name) + '</b> · ' + esc(f.car) + ' · корпус ' + f.hp + ' · слоты ' + f.slots +
       (info.tip ? '<br><span style="color:var(--muted)">' + esc(info.tip) + '</span>' : '');
-    start.textContent = daily ? 'СТАРТ ЕЖЕДНЕВНОГО' : 'НА ТРАССУ';
+    start.textContent = daily ? 'СТАРТ ДНЯ' : 'НА ТРАССУ';
   }
 
   function openFactionInfo(id) {
@@ -1800,7 +1800,7 @@
       '<h3 style="margin:4px 0 2px;color:' + f.color + '">' + esc(f.name) + '</h3>' +
       '<p style="margin-bottom:10px;color:var(--muted)">' + esc(f.car) + ' · «' + esc(f.motto || '') + '»</p>' +
       '<div class="car-meta" style="margin-bottom:10px"><span>КОРПУС <b style="color:var(--chrome)">' + f.hp + '</b></span><span>СЛОТЫ <b style="color:var(--chrome)">' + f.slots + '</b></span></div>' +
-      '<p><b>Способность. ' + esc(f.abilityName) + '.</b> ' + esc(f.ability) + '</p>' +
+      '<p><b>Способность:</b> «' + esc(f.abilityName) + '» — ' + esc(f.ability) + '</p>' +
       (info.role ? '<p style="margin-top:8px;color:var(--muted)"><b>Роль:</b> ' + esc(info.role) + '</p>' : '') +
       (info.strengths ? '<p style="margin-top:6px"><b>Сильно:</b> ' + esc(info.strengths) + '</p>' : '') +
       (info.weakness ? '<p style="margin-top:6px"><b>Слабо:</b> ' + esc(info.weakness) + '</p>' : '') +
@@ -1831,7 +1831,7 @@
       const info = FACTION_INFO[f.id] || {};
       return '<div style="margin-top:12px;padding:12px;border-left:3px solid ' + f.color + ';background:rgba(0,0,0,.22)">' +
         '<b style="color:' + f.color + '">' + esc(f.name) + '</b> · ' + esc(f.car) + ' · корпус ' + f.hp + ', слоты ' + f.slots +
-        '<div style="margin-top:4px"><b>Способность.</b> ' + esc(f.abilityName) + '. ' + esc(f.ability) + '</div>' +
+        '<div style="margin-top:4px"><b>Способность:</b> «' + esc(f.abilityName) + '» — ' + esc(f.ability) + '</div>' +
         (info.tip ? '<div style="margin-top:4px;color:var(--muted)">' + esc(info.tip) + '</div>' : '') +
         '</div>';
     }).join('');
@@ -1843,26 +1843,26 @@
     if (!body) return;
     const content = {
       basics:
-        '<h3>Цель</h3><p>Первым пересечь старт-финиш нужное число кругов. Гонка и бой — одно действие: карта, манёвр и выстрел конкурируют за ход.</p>' +
-        '<h3>Три фазы хода</h3><ol><li><b>Подготовка.</b> Одна карта «до движения» или пит-стоп.</li><li><b>Движение.</b> Бросок d4 + модификаторы; машина едет на итог.</li><li><b>Огонь.</b> Одна атака или одна ловушка.</li></ol>' +
-        '<h3>Управление</h3><ul><li>Клик по карте в руке — подготовка или атака.</li><li>Кнопка «Бросок d4» начинает движение.</li><li><b>Esc</b> закрывает окно; <b>?</b> открывает этот устав.</li></ul>' +
-        '<div class="help-note">Новичкам: начни с «Кузнецов Ржавчины» — у них больше всех корпуса и ремонт на ходу.</div>',
+        '<h3>Цель</h3><p>Первым пересечь финишную черту, пройдя нужное число кругов. В один ход всего не сделать: на карту, манёвр и выстрел отведено по фазе.</p>' +
+        '<h3>Три фазы хода</h3><ol><li><b>Подготовка.</b> Одна карта до движения — или пит-стоп.</li><li><b>Движение.</b> Бросок d4 + модификаторы; машина едет на итоговую сумму.</li><li><b>Огонь.</b> Одна атака или одна ловушка.</li></ol>' +
+        '<h3>Управление</h3><ul><li>Нажми карту в руке — подготовка или атака.</li><li>Кнопка «Бросок d4» начинает движение.</li><li><b>Esc</b> закрывает окно; <b>?</b> открывает этот устав.</li></ul>' +
+        '<div class="help-note">Новичку: начни с «Кузнецов Ржавчины» — у них самый большой корпус и ремонт на ходу.</div>',
       phases:
-        '<h3>Подготовка</h3><ul><li>Нитро, тормоз, дым, ремонт, канистра — одна карта до броска.</li><li>Пит-стоп лечит и добирает карты; у Кузнецов он на ход короче.</li></ul>' +
-        '<h3>Движение</h3><ul><li>Итог d4 + модификаторы, минимум 1, максимум 8.</li><li>Песок −1, обломки d4 урона и −1, «?» — карта Пустоши в конце движения.</li><li>На повороте при скорости 5+ бросок d4: на 1 машину сносит.</li><li>Трамплин перелетает следующий тайл; на 6+ посадка наносит d4.</li></ul>' +
-        '<h3>Огонь</h3><ul><li>Дальность по линии трассы; назад можно, вперёд — только по прямой.</li><li>Ракеты и турель игнорируют линию огня.</li><li>Одна атака или одна ловушка за ход.</li></ul>',
+        '<h3>Подготовка</h3><ul><li>Нитро, тормоз, дым, ремонт, канистра — одна карта до броска.</li><li>Пит-стоп ремонтирует машину и добирает карты; у Кузнецов он на ход короче.</li></ul>' +
+        '<h3>Движение</h3><ul><li>Итог d4 + модификаторы, минимум 1, максимум 8.</li><li>Песок отнимает 1 движение, обломки наносят d4 урона и тоже −1; на «?» в конце движения добирается карта Пустоши.</li><li>На повороте при скорости 5+ — бросок d4: на 1 машину заносит.</li><li>Трамплин переносит машину через следующий тайл; при скорости 6+ посадка наносит d4 урона.</li></ul>' +
+        '<h3>Огонь</h3><ul><li>Дальность считается вдоль трассы; назад стрелять можно, вперёд — только по прямой.</li><li>Ракеты и турель игнорируют линию огня.</li><li>Одна атака или одна ловушка за ход.</li></ul>',
       combat:
-        '<h3>Урон</h3><ul><li>Ниже 50% корпуса — −1 к движению; ниже 20% — −2 и нельзя таранить.</li><li>Уничтоженная машина оставляет обломки, пропускает 2 хода и возвращается на последний КП с половиной корпуса.</li><li>После возврата — защита от огня до следующего хода.</li><li>Убийца получает +3 очка и +5 лома; жертва теряет карту и 3 лома.</li></ul>' +
-        '<h3>Ловушки</h3><ul><li>Мина ставится на свой тайл или позади; срабатывает при въезде (3d4).</li><li>Масло — бросок d4: 1–2 занос.</li><li>Карнавал ставит первую ловушку бесплатно.</li></ul>' +
-        '<div class="help-note">Дым нельзя достать с дальности 2+; глушилка отменяет первую атаку по тебе.</div>',
+        '<h3>Урон</h3><ul><li>Ниже 50% корпуса — −1 к движению; ниже 20% — −2 и нельзя таранить.</li><li>Уничтоженная машина оставляет обломки, пропускает 2 хода и возвращается на последний КП с половиной корпуса.</li><li>После возврата — защита от огня до следующего хода.</li><li>За уничтожение — +3 очка и +5 лома; жертва теряет карту и 3 лома.</li></ul>' +
+        '<h3>Ловушки</h3><ul><li>Мина ставится на свой тайл или позади; на въезде — 3d4.</li><li>Масло — бросок d4: 1–2 — занос, ход заканчивается.</li><li>Карнавал ставит первую ловушку в ход бесплатно.</li></ul>' +
+        '<div class="help-note">В дым не стреляют с дистанции 2 и больше. Глушилка отменяет первую атаку по тебе.</div>',
       cards:
-        '<h3>Рука</h3><ul><li>Старт — 3 карты, лимит руки 5.</li><li>В конце хода — добор 1 карты.</li><li>Фаза карты задаёт, когда её можно сыграть: подготовка, огонь, реакция.</li></ul>' +
-        '<h3>Экономика</h3><ul><li>Лом за место: 1-е — 4, 2-е — 6, 3-е — 8, 4-е — 10; не доехал — 3.</li><li>+1 лом за каждые 5 урона, +5 за уничтожение.</li><li>Очки: 1-е — 10, 2-е — 6, 3-е — 3, 4-е — 1; +3 за уничтожение.</li></ul>' +
-        '<div class="help-note">Улучшения покупаются в мастерской между гонками чемпионата; в одиночном заезде — только карты.</div>',
-      factions: '<h3>Четыре характера</h3><p>Выбор машины — это выбор темпа и риска. Способность важнее одного лишнего слота.</p>' + helpFactionBlocks(),
+        '<h3>Рука</h3><ul><li>Старт — 3 карты, лимит руки 5.</li><li>В конце хода добираешь 1 карту.</li><li>Фаза карты задаёт, когда её можно сыграть: подготовка, огонь, реакция.</li></ul>' +
+        '<h3>Экономика</h3><ul><li>Лом за место: 1-е — 4, 2-е — 6, 3-е — 8, 4-е — 10 (чем хуже место, тем больше); не доехал — 3.</li><li>+1 лом за каждые 5 урона, +5 за уничтожение.</li><li>Очки: 1-е — 10, 2-е — 6, 3-е — 3, 4-е — 1; +3 за уничтожение.</li></ul>' +
+        '<div class="help-note">Улучшения покупаются в мастерской между гонками чемпионата; в свободном заезде — только карты.</div>',
+      factions: '<h3>Четыре характера</h3><p>Выбор машины — это выбор темпа и риска. Способность важнее лишнего слота.</p>' + helpFactionBlocks(),
       pvp:
-        '<h3>PvP</h3><ul><li>Создай лобби или войди по 6-символьному коду.</li><li>4 слота; пустые занимают боты.</li><li>Таймер хода — 90 секунд (настраивается).</li><li>Руки скрыты; сервер авторитетен.</li><li>При обрыве связи есть окно на переподключение; иначе ход забирает бот.</li></ul>' +
-        '<div class="help-note">PvP не влияет на ежедневный рейтинг — это отдельный стол.</div>',
+        '<h3>PvP</h3><ul><li>Создай лобби или войди по коду из 6 знаков.</li><li>4 места; пустые занимают боты.</li><li>Таймер хода — 90 секунд (настраивается).</li><li>Карты соперников скрыты — все расчёты ведёт сервер.</li><li>При обрыве связи успеешь вернуться, иначе за тебя сходит бот.</li></ul>' +
+        '<div class="help-note">PvP не влияет на ежедневный рейтинг — это отдельный зачёт.</div>',
       faq:
         '<h3>Частые вопросы</h3><ul><li><b>Не могу сыграть карту.</b> Проверь фазу: подготовка, огонь или реакция.</li><li><b>Машина не едет.</b> Возможно, пожар, ремонт или пропуск хода — смотри журнал.</li><li><b>Где продолжить?</b> «Продолжить» в гараже; прогресс сохраняется автоматически.</li><li><b>Как открыть рейтинг?</b> «Рейтинг» в гараже или после финиша.</li></ul>' +
         '<h3>Горячие клавиши</h3><p><b>Пробел</b> — бросок/подтверждение, <b>Esc</b> — закрыть окно.</p>' +
@@ -1878,8 +1878,8 @@
   }
 
   const ONBOARD_STEPS = [
-    { num: '01', title: 'Это гараж', text: 'Три входа: новый заезд, продолжение и рейтинг. Всё остальное — антураж и твой профиль.' },
-    { num: '02', title: 'Выбери машину', text: 'Новый заезд открывает четыре машины. У каждой свой корпус, слоты и способность. «Подробнее» объясняет стиль.' },
+    { num: '01', title: 'Это гараж', text: 'Три входа: новый заезд, продолжение и рейтинг. Остальное — антураж и профиль.' },
+    { num: '02', title: 'Выбери машину', text: 'В новом заезде — четыре машины. У каждой свой корпус, свои слоты и своя способность. «Подробнее» объясняет стиль.' },
     { num: '03', title: 'Гонка — три фазы', text: 'Подготовка (карта или пит), движение (d4 + модификаторы), огонь (атака или ловушка). Финиш — нужное число кругов.' },
   ];
 
@@ -1935,7 +1935,7 @@
       '<p>Ход состоит из трёх фаз. Сыграй карту в подготовке — или сразу бросай d4 и двигайся.</p>' +
       '<ol style="margin-top:10px;padding-left:20px;display:flex;flex-direction:column;gap:5px">' +
       '<li><b>Подготовка</b> — карта до движения или пит-стоп.</li>' +
-      '<li><b>Движение</b> — d4 + модификаторы; машина едет на итог.</li>' +
+      '<li><b>Движение</b> — d4 + модификаторы; машина едет на итоговую сумму.</li>' +
       '<li><b>Огонь</b> — атака или ловушка.</li></ol>' +
       '<p style="margin-top:10px;color:var(--muted)">Кнопка <b>?</b> вверху открывает полный устав.</p>' +
       '<div class="modal-actions"><button class="act-btn primary" id="hint-go" type="button">ПОГНАЛИ</button></div>',
@@ -2059,9 +2059,9 @@
     $('#game-menu-btn').addEventListener('click', async () => {
       if (!UI.game || UI.game.race.over) { backToLobby(); return; }
       const yes = await modal(
-        '<h3>ВЫЙТИ В ЛОББИ?</h3><p>Прогресс сохранится автоматически. Заезд останется активным — его можно продолжить.</p>' +
+        '<h3>ВЫЙТИ В ГАРАЖ?</h3><p>Прогресс сохранится автоматически. Заезд останется активным — его можно продолжить.</p>' +
         '<div class="modal-actions"><button class="act-btn ghost" data-close>ОСТАТЬСЯ</button>' +
-        '<button class="act-btn primary" id="confirm-leave">В ЛОББИ</button></div>',
+        '<button class="act-btn primary" id="confirm-leave">В ГАРАЖ</button></div>',
         (rootEl, close) => {
           $('#confirm-leave', rootEl).addEventListener('click', () => close(true));
         });
@@ -2360,7 +2360,7 @@
     card.innerHTML =
       '<div class="turn-head">' +
       '<div><div class="turn-who" style="color:' + (f ? f.color : '#c8a04e') + '">' + (cur ? esc(cur.name) : '—') + '</div>' +
-      '<div class="turn-sub">' + (isMyTurn ? 'ВАШ ХОД' : 'ХОД СОПЕРНИКА') + '</div></div>' +
+      '<div class="turn-sub">' + (isMyTurn ? 'ТВОЙ ХОД' : 'ХОД СОПЕРНИКА') + '</div></div>' +
       '<div class="turn-phase">' + phaseLabel(phase) + '</div>' +
       '</div>' +
       timerHtml +
@@ -2394,7 +2394,7 @@
       hint = 'Гонка завершена.';
     } else if (isMyTurn) {
       if (phase === 'prep') {
-        hint = 'Сыграйте одну карту из руки, объявите пит-стоп или сразу бросайте движение.';
+        hint = 'Сыграй карту, объяви пит-стоп — или сразу бросай d4.';
         actions += '<button id="pvp-roll-btn" class="act-btn primary">БРОСОК d4</button>';
         if (my && CnA.isPitNode(proj, my.node) && !(my.flags && my.flags.pitThisRace)) {
           actions += '<button id="pvp-pit-btn" class="act-btn sky">ПИТ-СТОП</button>';
@@ -2423,7 +2423,7 @@
     }
 
     const lap = cur ? Math.min(proj.laps, Math.max(1, (cur.lapsDone || 0) + 1)) : 1;
-    const turnLine = 'РАУНД ' + proj.race.round + ' · КРУГ ' + lap + '/' + proj.laps + ' · ' + (isMyTurn ? 'ВАШ ХОД' : 'ХОД СОПЕРНИКА');
+    const turnLine = 'РАУНД ' + proj.race.round + ' · КРУГ ' + lap + '/' + proj.laps + ' · ' + (isMyTurn ? 'ТВОЙ ХОД' : 'ХОД СОПЕРНИКА');
     el.innerHTML =
       '<div class="phase-chips">' + chips + '</div>' +
       '<div class="phase-info"><span class="phase-turn">' + turnLine + '</span><span class="phase-hint">' + hint + '</span></div>' +
@@ -2682,7 +2682,7 @@
         '</div>';
     }).join('');
     modal('<h3>ИГРА ЗАВЕРШЕНА</h3><div class="results-table">' + (rows || '<p>—</p>') + '</div>' +
-      '<div class="modal-actions"><button class="act-btn primary" id="pvp-result-ok">В ЛОББИ</button></div>',
+      '<div class="modal-actions"><button class="act-btn primary" id="pvp-result-ok">В ГАРАЖ</button></div>',
       (rootEl, close) => {
         $('#pvp-result-ok', rootEl).addEventListener('click', () => {
           close(true);

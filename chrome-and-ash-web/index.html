@@ -83,7 +83,7 @@
             </button>
             <button id="hub-continue" class="hub-item" type="button">
               <span class="hub-num">02</span>
-              <span class="hub-text"><b>ПРОДОЛЖИТЬ</b><small id="hub-continue-sub">нет активной партии</small></span>
+              <span class="hub-text"><b>ПРОДОЛЖИТЬ</b><small id="hub-continue-sub">нет активного заезда</small></span>
               <span class="hub-arrow" aria-hidden="true">→</span>
             </button>
             <button id="hub-leaderboard" class="hub-item" type="button">
@@ -115,7 +115,7 @@
         <button id="faction-back" class="chip-btn" type="button">← В ГАРАЖ</button>
         <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>выбор машины</em></div>
         <div id="faction-tabs" class="faction-tabs">
-          <button class="faction-tab active" data-mode="race" type="button">СВОБОДНЫЙ</button>
+          <button class="faction-tab active" data-mode="race" type="button">СВОБОДНЫЙ ЗАЕЗД</button>
           <button class="faction-tab" data-mode="daily" type="button">ЕЖЕДНЕВНЫЙ</button>
         </div>
       </header>
@@ -123,7 +123,7 @@
       <main class="faction-main">
         <div class="faction-head">
           <h2>ВЫБЕРИ МАШИНУ</h2>
-          <p id="faction-sub">Четыре характера. Один заезд. Выбор за тобой.</p>
+          <p id="faction-sub">Четыре характера. Один заезд. Выбирай.</p>
         </div>
         <div id="faction-cards" class="faction-grid"></div>
         <div class="faction-cta">
@@ -137,12 +137,12 @@
     <section id="screen-pvp-lobby" class="screen">
       <header class="topbar">
         <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>PvP</em></div>
-        <button id="pvp-back-btn" class="chip-btn" type="button">В ЛОББИ</button>
+        <button id="pvp-back-btn" class="chip-btn" type="button">В ГАРАЖ</button>
       </header>
       <div class="sub-wrap">
         <div class="sub-head">
           <h2>PvP · ЛОББИ</h2>
-          <p>Создай лобби или войди по коду. 4 слота, пустые занимают боты. Владелец запускает гонку.</p>
+          <p>Создай лобби или войди по коду. 4 места, пустые занимают боты. Владелец запускает гонку.</p>
         </div>
         <div id="pvp-lobby-panels" class="lobby-grid">
           <div class="panel">
@@ -181,7 +181,7 @@
           <button id="save-now-btn" class="chip-btn" type="button" title="Сохранить сейчас">СОХРАНИТЬ</button>
           <button id="game-help" class="chip-btn" type="button" aria-label="Как играть" title="Как играть">?</button>
           <button id="pvp-resign-btn" class="chip-btn danger" type="button" hidden>СДАТЬСЯ</button>
-          <button id="game-menu-btn" class="chip-btn danger" type="button">В МЕНЮ</button>
+          <button id="game-menu-btn" class="chip-btn danger" type="button">В ГАРАЖ</button>
         </div>
       </header>
 
@@ -247,7 +247,7 @@
         <div class="sub-actions">
           <button id="results-new" class="big-btn" type="button">НОВЫЙ ЗАЕЗД</button>
           <button id="results-leaderboard" class="big-btn secondary" type="button">РЕЙТИНГ</button>
-          <button id="results-menu" class="ghost-btn" type="button">В ЛОББИ</button>
+          <button id="results-menu" class="ghost-btn" type="button">В ГАРАЖ</button>
         </div>
       </div>
     </section>
@@ -259,10 +259,10 @@
         <button id="lb-back-btn" class="chip-btn" type="button">НАЗАД</button>
       </header>
       <div class="sub-wrap">
-        <div class="sub-head"><h2>РЕЙТИНГ</h2><p>Общий зачёт по очкам чемпионата. Тай-брейк — нанесённый урон, затем уничтожения.</p></div>
+        <div class="sub-head"><h2>РЕЙТИНГ</h2><p>Кто сколько набил. При равенстве — больше урона, затем уничтожений.</p></div>
         <div class="board-tabs" data-scope="full">
           <button class="board-tab active" data-lb="daily" type="button">ЕЖЕДНЕВНЫЙ</button>
-          <button class="board-tab" data-lb="race" type="button">ЗАЕЗД</button>
+          <button class="board-tab" data-lb="race" type="button">СВОБОДНЫЙ</button>
           <button class="board-tab" data-lb="championship" type="button">ЧЕМПИОНАТ</button>
         </div>
         <div id="leaderboard-full" class="leaderboard"></div>
@@ -285,7 +285,7 @@
             <button class="help-tab" data-help="cards" type="button">КАРТЫ</button>
             <button class="help-tab" data-help="factions" type="button">ФРАКЦИИ</button>
             <button class="help-tab" data-help="pvp" type="button">PVP</button>
-            <button class="help-tab" data-help="faq" type="button">FAQ</button>
+            <button class="help-tab" data-help="faq" type="button">ВОПРОСЫ</button>
           </nav>
           <div id="help-body" class="help-body"></div>
         </div>

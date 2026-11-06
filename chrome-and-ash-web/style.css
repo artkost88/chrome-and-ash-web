@@ -834,12 +834,12 @@ code { font-family: var(--font-mono); color: var(--brass); }
   color: var(--muted); font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em;
 }
 .faction-tab.active { color: var(--waste); background: linear-gradient(180deg, #ff9d3f, var(--flame)); border-color: var(--flame); }
-.faction-main { max-width: 2200px; margin: 0 auto; padding: 20px clamp(16px, 3vw, 44px) 104px; }
+.faction-main { max-width: 2200px; margin: 0 auto; padding: 20px clamp(16px, 3vw, 44px) 150px; }
 .faction-head h2 { font-family: var(--font-display); font-size: clamp(30px, 3.4vw, 54px); letter-spacing: .03em; color: var(--brass); }
 .faction-head p { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .faction-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-top: 18px; }
 .car-card {
-  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  position: relative; display: grid; grid-template-rows: minmax(0, 1fr) 345px; height: 100%; overflow: hidden;
   background: linear-gradient(180deg, rgba(36,31,26,.78), rgba(11,15,18,.92));
   border: 1px solid rgba(245,240,232,.12); border-top: 3px solid var(--fc);
   transition: .18s ease;
@@ -848,12 +848,12 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .car-card.active { border-color: var(--fc); box-shadow: 0 0 0 1px var(--fc) inset, 0 0 40px color-mix(in srgb, var(--fc) 22%, transparent); }
 .car-card.locked { opacity: .42; }
 .car-card.locked::before {
-  content: 'ФИКСИРОВАНА НА СЕГОДНЯ'; position: absolute; top: 8px; left: 8px; z-index: 2;
+  content: 'НЕДОСТУПНА СЕГОДНЯ'; position: absolute; top: 8px; left: 8px; z-index: 2;
   font-family: var(--font-mono); font-size: 8px; letter-spacing: .1em; color: var(--brass);
   background: rgba(11,15,18,.8); padding: 3px 5px; border: 1px solid rgba(200,160,78,.4);
 }
 .car-art {
-  position: relative; flex: 1; display: grid; place-items: center; min-height: 38vh; padding: 12px;
+  position: relative; display: grid; place-items: center; min-height: 0; padding: 12px; overflow: hidden;
   background: radial-gradient(60% 55% at 50% 58%, color-mix(in srgb, var(--fc) 20%, transparent), transparent 72%);
 }
 .car-art::after {
@@ -861,8 +861,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
   font-family: var(--font-display); font-size: 120px; color: var(--fc); opacity: .06; pointer-events: none;
 }
 .car-art img { position: relative; z-index: 1; width: min(92%, 520px); height: auto; max-height: 54vh; object-fit: contain; filter: drop-shadow(0 18px 24px rgba(0,0,0,.55)); }
-.car-info { padding: 10px 14px 14px; border-top: 1px solid rgba(245,240,232,.1); }
-.car-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.car-info { display: flex; flex-direction: column; padding: 10px 14px 14px; border-top: 1px solid rgba(245,240,232,.1); }
+.car-top { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
 .car-top h3 { font-family: var(--font-display); font-size: 17px; letter-spacing: .02em; color: var(--chrome); }
 .car-car { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
 .car-meta { display: flex; gap: 14px; margin-top: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--fc); }
@@ -871,8 +871,10 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .car-tag { padding: 2px 5px; border: 1px solid var(--fc); color: var(--fc); font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; }
 .car-ability { margin-top: 8px; font-size: 11px; line-height: 1.45; color: var(--text-dim); }
 .car-ability b { color: var(--chrome); }
+.car-desc { min-height: calc(4 * 1.5em); }
+.car-role { margin-top: 7px; color: var(--muted); }
 .car-more {
-  margin-top: 10px; align-self: flex-start; padding: 5px 8px;
+  margin-top: auto; align-self: flex-start; padding: 5px 8px;
   background: none; border: 1px solid rgba(200,160,78,.42); color: var(--brass);
   font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em;
 }
@@ -880,12 +882,19 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .faction-cta {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  padding: 12px clamp(18px, 3vw, 44px);
+  padding: 12px max(clamp(18px, 3vw, 44px), calc((100vw - 2200px) / 2 + 44px));
   background: linear-gradient(0deg, rgba(11,15,18,.98), rgba(11,15,18,.72));
   border-top: 1px solid var(--line); backdrop-filter: blur(8px);
 }
+.faction-cta .big-btn { width: auto; min-width: 340px; flex: 0 0 auto; }
 .faction-detail { font-size: 12px; line-height: 1.45; color: var(--muted); }
 .faction-detail b { color: var(--chrome); }
+.car-card:focus-visible, .faction-tab:focus-visible, .car-more:focus-visible, .hub-item:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+@media (min-width: 901px) {
+  .faction-top { position: relative; }
+  .faction-top .brand { position: absolute; left: 50%; transform: translateX(-50%); }
+  .faction-tabs { margin-left: auto; }
+}
 
 /* ================================================================
    КАК ИГРАТЬ + ОБУЧЕНИЕ
@@ -936,8 +945,6 @@ code { font-family: var(--font-mono); color: var(--brass); }
    ================================================================ */
 @media (max-width: 1400px) {
   .faction-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .car-art { min-height: 32vh; }
-  .car-art img { max-height: 40vh; }
 }
 @media (max-width: 900px) {
   .hub-bg { background:
@@ -947,7 +954,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .hub-title { font-size: clamp(52px, 12vw, 76px); }
   .hub-scene-label { display: none; }
   .faction-top { flex-wrap: wrap; }
-  .faction-top .brand { order: 3; flex-basis: 100%; text-align: left; }
+  .faction-top .brand { order: 3; flex-basis: 100%; text-align: left; position: static; transform: none; }
   .faction-tabs { margin-left: auto; }
   .help-layout { grid-template-columns: 1fr; }
   .help-tabs { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid rgba(245,240,232,.1); }
@@ -961,7 +968,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .faction-grid { grid-template-columns: 1fr; }
   .car-art { min-height: 30vh; }
   .faction-cta { flex-direction: column; align-items: stretch; }
-  .faction-cta .big-btn { width: 100%; }
+  .faction-cta .big-btn { width: 100%; min-width: 0; }
+  .faction-main { padding-bottom: 170px; }
   .help-body { padding: 14px 16px; }
   .help-foot { flex-direction: column; align-items: stretch; }
 }
@@ -999,8 +1007,9 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .hub-stats .stat-box span { font-size: 9.5px; }
   .faction-head h2 { font-size: clamp(34px, 3.2vw, 58px); }
   .faction-head p { font-size: clamp(14px, 1.05vw, 19px); }
-  .faction-tab { font-size: 12px; padding: 10px 14px; }
-  .car-top h3 { font-size: clamp(22px, 1.6vw, 30px); }
+  .faction-tab { font-size: 14px; padding: 10px 16px; }
+  .faction-top .chip-btn { font-size: 13px; padding: 9px 13px; }
+  .car-top h3 { font-size: clamp(20px, 1.35vw, 28px); }
   .car-car { font-size: clamp(12px, .9vw, 16px); }
   .car-meta { font-size: clamp(14px, 1.05vw, 19px); }
   .car-tag { font-size: clamp(10px, .8vw, 13px); padding: 3px 7px; }
@@ -1010,4 +1019,13 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .help-body { font-size: clamp(14px, 1vw, 17px); }
   .help-tab { font-size: 12px; }
   .help-body h3 { font-size: 19px; }
+}
+
+/* Разные кадры мини-моделей: компенсируем масштаб, чтобы машины
+   выглядели сопоставимо, а не «одна большая, другая маленькая». */
+.car-card[data-faction="chrome"] .car-art img { transform: scale(1.03); }
+.car-card[data-faction="swarm"] .car-art img { transform: scale(1.12); transform-origin: 50% 62%; }
+@media (max-width: 900px) {
+  .car-card { grid-template-rows: auto auto; }
+  .car-info { height: auto; }
 }
