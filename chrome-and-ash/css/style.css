@@ -318,7 +318,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 /* Гексы: толстая чёрная обводка + белая разметка. Опасность и КП рисуются
    SVG-паттернами в ui.js (красная штриховка / шахматка). */
 .hex { stroke: rgba(245,240,232,.30); stroke-width: 2; }
-.hex.hazard { stroke: rgba(255,122,30,.55); }
+.hex.hazard { stroke: rgba(255,122,30,.82); stroke-width: 2.4; }
 .hex.checkpoint { stroke: rgba(245,240,232,.60); }
 .hex-label {
   font-family: var(--font-display); font-size: 10px; letter-spacing: .04em;
@@ -342,7 +342,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .token-oil { fill: #0b0f12; stroke: #c8a04e; stroke-width: 1.6; }
 .token-fire { fill: #ff7a1e; stroke: #241f1a; stroke-width: 1.2; }
 .token-wreck { stroke: #b9b2a6; }
-.token-label { font-family: var(--font-mono); font-size: 7px; text-anchor: middle; fill: #f5f0e8; }
+.token-label { font-family: var(--font-mono); font-size: 8px; text-anchor: middle; fill: #f5f0e8; }
 
 .board-floats { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .float-dmg {

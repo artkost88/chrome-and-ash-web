@@ -325,7 +325,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 /* Гексы: толстая чёрная обводка + белая разметка. Опасность и КП рисуются
    SVG-паттернами в ui.js (красная штриховка / шахматка). */
 .hex { stroke: rgba(245,240,232,.30); stroke-width: 2; }
-.hex.hazard { stroke: rgba(255,122,30,.55); }
+.hex.hazard { stroke: rgba(255,122,30,.82); stroke-width: 2.4; }
 .hex.checkpoint { stroke: rgba(245,240,232,.60); }
 .hex-label {
   font-family: var(--font-display); font-size: 10px; letter-spacing: .04em;
@@ -349,7 +349,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .token-oil { fill: #0b0f12; stroke: #c8a04e; stroke-width: 1.6; }
 .token-fire { fill: #ff7a1e; stroke: #241f1a; stroke-width: 1.2; }
 .token-wreck { stroke: #b9b2a6; }
-.token-label { font-family: var(--font-mono); font-size: 7px; text-anchor: middle; fill: #f5f0e8; }
+.token-label { font-family: var(--font-mono); font-size: 8px; text-anchor: middle; fill: #f5f0e8; }
 
 .board-floats { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .float-dmg {
@@ -943,11 +943,14 @@ code { font-family: var(--font-mono); color: var(--brass); }
             <div id="toast-zone" class="toast-zone"></div>
             <div class="board-legend">
               <span><i style="background:#3a332c"></i>дорога</span>
-              <span><i style="background:#a34a24"></i>песок</span>
-              <span><i style="background:#9e1f1a"></i>опасность</span>
+              <span><i style="background:#a34a24"></i>песок −1</span>
+              <span><i style="background:#9e1f1a"></i>обломки d4</span>
               <span><i style="background:#ff7a1e"></i>пустошь ?</span>
               <span><i style="background:#241f1a"></i>пит</span>
-              <span><i style="background:#d8d8d2"></i>КП · шахматка</span>
+              <span><i style="background:#d8d8d2"></i>КП</span>
+              <span><i style="background:#9e1f1a"></i>мина</span>
+              <span><i style="background:#0b0f12;border-color:#c8a04e"></i>масло</span>
+              <span><i style="background:#ff7a1e"></i>огонь</span>
             </div>
           </div>
           <div id="dice-strip" class="dice-strip"></div>
@@ -5053,6 +5056,15 @@ code { font-family: var(--font-mono); color: var(--brass); }
     });
 
     // гексы
+    const TILE_EFFECT = {
+      sand: { icon: '≈', text: '−1', color: '#ffb27a' },
+      debris: { icon: '✕', text: 'd4', color: '#ff8c7a' },
+      event: { icon: '?', text: 'ПУСТОШЬ', color: '#ff7a1e' },
+      pit: { icon: '⚙', text: 'РЕМОНТ', color: '#c8a04e' },
+      ramp: { icon: '⌒', text: 'ПРЫЖОК', color: '#c8a04e' },
+      tunnel: { icon: '∩', text: '−1 ДАЛЬН.', color: '#3ba7b0' },
+      bridge: { icon: '═', text: 'ВОЗВРАТ', color: '#d8d8d2' },
+    };
     nodes.forEach((n) => {
       const tile = CnA.TILES[n.type] || CnA.TILES.straight;
       const isHaz = CnA.HAZARD_TILES.indexOf(n.type) >= 0;
@@ -5065,7 +5077,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
       parts.push('<polygon class="' + cls + '" points="' + hexPoints(n.x, n.y, hs) + '" fill="' + sunsetFill + '"></polygon>');
       parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#dots)" opacity=".12"></polygon>');
       if (isHaz) {
-        parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#hatch-danger)" opacity=".5"></polygon>');
+        parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#hatch-danger)" opacity=".68"></polygon>');
       }
       if (n.checkpoint) {
         parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#checker)" opacity=".92"></polygon>');
@@ -5112,6 +5124,14 @@ code { font-family: var(--font-mono); color: var(--brass); }
         const labelY = n.road === false ? n.y - 2 : (n.type === 'start' ? n.y - hs * 0.40 : n.y - (hs * 0.55));
         const ink = SUNSET_INK[n.type] || tile.ink;
         parts.push('<text class="hex-label" x="' + n.x + '" y="' + labelY + '" font-size="' + fs + '" fill="' + ink + '">' + esc(label) + '</text>');
+      }
+      const eff = !n.inner ? TILE_EFFECT[n.type] : null;
+      if (eff) {
+        const effText = eff.icon + ' ' + eff.text;
+        const ew = Math.max(18, effText.length * 3.1 + 6);
+        const ey = n.y + hs * 0.42;
+        parts.push('<rect x="' + (n.x - ew / 2) + '" y="' + (ey - 4.6) + '" width="' + ew + '" height="9.2" rx="2.4" fill="#0b0f12" opacity=".86" stroke="' + eff.color + '" stroke-width="1"/>');
+        parts.push('<text x="' + n.x + '" y="' + (ey + 2.2) + '" text-anchor="middle" font-family="Cascadia Mono, Consolas, monospace" font-size="5.8" fill="' + eff.color + '" pointer-events="none">' + esc(effText) + '</text>');
       }
       parts.push('<text class="hex-num" x="' + n.x + '" y="' + (n.y + hs * 0.72) + '">' + n.id + '</text>');
       if (n.checkpoint && n.type !== 'checkpoint') {

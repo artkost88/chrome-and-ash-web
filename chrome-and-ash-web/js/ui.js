@@ -1120,6 +1120,15 @@
     });
 
     // гексы
+    const TILE_EFFECT = {
+      sand: { icon: '≈', text: '−1', color: '#ffb27a' },
+      debris: { icon: '✕', text: 'd4', color: '#ff8c7a' },
+      event: { icon: '?', text: 'ПУСТОШЬ', color: '#ff7a1e' },
+      pit: { icon: '⚙', text: 'РЕМОНТ', color: '#c8a04e' },
+      ramp: { icon: '⌒', text: 'ПРЫЖОК', color: '#c8a04e' },
+      tunnel: { icon: '∩', text: '−1 ДАЛЬН.', color: '#3ba7b0' },
+      bridge: { icon: '═', text: 'ВОЗВРАТ', color: '#d8d8d2' },
+    };
     nodes.forEach((n) => {
       const tile = CnA.TILES[n.type] || CnA.TILES.straight;
       const isHaz = CnA.HAZARD_TILES.indexOf(n.type) >= 0;
@@ -1132,7 +1141,7 @@
       parts.push('<polygon class="' + cls + '" points="' + hexPoints(n.x, n.y, hs) + '" fill="' + sunsetFill + '"></polygon>');
       parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#dots)" opacity=".12"></polygon>');
       if (isHaz) {
-        parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#hatch-danger)" opacity=".5"></polygon>');
+        parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#hatch-danger)" opacity=".68"></polygon>');
       }
       if (n.checkpoint) {
         parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#checker)" opacity=".92"></polygon>');
@@ -1183,6 +1192,15 @@
         const ink = SUNSET_INK[n.type] || tile.ink;
         parts.push('<text class="hex-label" x="' + n.x + '" y="' + labelY + '" font-size="' + fs + '" fill="' + ink + '">' + esc(label) + '</text>');
       }
+      // Чип эффекта: механика тайла прямо на доске, а не только в легенде.
+      const eff = !n.inner ? TILE_EFFECT[n.type] : null;
+      if (eff) {
+        const effText = eff.icon + ' ' + eff.text;
+        const ew = Math.max(18, effText.length * 3.1 + 6);
+        const ey = n.y + hs * 0.42;
+        parts.push('<rect x="' + (n.x - ew / 2) + '" y="' + (ey - 4.6) + '" width="' + ew + '" height="9.2" rx="2.4" fill="#0b0f12" opacity=".86" stroke="' + eff.color + '" stroke-width="1"/>');
+        parts.push('<text x="' + n.x + '" y="' + (ey + 2.2) + '" text-anchor="middle" font-family="Cascadia Mono, Consolas, monospace" font-size="5.8" fill="' + eff.color + '" pointer-events="none">' + esc(effText) + '</text>');
+      }
       parts.push('<text class="hex-num" x="' + n.x + '" y="' + (n.y + hs * 0.72) + '">' + n.id + '</text>');
       if (n.checkpoint && n.type !== 'checkpoint') {
         parts.push('<text class="hex-label" x="' + n.x + '" y="' + (n.y + 12) + '" font-size="6.4" fill="#f5f0e8">КП</text>');
@@ -1204,15 +1222,19 @@
       const title = tok.type === 'mine' ? 'Мина' : tok.type === 'oil' ? 'Масло' : tok.type === 'fire' ? 'Огонь' : 'Обломки';
       parts.push('<g><title>' + title + '</title>');
       if (tok.type === 'mine') {
-        parts.push('<polygon class="token-mine" points="' + starPoints(x, y, 7.5) + '"></polygon>');
+        parts.push('<circle cx="' + x + '" cy="' + y + '" r="10" fill="none" stroke="#9e1f1a" stroke-width="1.2" opacity=".75"></circle>');
+        parts.push('<polygon class="token-mine" points="' + starPoints(x, y, 8.5) + '"></polygon>');
         parts.push('<text class="token-label" x="' + x + '" y="' + (y + 2.5) + '">✸</text>');
+        parts.push('<text x="' + x + '" y="' + (y + 12) + '" text-anchor="middle" font-family="Cascadia Mono, Consolas, monospace" font-size="5" fill="#ff8c7a">3d4</text>');
       } else if (tok.type === 'oil') {
-        parts.push('<ellipse class="token-oil" cx="' + x + '" cy="' + y + '" rx="8" ry="5"></ellipse>');
+        parts.push('<ellipse class="token-oil" cx="' + x + '" cy="' + y + '" rx="9" ry="6"></ellipse>');
+        parts.push('<text class="token-label" x="' + x + '" y="' + (y + 2.5) + '" font-size="8">≈</text>');
       } else if (tok.type === 'fire') {
-        parts.push('<polygon class="token-fire" points="' + (x - 6) + ',' + (y + 4) + ' ' + (x + 6) + ',' + (y + 4) + ' ' + x + ',' + (y - 6) + '"></polygon>');
+        parts.push('<polygon class="token-fire" points="' + (x - 7) + ',' + (y + 5) + ' ' + (x + 7) + ',' + (y + 5) + ' ' + x + ',' + (y - 8) + '"></polygon>');
+        parts.push('<text class="token-label" x="' + x + '" y="' + (y + 3) + '" font-size="7">▲</text>');
       } else {
-        parts.push('<line class="token-wreck" x1="' + (x - 5) + '" y1="' + (y - 5) + '" x2="' + (x + 5) + '" y2="' + (y + 5) + '" stroke="#b9b2a6" stroke-width="2.5"></line>');
-        parts.push('<line class="token-wreck" x1="' + (x + 5) + '" y1="' + (y - 5) + '" x2="' + (x - 5) + '" y2="' + (y + 5) + '" stroke="#b9b2a6" stroke-width="2.5"></line>');
+        parts.push('<line class="token-wreck" x1="' + (x - 6) + '" y1="' + (y - 6) + '" x2="' + (x + 6) + '" y2="' + (y + 6) + '" stroke="#b9b2a6" stroke-width="2.5"></line>');
+        parts.push('<line class="token-wreck" x1="' + (x + 6) + '" y1="' + (y - 6) + '" x2="' + (x - 6) + '" y2="' + (y + 6) + '" stroke="#b9b2a6" stroke-width="2.5"></line>');
       }
       parts.push('</g>');
     });

@@ -978,6 +978,15 @@
     });
 
     // гексы
+    const TILE_EFFECT = {
+      sand: { icon: '≈', text: '−1', color: '#ffb27a' },
+      debris: { icon: '✕', text: 'd4', color: '#ff8c7a' },
+      event: { icon: '?', text: 'ПУСТОШЬ', color: '#ff7a1e' },
+      pit: { icon: '⚙', text: 'РЕМОНТ', color: '#c8a04e' },
+      ramp: { icon: '⌒', text: 'ПРЫЖОК', color: '#c8a04e' },
+      tunnel: { icon: '∩', text: '−1 ДАЛЬН.', color: '#3ba7b0' },
+      bridge: { icon: '═', text: 'ВОЗВРАТ', color: '#d8d8d2' },
+    };
     nodes.forEach((n) => {
       const tile = CnA.TILES[n.type] || CnA.TILES.straight;
       const isHaz = CnA.HAZARD_TILES.indexOf(n.type) >= 0;
@@ -990,7 +999,7 @@
       parts.push('<polygon class="' + cls + '" points="' + hexPoints(n.x, n.y, hs) + '" fill="' + sunsetFill + '"></polygon>');
       parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#dots)" opacity=".12"></polygon>');
       if (isHaz) {
-        parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#hatch-danger)" opacity=".5"></polygon>');
+        parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#hatch-danger)" opacity=".68"></polygon>');
       }
       if (n.checkpoint) {
         parts.push('<polygon points="' + hexPoints(n.x, n.y, hs) + '" fill="url(#checker)" opacity=".92"></polygon>');
@@ -1037,6 +1046,14 @@
         const labelY = n.road === false ? n.y - 2 : (n.type === 'start' ? n.y - hs * 0.40 : n.y - (hs * 0.55));
         const ink = SUNSET_INK[n.type] || tile.ink;
         parts.push('<text class="hex-label" x="' + n.x + '" y="' + labelY + '" font-size="' + fs + '" fill="' + ink + '">' + esc(label) + '</text>');
+      }
+      const eff = !n.inner ? TILE_EFFECT[n.type] : null;
+      if (eff) {
+        const effText = eff.icon + ' ' + eff.text;
+        const ew = Math.max(18, effText.length * 3.1 + 6);
+        const ey = n.y + hs * 0.42;
+        parts.push('<rect x="' + (n.x - ew / 2) + '" y="' + (ey - 4.6) + '" width="' + ew + '" height="9.2" rx="2.4" fill="#0b0f12" opacity=".86" stroke="' + eff.color + '" stroke-width="1"/>');
+        parts.push('<text x="' + n.x + '" y="' + (ey + 2.2) + '" text-anchor="middle" font-family="Cascadia Mono, Consolas, monospace" font-size="5.8" fill="' + eff.color + '" pointer-events="none">' + esc(effText) + '</text>');
       }
       parts.push('<text class="hex-num" x="' + n.x + '" y="' + (n.y + hs * 0.72) + '">' + n.id + '</text>');
       if (n.checkpoint && n.type !== 'checkpoint') {
