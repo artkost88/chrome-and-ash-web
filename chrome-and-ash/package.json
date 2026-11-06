@@ -1,0 +1,14 @@
+{
+  "name": "chrome-and-ash-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Цифровой прототип настольной гонки на выживание «Хром и Пепел»",
+  "scripts": {
+    "start": "npx --yes serve .",
+    "build": "node build.mjs",
+    "sim": "node tests/report.js 600 150",
+    "sim:quick": "node tests/batch.js 300 race 1",
+    "test": "node tests/smoke.js 12345",
+    "sim:mosaic": "node tests/mosaic.js 300"
+  }
+}

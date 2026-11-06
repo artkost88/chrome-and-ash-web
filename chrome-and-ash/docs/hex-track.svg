@@ -1,0 +1,457 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1400 1000">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#17262d"/>
+    <stop offset=".6" stop-color="#0f171c"/>
+    <stop offset="1" stop-color="#080c0f"/>
+  </linearGradient>
+  <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+    <stop offset="0" stop-color="#ffe4a8" stop-opacity=".85"/>
+    <stop offset=".5" stop-color="#e0b060" stop-opacity=".35"/>
+    <stop offset="1" stop-color="#e0b060" stop-opacity="0"/>
+  </radialGradient>
+  <pattern id="checker" width="10" height="10" patternUnits="userSpaceOnUse">
+    <rect width="5" height="5" fill="#151515"/>
+    <rect x="5" y="5" width="5" height="5" fill="#151515"/>
+    <rect x="5" width="5" height="5" fill="#d8d8d2"/>
+    <rect y="5" width="5" height="5" fill="#d8d8d2"/>
+  </pattern>
+  <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="8" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <style>
+    .title { font-family: 'Arial Black', Impact, sans-serif; letter-spacing: .02em; }
+    .h { font-family: 'Arial Black', Impact, sans-serif; letter-spacing: .06em; }
+    .b { font-family: 'Segoe UI', Arial, sans-serif; }
+    .m { font-family: 'Cascadia Mono', Consolas, monospace; }
+    .lbl { font-family: 'Arial Black', Impact, sans-serif; font-size: 9px; letter-spacing: .06em; paint-order: stroke; stroke: rgba(0,0,0,.5); stroke-width: 2px; }
+    .small { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9px; fill: #9a9184; }
+  </style>
+</defs>
+<rect width="1400" height="1000" fill="url(#bg)"/>
+<circle cx="1120" cy="160" r="240" fill="url(#sun)"/>
+<g opacity=".18">
+<line x1="0" y1="0" x2="1400" y2="0" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="70" x2="1400" y2="70" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="140" x2="1400" y2="140" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="210" x2="1400" y2="210" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="280" x2="1400" y2="280" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="350" x2="1400" y2="350" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="420" x2="1400" y2="420" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="490" x2="1400" y2="490" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="560" x2="1400" y2="560" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="630" x2="1400" y2="630" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="700" x2="1400" y2="700" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="770" x2="1400" y2="770" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="840" x2="1400" y2="840" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="910" x2="1400" y2="910" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="980" x2="1400" y2="980" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+<line x1="0" y1="1050" x2="1400" y2="1050" stroke="#e0b060" stroke-width=".5" opacity=".15"/>
+</g>
+<g transform="translate(56,56)">
+<text class="title" x="0" y="42" font-size="54" fill="#e0b060">ПЫЛЬНАЯ ПОДКОВА</text>
+<text class="h" x="0" y="70" font-size="13" fill="#d8d8d2">ЗАМКНУТАЯ ТРАССА ИЗ 36 ГЕКСОВ + 3 ПИТ-ТАЙЛА</text>
+<text class="b" x="0" y="92" font-size="12" fill="#9a9184">Не кольцо: последовательность шиканы, правого спуска, шпильки и левого подъёма. Один круг — 36 шагов.</text>
+</g>
+<g transform="translate(1030,58)">
+<rect x="0" y="0" width="314" height="132" fill="rgba(10,14,17,.6)" stroke="rgba(224,176,96,.25)"/>
+<text class="h" x="14" y="22" font-size="10" fill="#e0b060">СОСТАВ</text>
+<text class="title" x="14" y="56" font-size="22" fill="#d8d8d2">36</text>
+<text class="small" x="14" y="70">тайлов в круге</text>
+<text class="title" x="164" y="56" font-size="22" fill="#d8d8d2">3</text>
+<text class="small" x="164" y="70">тайла пит-лейна</text>
+<text class="title" x="14" y="96" font-size="22" fill="#d8d8d2">10</text>
+<text class="small" x="14" y="110">тайлов застройки</text>
+<text class="title" x="164" y="96" font-size="22" fill="#d8d8d2">4</text>
+<text class="small" x="164" y="110">тайла стартовой решётки</text>
+</g>
+<g transform="translate(150,120) scale(1.08)">
+<g>
+<title>СТАРТ · тайл 0</title>
+<polygon points="417.7,230.5 417.7,268.5 384.8,287.5 351.9,268.5 351.9,230.5 384.8,211.5" fill="#e8e2d2" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 351.8910346561913 249.5 Q 384.8 249.5 417.7089653438087 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 351.8910346561913 249.5 Q 384.8 249.5 417.7089653438087 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 351.8910346561913 249.5 Q 384.8 249.5 417.7089653438087 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПЕСОК · тайл 1</title>
+<polygon points="483.5,230.5 483.5,268.5 450.6,287.5 417.7,268.5 417.7,230.5 450.6,211.5" fill="#c9a15e" stroke="rgba(193,39,45,.75)" stroke-width="2.4"/>
+<g opacity=".9"><path d="M 428.6 261.5 q 7 -7 14 0 q 7 7 14 0" fill="none" stroke="#8a6c3c" stroke-width="1.8"/><path d="M 434.6 267.5 q 7 -7 14 0 q 7 7 14 0" fill="none" stroke="#8a6c3c" stroke-width="1.4" opacity=".7"/><circle cx="426.6" cy="233.5" r="1.2" fill="#8a6c3c"/><circle cx="474.6" cy="235.5" r="1" fill="#8a6c3c"/></g>
+<path d="M 417.69103465619133 249.5 Q 450.6 249.5 483.5089653438087 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 417.69103465619133 249.5 Q 450.6 249.5 483.5089653438087 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 417.69103465619133 249.5 Q 450.6 249.5 483.5089653438087 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ОБЛОМКИ · тайл 2</title>
+<polygon points="549.4,230.5 549.4,268.5 516.5,287.5 483.6,268.5 483.6,230.5 516.5,211.5" fill="#7a5a44" stroke="rgba(193,39,45,.75)" stroke-width="2.4"/>
+<g stroke="#4a3426" stroke-width="2" opacity=".9"><line x1="494.5" y1="235.5" x2="506.5" y2="247.5"/><line x1="494.5" y1="247.5" x2="506.5" y2="235.5"/><line x1="528.5" y1="259.5" x2="540.5" y2="271.5"/><line x1="540.5" y1="259.5" x2="528.5" y2="271.5"/></g>
+<path d="M 483.5910346561913 249.5 Q 516.5 249.5 549.4089653438086 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 483.5910346561913 249.5 Q 516.5 249.5 549.4089653438086 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 483.5910346561913 249.5 Q 516.5 249.5 549.4089653438086 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 3</title>
+<polygon points="615.2,230.5 615.2,268.5 582.3,287.5 549.4,268.5 549.4,230.5 582.3,211.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 549.3910346561913 249.5 Q 582.3 249.5 598.7511203245035 220.99805901225838" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 549.3910346561913 249.5 Q 582.3 249.5 598.7511203245035 220.99805901225838" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 549.3910346561913 249.5 Q 582.3 249.5 598.7511203245035 220.99805901225838" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 4</title>
+<polygon points="648.1,173.5 648.1,211.5 615.2,230.5 582.3,211.5 582.3,173.5 615.2,154.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 598.7488796754965 221.00194098774165 Q 615.2 192.5 648.1089653438087 192.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 598.7488796754965 221.00194098774165 Q 615.2 192.5 648.1089653438087 192.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 598.7488796754965 221.00194098774165 Q 615.2 192.5 648.1089653438087 192.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПУСТОШЬ ? · тайл 5</title>
+<polygon points="713.9,173.5 713.9,211.5 681.0,230.5 648.1,211.5 648.1,173.5 681.0,154.5" fill="#8c5a2a" stroke="rgba(193,39,45,.75)" stroke-width="2.4"/>
+<text x="681" y="176.5" text-anchor="middle" font-family="Arial Black, Impact" font-size="22" fill="#ffe2a8" opacity=".9">?</text>
+<path d="M 648.0910346561914 192.5 Q 681 192.5 709.49805835108 208.95784524834406" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 648.0910346561914 192.5 Q 681 192.5 709.49805835108 208.95784524834406" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 648.0910346561914 192.5 Q 681 192.5 709.49805835108 208.95784524834406" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 6</title>
+<polygon points="812.6,230.5 812.6,268.5 779.7,287.5 746.8,268.5 746.8,230.5 779.7,211.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 751.2019416489201 233.04215475165597 Q 779.7 249.5 812.6089653438087 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 751.2019416489201 233.04215475165597 Q 779.7 249.5 812.6089653438087 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 751.2019416489201 233.04215475165597 Q 779.7 249.5 812.6089653438087 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 7</title>
+<polygon points="878.4,230.5 878.4,268.5 845.5,287.5 812.6,268.5 812.6,230.5 845.5,211.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 812.5910346561914 249.5 Q 845.5 249.5 861.9885852632481 277.98028363651946" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 812.5910346561914 249.5 Q 845.5 249.5 861.9885852632481 277.98028363651946" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 812.5910346561914 249.5 Q 845.5 249.5 861.9885852632481 277.98028363651946" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 8</title>
+<polygon points="911.4,287.5 911.4,325.5 878.5,344.5 845.6,325.5 845.6,287.5 878.5,268.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 862.0114147367519 278.01971636348054 Q 878.5 306.5 894.9511203245036 335.00194098774165" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 862.0114147367519 278.01971636348054 Q 878.5 306.5 894.9511203245036 335.00194098774165" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 862.0114147367519 278.01971636348054 Q 878.5 306.5 894.9511203245036 335.00194098774165" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ТОННЕЛЬ · тайл 9</title>
+<polygon points="944.3,344.5 944.3,382.5 911.4,401.5 878.5,382.5 878.5,344.5 911.4,325.5" fill="#34302c" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".85"><path d="M 897.4 341.5 q 14 -16 28 0" fill="none" stroke="#1b1917" stroke-width="6"/><path d="M 897.4 385.5 q 14 16 28 0" fill="none" stroke="#1b1917" stroke-width="6"/></g>
+<path d="M 894.9488796754964 334.99805901225835 Q 911.4 363.5 927.8511203245034 392.00194098774165" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 894.9488796754964 334.99805901225835 Q 911.4 363.5 927.8511203245034 392.00194098774165" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 894.9488796754964 334.99805901225835 Q 911.4 363.5 927.8511203245034 392.00194098774165" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 10</title>
+<polygon points="977.2,401.5 977.2,439.5 944.3,458.5 911.4,439.5 911.4,401.5 944.3,382.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 927.8488796754964 391.99805901225835 Q 944.3 420.5 927.8488796754964 449.00194098774165" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 927.8488796754964 391.99805901225835 Q 944.3 420.5 927.8488796754964 449.00194098774165" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 927.8488796754964 391.99805901225835 Q 944.3 420.5 927.8488796754964 449.00194098774165" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 11</title>
+<polygon points="944.3,458.5 944.3,496.5 911.4,515.5 878.5,496.5 878.5,458.5 911.4,439.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 927.8511203245034 448.99805901225835 Q 911.4 477.5 894.9488796754964 506.00194098774165" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 927.8511203245034 448.99805901225835 Q 911.4 477.5 894.9488796754964 506.00194098774165" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 927.8511203245034 448.99805901225835 Q 911.4 477.5 894.9488796754964 506.00194098774165" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 12</title>
+<polygon points="911.4,515.5 911.4,553.5 878.5,572.5 845.6,553.5 845.6,515.5 878.5,496.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 894.9511203245036 505.99805901225835 Q 878.5 534.5 845.5910346561914 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 894.9511203245036 505.99805901225835 Q 878.5 534.5 845.5910346561914 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 894.9511203245036 505.99805901225835 Q 878.5 534.5 845.5910346561914 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 13</title>
+<polygon points="845.5,515.5 845.5,553.5 812.6,572.5 779.7,553.5 779.7,515.5 812.6,496.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 845.5089653438087 534.5 Q 812.6 534.5 779.6910346561914 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 845.5089653438087 534.5 Q 812.6 534.5 779.6910346561914 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 845.5089653438087 534.5 Q 812.6 534.5 779.6910346561914 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>КП · тайл 14</title>
+<polygon points="779.7,515.5 779.7,553.5 746.8,572.5 713.9,553.5 713.9,515.5 746.8,496.5" fill="#d8e6e6" stroke="rgba(59,167,176,.8)" stroke-width="2.4"/>
+
+<path d="M 779.7089653438086 534.5 Q 746.8 534.5 713.8910346561913 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 779.7089653438086 534.5 Q 746.8 534.5 713.8910346561913 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 779.7089653438086 534.5 Q 746.8 534.5 713.8910346561913 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>МОСТ · тайл 15</title>
+<polygon points="713.9,515.5 713.9,553.5 681.0,572.5 648.1,553.5 648.1,515.5 681.0,496.5" fill="#4a4038" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<path d="M 649 550.5 q 8 -12 16 0 q 8 12 16 0 q 8 -12 16 0" fill="none" stroke="#2a6a70" stroke-width="7" opacity=".45"/>
+<path d="M 713.9089653438086 534.5 Q 681 534.5 648.0910346561914 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 713.9089653438086 534.5 Q 681 534.5 648.0910346561914 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 713.9089653438086 534.5 Q 681 534.5 648.0910346561914 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ТРАМПЛИН · тайл 16</title>
+<polygon points="648.1,515.5 648.1,553.5 615.2,572.5 582.3,553.5 582.3,515.5 615.2,496.5" fill="#9a7440" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g stroke="#5a4526" stroke-width="2" opacity=".8"><path d="M 601.2 542.5 l 7 -7 l 7 7" fill="none"/><path d="M 601.2 550.5 l 7 -7 l 7 7" fill="none"/></g>
+<path d="M 648.1089653438087 534.5 Q 615.2 534.5 582.2910346561914 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 648.1089653438087 534.5 Q 615.2 534.5 582.2910346561914 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 648.1089653438087 534.5 Q 615.2 534.5 582.2910346561914 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 17</title>
+<polygon points="582.3,515.5 582.3,553.5 549.4,572.5 516.5,553.5 516.5,515.5 549.4,496.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 582.3089653438086 534.5 Q 549.4 534.5 532.9488796754964 505.99805901225835" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 582.3089653438086 534.5 Q 549.4 534.5 532.9488796754964 505.99805901225835" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 582.3089653438086 534.5 Q 549.4 534.5 532.9488796754964 505.99805901225835" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 18</title>
+<polygon points="549.4,458.5 549.4,496.5 516.5,515.5 483.6,496.5 483.6,458.5 516.5,439.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 532.9511203245036 506.00194098774165 Q 516.5 477.5 483.5910346561913 477.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 532.9511203245036 506.00194098774165 Q 516.5 477.5 483.5910346561913 477.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 532.9511203245036 506.00194098774165 Q 516.5 477.5 483.5910346561913 477.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 19</title>
+<polygon points="483.5,458.5 483.5,496.5 450.6,515.5 417.7,496.5 417.7,458.5 450.6,439.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 483.5089653438087 477.5 Q 450.6 477.5 434.1488796754965 448.99805901225835" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 483.5089653438087 477.5 Q 450.6 477.5 434.1488796754965 448.99805901225835" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 483.5089653438087 477.5 Q 450.6 477.5 434.1488796754965 448.99805901225835" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 20</title>
+<polygon points="450.6,401.5 450.6,439.5 417.7,458.5 384.8,439.5 384.8,401.5 417.7,382.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 434.1511203245035 449.00194098774165 Q 417.7 420.5 384.7910346561913 420.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 434.1511203245035 449.00194098774165 Q 417.7 420.5 384.7910346561913 420.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 434.1511203245035 449.00194098774165 Q 417.7 420.5 384.7910346561913 420.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 21</title>
+<polygon points="384.8,401.5 384.8,439.5 351.9,458.5 319.0,439.5 319.0,401.5 351.9,382.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 384.80896534380867 420.5 Q 351.9 420.5 368.3511203245035 449.00194098774165" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 384.80896534380867 420.5 Q 351.9 420.5 368.3511203245035 449.00194098774165" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 384.80896534380867 420.5 Q 351.9 420.5 368.3511203245035 449.00194098774165" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 22</title>
+<polygon points="417.7,458.5 417.7,496.5 384.8,515.5 351.9,496.5 351.9,458.5 384.8,439.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 368.3488796754965 448.99805901225835 Q 384.8 477.5 351.8910346561913 477.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 368.3488796754965 448.99805901225835 Q 384.8 477.5 351.8910346561913 477.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 368.3488796754965 448.99805901225835 Q 384.8 477.5 351.8910346561913 477.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 23</title>
+<polygon points="351.9,458.5 351.9,496.5 319.0,515.5 286.1,496.5 286.1,458.5 319.0,439.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 351.9089653438087 477.5 Q 319 477.5 335.4511203245035 506.00194098774165" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 351.9089653438087 477.5 Q 319 477.5 335.4511203245035 506.00194098774165" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 351.9089653438087 477.5 Q 319 477.5 335.4511203245035 506.00194098774165" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 24</title>
+<polygon points="384.8,515.5 384.8,553.5 351.9,572.5 319.0,553.5 319.0,515.5 351.9,496.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 335.44887967549647 505.99805901225835 Q 351.9 534.5 318.9910346561913 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 335.44887967549647 505.99805901225835 Q 351.9 534.5 318.9910346561913 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 335.44887967549647 505.99805901225835 Q 351.9 534.5 318.9910346561913 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПЕСОК · тайл 25</title>
+<polygon points="319.0,515.5 319.0,553.5 286.1,572.5 253.2,553.5 253.2,515.5 286.1,496.5" fill="#c9a15e" stroke="rgba(193,39,45,.75)" stroke-width="2.4"/>
+<g opacity=".9"><path d="M 264.1 546.5 q 7 -7 14 0 q 7 7 14 0" fill="none" stroke="#8a6c3c" stroke-width="1.8"/><path d="M 270.1 552.5 q 7 -7 14 0 q 7 7 14 0" fill="none" stroke="#8a6c3c" stroke-width="1.4" opacity=".7"/><circle cx="262.1" cy="518.5" r="1.2" fill="#8a6c3c"/><circle cx="310.1" cy="520.5" r="1" fill="#8a6c3c"/></g>
+<path d="M 319.0089653438087 534.5 Q 286.1 534.5 253.19103465619136 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 319.0089653438087 534.5 Q 286.1 534.5 253.19103465619136 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 319.0089653438087 534.5 Q 286.1 534.5 253.19103465619136 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 26</title>
+<polygon points="253.2,515.5 253.2,553.5 220.3,572.5 187.4,553.5 187.4,515.5 220.3,496.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 253.20896534380867 534.5 Q 220.3 534.5 187.39103465619135 534.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 253.20896534380867 534.5 Q 220.3 534.5 187.39103465619135 534.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 253.20896534380867 534.5 Q 220.3 534.5 187.39103465619135 534.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 27</title>
+<polygon points="187.4,515.5 187.4,553.5 154.5,572.5 121.6,553.5 121.6,515.5 154.5,496.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 187.40896534380866 534.5 Q 154.5 534.5 138.0114147367519 506.01971636348054" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 187.40896534380866 534.5 Q 154.5 534.5 138.0114147367519 506.01971636348054" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 187.40896534380866 534.5 Q 154.5 534.5 138.0114147367519 506.01971636348054" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 28</title>
+<polygon points="154.4,458.5 154.4,496.5 121.5,515.5 88.6,496.5 88.6,458.5 121.5,439.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 137.9885852632481 505.98028363651946 Q 121.5 477.5 105.04887967549648 448.99805901225835" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 137.9885852632481 505.98028363651946 Q 121.5 477.5 105.04887967549648 448.99805901225835" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 137.9885852632481 505.98028363651946 Q 121.5 477.5 105.04887967549648 448.99805901225835" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 29</title>
+<polygon points="121.5,401.5 121.5,439.5 88.6,458.5 55.7,439.5 55.7,401.5 88.6,382.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 105.0511203245035 449.00194098774165 Q 88.6 420.5 72.14887967549647 391.99805901225835" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 105.0511203245035 449.00194098774165 Q 88.6 420.5 72.14887967549647 391.99805901225835" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 105.0511203245035 449.00194098774165 Q 88.6 420.5 72.14887967549647 391.99805901225835" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 30</title>
+<polygon points="88.6,344.5 88.6,382.5 55.7,401.5 22.8,382.5 22.8,344.5 55.7,325.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 72.15112032450352 392.00194098774165 Q 55.7 363.5 72.15112032450352 334.99805901225835" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 72.15112032450352 392.00194098774165 Q 55.7 363.5 72.15112032450352 334.99805901225835" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 72.15112032450352 392.00194098774165 Q 55.7 363.5 72.15112032450352 334.99805901225835" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 31</title>
+<polygon points="121.5,287.5 121.5,325.5 88.6,344.5 55.7,325.5 55.7,287.5 88.6,268.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 72.14887967549647 335.00194098774165 Q 88.6 306.5 105.0511203245035 277.99805901225835" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 72.14887967549647 335.00194098774165 Q 88.6 306.5 105.0511203245035 277.99805901225835" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 72.14887967549647 335.00194098774165 Q 88.6 306.5 105.0511203245035 277.99805901225835" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 32</title>
+<polygon points="154.4,230.5 154.4,268.5 121.5,287.5 88.6,268.5 88.6,230.5 121.5,211.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 105.04887967549648 278.00194098774165 Q 121.5 249.5 154.40896534380866 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 105.04887967549648 278.00194098774165 Q 121.5 249.5 154.40896534380866 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 105.04887967549648 278.00194098774165 Q 121.5 249.5 154.40896534380866 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 33</title>
+<polygon points="220.3,230.5 220.3,268.5 187.4,287.5 154.5,268.5 154.5,230.5 187.4,211.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 154.49103465619135 249.5 Q 187.4 249.5 220.30896534380867 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 154.49103465619135 249.5 Q 187.4 249.5 220.30896534380867 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 154.49103465619135 249.5 Q 187.4 249.5 220.30896534380867 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+<path d="M 187.4 249.5 L 203.8511203245035 278.00194098774165" fill="none" stroke="#3ba7b0" stroke-width="9.12" stroke-dasharray="6 6" stroke-linecap="round" opacity=".85"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 34</title>
+<polygon points="286.1,230.5 286.1,268.5 253.2,287.5 220.3,268.5 220.3,230.5 253.2,211.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 220.29103465619133 249.5 Q 253.2 249.5 286.1089653438087 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 220.29103465619133 249.5 Q 253.2 249.5 286.1089653438087 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 220.29103465619133 249.5 Q 253.2 249.5 286.1089653438087 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПОВОРОТ · тайл 35</title>
+<polygon points="351.9,230.5 351.9,268.5 319.0,287.5 286.1,268.5 286.1,230.5 319.0,211.5" fill="#645b51" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 286.0910346561913 249.5 Q 319 249.5 351.9089653438087 249.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 286.0910346561913 249.5 Q 319 249.5 351.9089653438087 249.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 286.0910346561913 249.5 Q 319 249.5 351.9089653438087 249.5" fill="none" stroke="rgba(233,226,214,.45)" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+<path d="M 319 249.5 L 335.4511203245035 278.00194098774165" fill="none" stroke="#3ba7b0" stroke-width="9.12" stroke-dasharray="6 6" stroke-linecap="round" opacity=".85"/>
+</g>
+<g>
+<title>ПИТ-ЛЕЙН · тайл 36 · пит</title>
+<polygon points="253.2,287.5 253.2,325.5 220.3,344.5 187.4,325.5 187.4,287.5 220.3,268.5" fill="#2b6a70" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 203.8488796754965 277.99805901225835 Q 220.3 306.5 253.20896534380867 306.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 203.8488796754965 277.99805901225835 Q 220.3 306.5 253.20896534380867 306.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 203.8488796754965 277.99805901225835 Q 220.3 306.5 253.20896534380867 306.5" fill="none" stroke="#3ba7b0" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПИТ-ЛЕЙН · тайл 37 · пит</title>
+<polygon points="319.0,287.5 319.0,325.5 286.1,344.5 253.2,325.5 253.2,287.5 286.1,268.5" fill="#2b6a70" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 253.19103465619136 306.5 Q 286.1 306.5 319.0089653438087 306.5" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 253.19103465619136 306.5 Q 286.1 306.5 319.0089653438087 306.5" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 253.19103465619136 306.5 Q 286.1 306.5 319.0089653438087 306.5" fill="none" stroke="#3ba7b0" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ПИТ-ЛЕЙН · тайл 38 · пит</title>
+<polygon points="384.8,287.5 384.8,325.5 351.9,344.5 319.0,325.5 319.0,287.5 351.9,268.5" fill="#2b6a70" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+
+<path d="M 318.9910346561913 306.5 Q 351.9 306.5 335.44887967549647 277.99805901225835" fill="none" stroke="#100e0c" stroke-width="25.080000000000002" stroke-linecap="round"/><path d="M 318.9910346561913 306.5 Q 351.9 306.5 335.44887967549647 277.99805901225835" fill="none" stroke="#4d463b" stroke-width="19" stroke-linecap="round"/><path d="M 318.9910346561913 306.5 Q 351.9 306.5 335.44887967549647 277.99805901225835" fill="none" stroke="#3ba7b0" stroke-width="1.6" stroke-dasharray="5 7" stroke-linecap="round"/>
+</g>
+<g>
+<title>ЗДАНИЕ · тайл 39</title>
+<polygon points="516.4,515.5 516.4,553.5 483.5,572.5 450.6,553.5 450.6,515.5 483.5,496.5" fill="#4b3a2e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".95"><rect x="467.5" y="526.5" width="32" height="20" fill="#6b4a32" stroke="#2a1c12" stroke-width="1.5"/><polygon points="463.5,526.5 483.5,510.5 503.5,526.5" fill="#8c3a1e" stroke="#2a1c12" stroke-width="1.5"/><rect x="474.5" y="535.5" width="5" height="7" fill="#e0b060" opacity=".55"/><rect x="486.5" y="535.5" width="5" height="7" fill="#e0b060" opacity=".35"/><rect x="491.5" y="513.5" width="3" height="8" fill="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>ЗДАНИЕ · тайл 40</title>
+<polygon points="549.4,344.5 549.4,382.5 516.5,401.5 483.6,382.5 483.6,344.5 516.5,325.5" fill="#4b3a2e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".95"><rect x="500.5" y="355.5" width="32" height="20" fill="#6b4a32" stroke="#2a1c12" stroke-width="1.5"/><polygon points="496.5,355.5 516.5,339.5 536.5,355.5" fill="#8c3a1e" stroke="#2a1c12" stroke-width="1.5"/><rect x="507.5" y="364.5" width="5" height="7" fill="#e0b060" opacity=".55"/><rect x="519.5" y="364.5" width="5" height="7" fill="#e0b060" opacity=".35"/><rect x="524.5" y="342.5" width="3" height="8" fill="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>РУИНЫ · тайл 41</title>
+<polygon points="615.2,344.5 615.2,382.5 582.3,401.5 549.4,382.5 549.4,344.5 582.3,325.5" fill="#5a4c3e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".9" stroke="#2a1c12" stroke-width="1.5" fill="#6b5542"><path d="M 564.3 375.5 L 564.3 355.5 L 577.3 355.5 L 577.3 362.5 L 589.3 362.5 L 589.3 350.5 L 600.3 350.5 L 600.3 375.5 Z"/><line x1="570.3" y1="355.5" x2="570.3" y2="371.5" stroke="#3a2a1c"/><line x1="594.3" y1="350.5" x2="594.3" y2="367.5" stroke="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>ЗДАНИЕ · тайл 42</title>
+<polygon points="713.9,401.5 713.9,439.5 681.0,458.5 648.1,439.5 648.1,401.5 681.0,382.5" fill="#4b3a2e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".95"><rect x="665" y="412.5" width="32" height="20" fill="#6b4a32" stroke="#2a1c12" stroke-width="1.5"/><polygon points="661,412.5 681,396.5 701,412.5" fill="#8c3a1e" stroke="#2a1c12" stroke-width="1.5"/><rect x="672" y="421.5" width="5" height="7" fill="#e0b060" opacity=".55"/><rect x="684" y="421.5" width="5" height="7" fill="#e0b060" opacity=".35"/><rect x="689" y="399.5" width="3" height="8" fill="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>РУИНЫ · тайл 43</title>
+<polygon points="812.6,458.5 812.6,496.5 779.7,515.5 746.8,496.5 746.8,458.5 779.7,439.5" fill="#5a4c3e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".9" stroke="#2a1c12" stroke-width="1.5" fill="#6b5542"><path d="M 761.7 489.5 L 761.7 469.5 L 774.7 469.5 L 774.7 476.5 L 786.7 476.5 L 786.7 464.5 L 797.7 464.5 L 797.7 489.5 Z"/><line x1="767.7" y1="469.5" x2="767.7" y2="485.5" stroke="#3a2a1c"/><line x1="791.7" y1="464.5" x2="791.7" y2="481.5" stroke="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>РУИНЫ · тайл 44</title>
+<polygon points="88.6,230.5 88.6,268.5 55.7,287.5 22.8,268.5 22.8,230.5 55.7,211.5" fill="#5a4c3e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".9" stroke="#2a1c12" stroke-width="1.5" fill="#6b5542"><path d="M 37.7 261.5 L 37.7 241.5 L 50.7 241.5 L 50.7 248.5 L 62.7 248.5 L 62.7 236.5 L 73.7 236.5 L 73.7 261.5 Z"/><line x1="43.7" y1="241.5" x2="43.7" y2="257.5" stroke="#3a2a1c"/><line x1="67.7" y1="236.5" x2="67.7" y2="253.5" stroke="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>ЗДАНИЕ · тайл 45</title>
+<polygon points="1010.1,344.5 1010.1,382.5 977.2,401.5 944.3,382.5 944.3,344.5 977.2,325.5" fill="#4b3a2e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".95"><rect x="961.2" y="355.5" width="32" height="20" fill="#6b4a32" stroke="#2a1c12" stroke-width="1.5"/><polygon points="957.2,355.5 977.2,339.5 997.2,355.5" fill="#8c3a1e" stroke="#2a1c12" stroke-width="1.5"/><rect x="968.2" y="364.5" width="5" height="7" fill="#e0b060" opacity=".55"/><rect x="980.2" y="364.5" width="5" height="7" fill="#e0b060" opacity=".35"/><rect x="985.2" y="342.5" width="3" height="8" fill="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>РУИНЫ · тайл 46</title>
+<polygon points="55.7,401.5 55.7,439.5 22.8,458.5 -10.1,439.5 -10.1,401.5 22.8,382.5" fill="#5a4c3e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".9" stroke="#2a1c12" stroke-width="1.5" fill="#6b5542"><path d="M 4.800000000000001 432.5 L 4.800000000000001 412.5 L 17.8 412.5 L 17.8 419.5 L 29.8 419.5 L 29.8 407.5 L 40.8 407.5 L 40.8 432.5 Z"/><line x1="10.8" y1="412.5" x2="10.8" y2="428.5" stroke="#3a2a1c"/><line x1="34.8" y1="407.5" x2="34.8" y2="424.5" stroke="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>ЗДАНИЕ · тайл 47</title>
+<polygon points="615.2,572.5 615.2,610.5 582.3,629.5 549.4,610.5 549.4,572.5 582.3,553.5" fill="#4b3a2e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".95"><rect x="566.3" y="583.5" width="32" height="20" fill="#6b4a32" stroke="#2a1c12" stroke-width="1.5"/><polygon points="562.3,583.5 582.3,567.5 602.3,583.5" fill="#8c3a1e" stroke="#2a1c12" stroke-width="1.5"/><rect x="573.3" y="592.5" width="5" height="7" fill="#e0b060" opacity=".55"/><rect x="585.3" y="592.5" width="5" height="7" fill="#e0b060" opacity=".35"/><rect x="590.3" y="570.5" width="3" height="8" fill="#3a2a1c"/></g>
+
+</g>
+<g>
+<title>РУИНЫ · тайл 48</title>
+<polygon points="845.5,287.5 845.5,325.5 812.6,344.5 779.7,325.5 779.7,287.5 812.6,268.5" fill="#5a4c3e" stroke="rgba(0,0,0,.55)" stroke-width="1.4"/>
+<g opacity=".9" stroke="#2a1c12" stroke-width="1.5" fill="#6b5542"><path d="M 794.6 318.5 L 794.6 298.5 L 807.6 298.5 L 807.6 305.5 L 819.6 305.5 L 819.6 293.5 L 830.6 293.5 L 830.6 318.5 Z"/><line x1="800.6" y1="298.5" x2="800.6" y2="314.5" stroke="#3a2a1c"/><line x1="824.6" y1="293.5" x2="824.6" y2="310.5" stroke="#3a2a1c"/></g>
+
+</g>
+<polygon points="377.8,244.5 386.8,249.5 377.8,254.5" fill="#e0b060" opacity=".55"/>
+<polygon points="608.2,187.5 617.2,192.5 608.2,197.5" fill="#e0b060" opacity=".55"/>
+<polygon points="879.3311371196703,297.9379201657363 879.4997956576656,308.23216876859993 870.6702932766707,302.93689845406413" fill="#e0b060" opacity=".55"/>
+<polygon points="885.5,539.5 876.5,534.5 885.5,529.5" fill="#e0b060" opacity=".55"/>
+<polygon points="622.2,539.5 613.2,534.5 622.2,529.5" fill="#e0b060" opacity=".55"/>
+<polygon points="424.7,425.5 415.7,420.5 424.7,415.5" fill="#e0b060" opacity=".55"/>
+<polygon points="358.9,539.5 349.9,534.5 358.9,529.5" fill="#e0b060" opacity=".55"/>
+<polygon points="120.66886288032967,486.0620798342637 120.50020434233441,475.76783123140007 129.3297067233294,481.06310154593587" fill="#e0b060" opacity=".55"/>
+<polygon points="114.5,244.5 123.5,249.5 114.5,254.5" fill="#e0b060" opacity=".55"/>
+<g transform="translate(384.8,249.5)">
+<rect x="-28" y="-8" width="56" height="16" fill="url(#checker)" opacity=".95" transform="rotate(0)"/>
+<rect x="-28" y="-8" width="56" height="16" fill="none" stroke="#fff" stroke-width="1" opacity=".5"/>
+<text class="lbl" x="0" y="-40" text-anchor="middle" fill="#e0b060">СТАРТ / ФИНИШ</text>
+<text class="small" x="0" y="-28" text-anchor="middle">решётка позади</text>
+</g>
+<g transform="translate(319,249.5)">
+<rect x="-4" y="-8" width="8" height="16" rx="2" fill="#d8d8d2" stroke="#0b0f12" stroke-width="1.2"/>
+<text x="0" y="2" text-anchor="middle" font-family="Cascadia Mono, Consolas" font-size="7" fill="#0b0f12">1</text>
+</g>
+<g transform="translate(253.2,249.5)">
+<rect x="-4" y="-8" width="8" height="16" rx="2" fill="#d8d8d2" stroke="#0b0f12" stroke-width="1.2"/>
+<text x="0" y="2" text-anchor="middle" font-family="Cascadia Mono, Consolas" font-size="7" fill="#0b0f12">2</text>
+</g>
+<g transform="translate(187.4,249.5)">
+<rect x="-4" y="-8" width="8" height="16" rx="2" fill="#d8d8d2" stroke="#0b0f12" stroke-width="1.2"/>
+<text x="0" y="2" text-anchor="middle" font-family="Cascadia Mono, Consolas" font-size="7" fill="#0b0f12">3</text>
+</g>
+<g transform="translate(121.5,249.5)">
+<rect x="-4" y="-8" width="8" height="16" rx="2" fill="#d8d8d2" stroke="#0b0f12" stroke-width="1.2"/>
+<text x="0" y="2" text-anchor="middle" font-family="Cascadia Mono, Consolas" font-size="7" fill="#0b0f12">4</text>
+</g>
+<g transform="translate(220.3,306.5)">
+<rect x="-20" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<rect x="-4" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<rect x="12" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<text class="m" x="0" y="50" text-anchor="middle" font-size="8" fill="#3ba7b0">P1</text>
+</g>
+<g transform="translate(286.1,306.5)">
+<rect x="-20" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<rect x="-4" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<rect x="12" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<text class="m" x="0" y="50" text-anchor="middle" font-size="8" fill="#3ba7b0">P2</text>
+</g>
+<g transform="translate(351.9,306.5)">
+<rect x="-20" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<rect x="-4" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<rect x="12" y="24" width="12" height="16" fill="#173f43" stroke="#3ba7b0" stroke-width="1"/>
+<text class="m" x="0" y="50" text-anchor="middle" font-size="8" fill="#3ba7b0">P3</text>
+</g>
+<text class="lbl" x="190.10000000000002" y="270.5" text-anchor="middle" fill="#3ba7b0">ПИТ-ЛЕЙН</text>
+<g transform="translate(746.8,534.5)">
+<line x1="0" y1="-4" x2="0" y2="-28" stroke="#d8d8d2" stroke-width="2"/>
+<polygon points="0,-28 18,-23 0,-18" fill="#3ba7b0"/>
+<text class="lbl" x="0" y="30" text-anchor="middle" fill="#3ba7b0">КП</text>
+</g>
+<g transform="translate(790,290) rotate(-4)"><rect x="-46" y="-12" width="92" height="20" rx="2" fill="rgba(10,14,17,.78)" stroke="#f07a1e" stroke-opacity=".5"/><text class="lbl" x="0" y="3" text-anchor="middle" fill="#f07a1e">ШИКАНА</text></g>
+<g transform="translate(500,610) rotate(-8)"><rect x="-46" y="-12" width="92" height="20" rx="2" fill="rgba(10,14,17,.78)" stroke="#c1272d" stroke-opacity=".5"/><text class="lbl" x="0" y="3" text-anchor="middle" fill="#c1272d">ШПИЛЬКА</text></g>
+<g transform="translate(760,500) rotate(0)"><rect x="-46" y="-12" width="92" height="20" rx="2" fill="rgba(10,14,17,.78)" stroke="#3ba7b0" stroke-opacity=".5"/><text class="lbl" x="0" y="3" text-anchor="middle" fill="#3ba7b0">МОСТ</text></g>
+<g transform="translate(1020,300) rotate(0)"><rect x="-46" y="-12" width="92" height="20" rx="2" fill="rgba(10,14,17,.78)" stroke="#d8d8d2" stroke-opacity=".5"/><text class="lbl" x="0" y="3" text-anchor="middle" fill="#d8d8d2">ТОННЕЛЬ</text></g>
+<g transform="translate(250,470) rotate(0)"><rect x="-46" y="-12" width="92" height="20" rx="2" fill="rgba(10,14,17,.78)" stroke="#9b7436" stroke-opacity=".5"/><text class="lbl" x="0" y="3" text-anchor="middle" fill="#9b7436">ГОРОДСКИЕ РУИНЫ</text></g>
+</g>
+<g transform="translate(56,790)">
+<text class="h" x="0" y="0" font-size="11" fill="#e0b060">ЛЕГЕНДА</text>
+<rect x="0" y="24" width="14" height="14" fill="#4d463b" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="20" y="35" font-size="11" fill="#d8d8d2">дорога</text>
+<rect x="190" y="24" width="14" height="14" fill="#3ba7b0" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="210" y="35" font-size="11" fill="#d8d8d2">пит-лейн</text>
+<rect x="380" y="24" width="14" height="14" fill="#e8e2d2" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="400" y="35" font-size="11" fill="#d8d8d2">старт-финиш</text>
+<rect x="570" y="24" width="14" height="14" fill="#3ba7b0" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="590" y="35" font-size="11" fill="#d8d8d2">контрольный пункт</text>
+<rect x="760" y="24" width="14" height="14" fill="#c9a15e" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="780" y="35" font-size="11" fill="#d8d8d2">песок</text>
+<rect x="950" y="24" width="14" height="14" fill="#7a5a44" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="970" y="35" font-size="11" fill="#d8d8d2">обломки</text>
+<rect x="0" y="50" width="14" height="14" fill="#8c5a2a" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="20" y="61" font-size="11" fill="#d8d8d2">пустошь ?</text>
+<rect x="190" y="50" width="14" height="14" fill="#4a4038" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="210" y="61" font-size="11" fill="#d8d8d2">мост</text>
+<rect x="380" y="50" width="14" height="14" fill="#34302c" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="400" y="61" font-size="11" fill="#d8d8d2">тоннель</text>
+<rect x="570" y="50" width="14" height="14" fill="#4b3a2e" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="590" y="61" font-size="11" fill="#d8d8d2">здание</text>
+<rect x="760" y="50" width="14" height="14" fill="#5a4c3e" stroke="rgba(255,255,255,.15)"/>
+<text class="b" x="780" y="61" font-size="11" fill="#d8d8d2">руины</text>
+<text class="small" x="0" y="82">39 дорожных тайлов; 10 тайлов застройки — отдельный набор/оверлеи. Сборка: дорожные выходы на гранях, развилка только в пит-лейне.</text>
+</g>
+<g transform="translate(56,940)">
+<text class="small" x="0" y="0">ХРОМ И ПЕПЕЛ · цифровой прототип · вариант трассы для мозаичной сборки</text>
+<text class="m" x="0" y="18" font-size="9" fill="rgba(154,145,132,.6)">36 + 3 тайла · стартовая решётка 4 тайла · один круг = 36 шагов + пит-ветка</text>
+</g>
+</svg>

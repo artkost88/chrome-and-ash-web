@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ХРОМ И ПЕПЕЛ — Закат в Пустоши</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============================== МЕНЮ ============================== -->
+    <section id="screen-menu" class="screen active">
+      <div class="menu-sky"></div>
+      <div class="menu-sun"></div>
+      <div class="menu-dust"></div>
+
+      <div class="menu-wrap">
+        <header class="hero">
+          <div class="kicker">настольная гонка на выживание · цифровой прототип v0.1</div>
+          <h1 class="logo">ХРОМ<br><span>И ПЕПЕЛ</span></h1>
+          <p class="lede">Четверо собирают трассу, по которой поедут сами. Гонка и бой — одно действие.
+            Обгон дешевле совершить ракетой, чем двигателем. Ловушка, поставленная в первой гонке,
+            доживает до третьей и бьёт по тому, кто её поставил.</p>
+        </header>
+
+        <div class="menu-grid">
+          <div class="panel panel-main">
+            <div class="panel-head">
+              <span class="num">01</span>
+              <h2>Режим</h2>
+            </div>
+            <div class="mode-row" id="mode-row">
+              <button class="mode-card active" data-mode="race">
+                <b>ЗАЕЗД</b>
+                <span>одна гонка · знакомство · 8–15 минут</span>
+              </button>
+              <button class="mode-card" data-mode="championship">
+                <b>ЧЕМПИОНАТ</b>
+                <span>3 гонки · мастерская между ними · 30–50 минут</span>
+              </button>
+            </div>
+
+            <div class="panel-head">
+              <span class="num">02</span>
+              <h2>Фракция</h2>
+            </div>
+            <div class="faction-row" id="faction-picker"></div>
+
+            <div class="panel-head">
+              <span class="num">03</span>
+              <h2>Настройки заезда</h2>
+            </div>
+            <div class="options-grid">
+              <label class="field">
+                <span>Трасса</span>
+                <select id="opt-track">
+                  <option value="mosaic" selected>Пыльная подкова · 36 + пит</option>
+                  <option value="ring">Кольцо · 28 тайлов</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Кругов в гонке</span>
+                <select id="opt-laps">
+                  <option value="1" selected>1 круг — быстрый тест</option>
+                  <option value="2">2 круга — как в документах</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Скорость ИИ</span>
+                <select id="opt-speed">
+                  <option value="1" selected>Обычная</option>
+                  <option value="2">Быстрая</option>
+                  <option value="3">Очень быстрая</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Сид трассы <em>(пусто — случайный)</em></span>
+                <input id="opt-seed" type="text" inputmode="numeric" placeholder="например, 12345">
+              </label>
+              <label class="field check">
+                <input id="opt-patch" type="checkbox">
+                <span>Баланс-патч прототипа <em>(18/22/22/18 корпуса)</em></span>
+              </label>
+            </div>
+
+            <button id="start-btn" class="big-btn">ВЫЕХАТЬ НА ТРАССУ</button>
+            <div class="micro">1 человек против 3 ИИ · трасса генерируется · прогресс не сохраняется</div>
+          </div>
+
+          <aside class="panel panel-brief">
+            <div class="panel-head">
+              <span class="num">?</span>
+              <h2>Что проверяет прототип</h2>
+            </div>
+            <ul class="brief-list">
+              <li><b>Движение.</b> Интересно ли ехать на d4, если трасса сама наказывает за скорость.</li>
+              <li><b>Арсенал.</b> Частота стрельбы, летальность, темп разгона.</li>
+              <li><b>Экономика.</b> Лом за проигрыш, мастерская, разрыв к третьей гонке.</li>
+              <li><b>Ловушки.</b> Мины, масло и бесплатные подарки Карнавала.</li>
+              <li><b>Уничтожение.</b> Возврат в гонку, обломки, смерть без выбывания.</li>
+            </ul>
+            <div class="brief-note">
+              <span>Важно</span>
+              Это не финальные правила. Все спорные места дизайн-документа решены явно и перечислены
+              во вкладке «Правила» → «Отличия прототипа». Цифры баланса — предмет плейтеста,
+              а не истина.
+            </div>
+            <button id="menu-rules-btn" class="ghost-btn">Открыть правила прототипа</button>
+          </aside>
+        </div>
+
+        <footer class="menu-foot">
+          <span>ХРОМ И ПЕПЕЛ</span>
+          <span>цифровой прототип · не для продажи · 2026</span>
+          <span id="menu-version"></span>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ============================== ИГРА ============================== -->
+    <section id="screen-game" class="screen">
+      <header class="game-top">
+        <div class="brand-small">ХРОМ <span>И ПЕПЕЛ</span><em>прототип</em></div>
+        <div id="race-meta" class="race-meta"></div>
+        <div class="top-actions">
+          <button id="speed-btn" class="chip-btn" title="Скорость ИИ">×1</button>
+          <button id="game-rules-btn" class="chip-btn">Правила</button>
+          <button id="game-menu-btn" class="chip-btn danger">В меню</button>
+        </div>
+      </header>
+
+      <main class="game-main">
+        <section class="board-panel">
+          <div class="board-head">
+            <div class="board-title">ТРАССА <span id="track-label"></span></div>
+            <div class="board-tools">
+              <button id="cam-toggle" class="chip-btn" title="Режим камеры: следить за машиной / вся трасса">Следить</button>
+              <button id="hp-toggle" class="chip-btn" title="Показывать корпус машин постоянно">HP</button>
+              <button id="zoom-out" class="chip-btn" title="Мельче">−</button>
+              <button id="zoom-fit" class="chip-btn" title="Показать всю трассу">Обзор</button>
+              <button id="zoom-in" class="chip-btn" title="Крупнее">+</button>
+            </div>
+            <div id="leader-label" class="leader-label"></div>
+          </div>
+          <div id="board-wrap" class="board-wrap">
+            <svg id="board" viewBox="0 0 1000 784" preserveAspectRatio="xMidYMid meet" aria-label="Трасса"></svg>
+            <svg id="minimap" class="minimap" viewBox="0 0 1000 784" aria-label="Мини-карта трассы" role="img"></svg>
+            <div id="board-floats" class="board-floats"></div>
+            <div id="toast-zone" class="toast-zone"></div>
+            <div class="board-legend">
+              <span><i style="background:#3a332c"></i>дорога</span>
+              <span><i style="background:#a34a24"></i>песок</span>
+              <span><i style="background:#9e1f1a"></i>опасность</span>
+              <span><i style="background:#ff7a1e"></i>пустошь ?</span>
+              <span><i style="background:#241f1a"></i>пит</span>
+              <span><i style="background:#d8d8d2"></i>КП · шахматка</span>
+            </div>
+          </div>
+          <div id="dice-strip" class="dice-strip"></div>
+        </section>
+
+        <aside class="side">
+          <div id="turn-card" class="turn-card"></div>
+          <div id="players" class="players"></div>
+        </aside>
+      </main>
+
+      <section class="bottom-strip">
+        <div id="hand-zone" class="hand-zone"></div>
+        <div id="phase-strip" class="phase-strip"></div>
+      </section>
+
+      <section class="log-panel">
+        <div class="log-head">
+          <span>ЖУРНАЛ</span>
+          <button id="log-toggle" class="log-toggle">свернуть</button>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
+    </section>
+
+    <!-- ============================== МАСТЕРСКАЯ ============================== -->
+    <section id="screen-shop" class="screen">
+      <header class="sub-top">
+        <div class="brand-small">ХРОМ <span>И ПЕПЕЛ</span><em>мастерская</em></div>
+        <div id="shop-meta" class="race-meta"></div>
+      </header>
+      <div class="sub-wrap">
+        <div class="sub-head">
+          <h2>МАСТЕРСКАЯ</h2>
+          <p>Между гонками. Витрина общая: сначала покупаете вы, затем докупают ИИ.
+            Установленное остаётся на весь чемпионат.</p>
+        </div>
+        <div class="shop-layout">
+          <div id="shop-cards" class="shop-cards"></div>
+          <aside id="shop-side" class="panel shop-side"></aside>
+        </div>
+        <div class="sub-actions">
+          <button id="shop-continue" class="big-btn">К СЛЕДУЮЩЕЙ ГОНКЕ</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== РЕЗУЛЬТАТЫ ============================== -->
+    <section id="screen-results" class="screen">
+      <header class="sub-top">
+        <div class="brand-small">ХРОМ <span>И ПЕПЕЛ</span><em>результаты</em></div>
+        <div id="results-meta" class="race-meta"></div>
+      </header>
+      <div class="sub-wrap">
+        <div class="sub-head">
+          <h2 id="results-title">ИТОГИ ГОНКИ</h2>
+          <p id="results-sub"></p>
+        </div>
+        <div class="results-layout">
+          <div id="results-table" class="results-table"></div>
+          <aside id="results-stats" class="panel results-stats"></aside>
+        </div>
+        <div class="sub-actions" id="results-actions"></div>
+      </div>
+    </section>
+
+    <!-- ============================== ФИНАЛ ЧЕМПИОНАТА ============================== -->
+    <section id="screen-final" class="screen">
+      <header class="sub-top">
+        <div class="brand-small">ХРОМ <span>И ПЕПЕЛ</span><em>чемпионат</em></div>
+        <div class="race-meta" id="final-meta"></div>
+      </header>
+      <div class="sub-wrap">
+        <div class="sub-head">
+          <h2>ПОБЕДИТЕЛЬ ЧЕМПИОНАТА</h2>
+          <p>Три гонки, три мастерских, один чемпион. При равенстве очков — больше нанесённого урона.</p>
+        </div>
+        <div id="final-hero" class="final-hero"></div>
+        <div id="final-table" class="results-table"></div>
+        <div class="sub-actions">
+          <button id="final-menu" class="big-btn">В МЕНЮ</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== МОДАЛКИ ============================== -->
+    <div id="modal-root" class="modal-root" aria-live="polite"></div>
+
+    <div id="error-overlay" class="error-overlay" hidden>
+      <div class="error-box">
+        <h3>Ошибка прототипа</h3>
+        <pre id="error-text"></pre>
+        <button onclick="location.reload()">Перезагрузить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Шаблон правил -->
+  <template id="tpl-rules">
+    <div class="rules">
+      <div class="rules-tabs">
+        <button class="rules-tab active" data-tab="rules-main">Правила</button>
+        <button class="rules-tab" data-tab="rules-diff">Отличия прототипа</button>
+        <button class="rules-tab" data-tab="rules-about">О документе</button>
+      </div>
+
+      <div class="rules-pane active" id="rules-main">
+        <h3>Ход игрока</h3>
+        <ol>
+          <li><b>Подготовка.</b> Одна карта «до движения» (нитро, тормоз, дым, ремонт, канистра) или пит-стоп.</li>
+          <li><b>Движение.</b> Бросок d4 + модификаторы. Машина едет ровно на итог, минимум 1, максимум 8.
+            Въезд в песок, обломки и жетоны обломков уменьшает оставшееся движение.</li>
+          <li><b>Огонь.</b> Одна атака или одна ловушка. Карнавал Боли ставит первую ловушку бесплатно.</li>
+        </ol>
+        <h3>Движение и трасса</h3>
+        <ul>
+          <li>Трасса — мозаика из 36 гексов: стартовая прямая, шикана, правый спуск, шпилька, левый подъём и пит-лейн. В меню можно выбрать и старое кольцо на 28.</li>
+          <li>На тайле помещаются 2 машины. Третья останавливается перед ним и таранит.</li>
+          <li>На повороте при скорости 5+ — бросок d4: на 1 машину сносит, ход окончен, −2 к следующему движению.</li>
+          <li>Трамплин: следующий тайл перелетается за один шаг. При скорости 6+ посадка наносит d4 урона.</li>
+          <li>Песок: −1 движение. Обломки: d4 урона и −1 движение. «?» — карта Пустоши в конце движения там.</li>
+          <li>Тоннель: нельзя стрелять дальше 1. Мост: уничтоженная машина возвращается на 3 тайла назад.</li>
+          <li>Финиш — пересечение старт-финиша нужное число раз. После финиша лидера остальные доезжают
+            ещё один полный раунд.</li>
+        </ul>
+        <h3>Огонь</h3>
+        <ul>
+          <li>Дальность считается по линии трассы. Вперёд стрелять можно только по прямой без препятствий;
+            назад — можно. Ракеты и турель игнорируют линию огня.</li>
+          <li>Цель с дымовой завесой нельзя достать с дальности 2+. Глушилка автоматически отменяет первую атаку по тебе.</li>
+          <li>Мины и масло ставятся на свой тайл или тайл позади. Мина срабатывает при въезде (3d4),
+            масло — бросок d4: 1–2 занос.</li>
+          <li>Огнемёт поджигает: d4 урона в начале хода цели, пока не выпадет 4 или она не встанет в пит.</li>
+        </ul>
+        <h3>Урон и уничтожение</h3>
+        <ul>
+          <li>Пороги: ниже 50% — −1 к движению; ниже 20% — −2 и нельзя таранить.</li>
+          <li>Уничтоженная машина оставляет обломки, пропускает 2 хода (1 с клеткой безопасности),
+            возвращается на последний пройденный контрольный пункт с половиной корпуса.</li>
+          <li>После возврата машина защищена от огня до своего следующего хода.</li>
+          <li>Убийца получает +3 очка чемпионата и +5 лома. Жертва теряет случайную карту и 3 лома.</li>
+          <li>Машины не выбывают из гонки.</li>
+        </ul>
+        <h3>Экономика</h3>
+        <ul>
+          <li>Лом за место на финише: 1-е — 4, 2-е — 6, 3-е — 8, 4-е — 10; не доехал — 3.
+            Плюс 1 лом за каждые 5 нанесённого урона и 5 за уничтожение.</li>
+          <li>Очки чемпионата: 1-е — 10, 2-е — 6, 3-е — 3, 4-е — 1; +3 за уничтожение; +2 за круг лидером.
+            Не доехал — 0.</li>
+          <li>Мастерская: 5 улучшений в витрине, покупка в свободный слот. Не больше 2 улучшений одной категории.</li>
+        </ul>
+        <h3>Управление</h3>
+        <ul>
+          <li>Клик по карте в руке: подготовка или атака. Затем выберите цель / тайл в окне.</li>
+          <li>Кнопка «Бросок d4» начинает движение. На развилке или пит-лейне появится выбор маршрута.</li>
+          <li>Esc закрывает окно. Кнопка ×1/×2/×3 меняет скорость ИИ.</li>
+        </ul>
+      </div>
+
+      <div class="rules-pane" id="rules-diff">
+        <h3>Что решено за дизайн-документ</h3>
+        <p>Прототип не может существовать с открытыми вопросами. Ниже — принятые решения и места,
+          где правила сознательно отличаются от текста документа.</p>
+        <table class="rules-table">
+          <tr><th>Вопрос</th><th>Решение в прототипе</th></tr>
+          <tr><td>Откуда берутся карты арсенала?</td><td>В документе нет добора, но заявлены 40–55% ходов со стрельбой.
+            Добавлен <b>добор 1 карты в конце хода</b> (лимит руки 5). Это резко повышает темп и летальность;
+            в отчёте по балансу показан вариант без добора.</td></tr>
+          <tr><td>Где стартовые позиции?</td><td>Все 4 машины стартуют на 4 тайлах решётки перед старт-финишем. Ёмкость 2 действует после старта.
+            Порядок хода первой гонки — случайный.</td></tr>
+          <tr><td>Сколько старт-финишей?</td><td>В коробке 2 тайла старт-финиш, а правило требует один. Прототип ставит один
+            финиш (круг считается только на нём) и <b>второй контрольный пункт</b> в середине кольца:
+            после уничтожения машина возвращается на последний пройденный КП. Это и даёт обещанные 8–14 тайлов потери.</td></tr>
+          <tr><td>Когда заканчивается гонка?</td><td>После финиша первого гонщика остальные доезжают ещё один полный раунд.
+            Не доехавшие получают 0 очков чемпионата.</td></tr>
+          <tr><td>Рука между гонками?</td><td>Сбрасывается; каждая гонка начинается с 3 карт. Улучшения остаются.</td></tr>
+          <tr><td>Лимит мин?</td><td>Не больше 3 активных мин на треке одновременно — контрмера из раздела рисков.</td></tr>
+          <tr><td>Пит-стоп и улучшения</td><td>В документе «ставишь улучшение из руки», но руки улучшений не существует.
+            В прототипе пит лечит и добирает карты, но не даёт бесплатного улучшения; улучшения покупаются в мастерской.</td></tr>
+          <tr><td>Таран</td><td>Считается d4 + скорость атакующего против d4 + прошлая скорость защитника.
+            Хромированные бросают свой d4 дважды и берут лучший. Таранный отвал/шипы дают 2d4.</td></tr>
+          <tr><td>Глушилка</td><td>Автоматически отменяет первую атаку по владельцу (без окна реакции).</td></tr>
+          <tr><td>Смерть в «Последнем на колёсах»</td><td>В документе побеждает выживший, но машины не выбывают.
+            Режим в прототип не включён; в отчёте предложены правила на 3 жизни.</td></tr>
+          <tr><td>Сборка трассы игроками</td><td>Заменена двумя сценариями: кольцо 28 и мозаика «Пыльная подкова» 36 + 3 пита. Сборка игроками не реализована.</td></tr>
+          <tr><td>Ночь и 2–3 игрока</td><td>В прототипе не реализованы; предложения — в обзоре дизайна.</td></tr>
+        </table>
+      </div>
+
+      <div class="rules-pane" id="rules-about">
+        <h3>Что это</h3>
+        <p>Цифровой прототип настольной игры «Хром и Пепел», собранный по дизайн-документу от 24 сентября 2026.
+          Цель — проверить темп, летальность, экономику и читаемость решений до заказа арта и производства.</p>
+        <p><b>Это не финальный продукт.</b> Искусственный интеллект играет эвристиками, трасса генерируется,
+          сборка трека и режим «Последний на колёсах» не реализованы. Все отклонения перечислены во вкладке
+          «Отличия прототипа».</p>
+        <h3>Файлы</h3>
+        <ul>
+          <li><code>docs/01-review.md</code> — аудит дизайна и расширения.</li>
+          <li><code>docs/02-prototype-rules.md</code> — правила прототипа.</li>
+          <li><code>docs/03-balance-report.md</code> — симуляции и рекомендации.</li>
+          <li><code>tests/</code> — симулятор и проверки.</li>
+        </ul>
+        <h3>Горячие клавиши</h3>
+        <p><code>Пробел</code> — бросок/подтверждение, <code>Esc</code> — закрыть окно.</p>
+      </div>
+    </div>
+  </template>
+
+  <script src="js/data.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/track.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "chrome-and-ash-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ХРОМ И ПЕПЕЛ — web-сервер фазы 1 (Express + встроенный node:sqlite, без нативных зависимостей)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:init": "node src/init-db.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

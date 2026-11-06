@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cna.example/api/v1/schemas.json",
+  "title": "ХРОМ И ПЕПЕЛ — web API v1 (JSON Schema)",
+  "description": "Машиночитаемый пакет схем, описанных в chrome-and-ash-web/docs/06-web-api.md. Контракт фазы 1.",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "UUIDv7"
+    },
+    "Username": { "type": "string", "minLength": 3, "maxLength": 32, "pattern": "^[A-Za-z0-9_.-]+$" },
+    "Password": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "DisplayName": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "FactionId": { "type": "string", "enum": ["chrome", "rust", "carnival", "swarm"] },
+    "Mode": { "type": "string", "enum": ["race", "championship", "daily"] },
+    "TrackKind": { "type": "string", "enum": ["ring", "mosaic"] },
+    "RunStatus": { "type": "string", "enum": ["active", "finished", "abandoned"] },
+    "SaveStatus": { "type": "string", "enum": ["active", "finished"] },
+    "Stage": { "type": "string", "enum": ["race", "results", "shop", "final"] },
+    "IsoDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "Timestamp": { "type": "string", "format": "date-time" },
+
+    "Account": {
+      "type": "object",
+      "required": ["id", "username", "displayName", "factionPref", "createdAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "username": { "$ref": "#/$defs/Username" },
+        "displayName": { "$ref": "#/$defs/DisplayName" },
+        "factionPref": { "anyOf": [ { "$ref": "#/$defs/FactionId" }, { "type": "null" } ] },
+        "createdAt": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "AccountStats": {
+      "type": "object",
+      "required": ["runsTotal", "runsFinished", "raceBest", "championshipBest", "dailyBest"],
+      "properties": {
+        "runsTotal": { "type": "integer", "minimum": 0 },
+        "runsFinished": { "type": "integer", "minimum": 0 },
+        "raceBest": { "type": ["integer", "null"] },
+        "championshipBest": { "type": ["integer", "null"] },
+        "dailyBest": { "type": ["integer", "null"] }
+      },
+      "additionalProperties": false
+    },
+
+    "ResultDetail": {
+      "type": "object",
+      "required": ["pos", "finished", "damage", "kills", "scrap"],
+      "properties": {
+        "pos": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "finished": { "type": "boolean" },
+        "damage": { "type": "integer", "minimum": 0 },
+        "kills": { "type": "integer", "minimum": 0 },
+        "scrap": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+
+    "StandingRow": {
+      "type": "object",
+      "required": ["place", "faction", "name", "cp", "damage", "kills", "scrap", "human"],
+      "properties": {
+        "place": { "type": "integer", "minimum": 1 },
+        "faction": { "$ref": "#/$defs/FactionId" },
+        "name": { "type": "string" },
+        "cp": { "type": "integer" },
+        "damage": { "type": "integer" },
+        "kills": { "type": "integer" },
+        "scrap": { "type": "integer" },
+        "human": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+
+    "RunResult": {
+      "type": "object",
+      "required": ["score", "detail"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0 },
+        "detail": { "$ref": "#/$defs/ResultDetail" },
+        "standings": { "type": "array", "items": { "$ref": "#/$defs/StandingRow" } }
+      },
+      "additionalProperties": false
+    },
+
+    "Run": {
+      "type": "object",
+      "required": ["id", "accountId", "mode", "faction", "trackKind", "trackSize", "laps", "seed", "status", "startedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "accountId": { "$ref": "#/$defs/Uuid" },
+        "mode": { "$ref": "#/$defs/Mode" },
+        "dailyDate": { "anyOf": [ { "$ref": "#/$defs/IsoDate" }, { "type": "null" } ] },
+        "faction": { "$ref": "#/$defs/FactionId" },
+        "trackKind": { "$ref": "#/$defs/TrackKind" },
+        "trackSize": { "type": "integer", "minimum": 24, "maximum": 36 },
+        "laps": { "type": "integer", "enum": [1, 2] },
+        "seed": { "type": "integer", "minimum": 0 },
+        "status": { "$ref": "#/$defs/RunStatus" },
+        "score": { "type": ["integer", "null"] },
+        "damage": { "type": ["integer", "null"] },
+        "kills": { "type": ["integer", "null"] },
+        "result": { "anyOf": [ { "$ref": "#/$defs/RunResult" }, { "type": "null" } ] },
+        "startedAt": { "$ref": "#/$defs/Timestamp" },
+        "finishedAt": { "anyOf": [ { "$ref": "#/$defs/Timestamp" }, { "type": "null" } ] }
+      },
+      "additionalProperties": false
+    },
+
+    "SaveRef": {
+      "type": "object",
+      "required": ["id", "runId", "revision", "status", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "runId": { "$ref": "#/$defs/Uuid" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "status": { "$ref": "#/$defs/SaveStatus" },
+        "updatedAt": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "Save": {
+      "allOf": [
+        { "$ref": "#/$defs/SaveRef" },
+        {
+          "type": "object",
+          "required": ["state"],
+          "properties": { "state": { "$ref": "#/$defs/SaveState" } },
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "SaveState": {
+      "type": "object",
+      "required": ["schemaVersion", "engineVersion", "seed", "mode", "raceIndex", "stage", "nextUid", "savedAt", "engine"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "engineVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "seed": { "type": "integer", "minimum": 0 },
+        "mode": { "$ref": "#/$defs/Mode" },
+        "raceIndex": { "type": "integer", "minimum": 0 },
+        "stage": { "$ref": "#/$defs/Stage" },
+        "nextUid": { "type": "integer", "minimum": 1 },
+        "savedAt": { "$ref": "#/$defs/Timestamp" },
+        "engine": { "type": "object", "description": "Непрозрачный для сервера сериализуемый срез состояния движка." }
+      },
+      "additionalProperties": false
+    },
+
+    "DailyChallenge": {
+      "type": "object",
+      "required": ["mode", "seed", "faction", "trackKind", "trackSize", "laps"],
+      "properties": {
+        "mode": { "const": "daily" },
+        "seed": { "type": "integer", "minimum": 0 },
+        "faction": { "$ref": "#/$defs/FactionId" },
+        "trackKind": { "$ref": "#/$defs/TrackKind" },
+        "trackSize": { "type": "integer", "minimum": 24, "maximum": 36 },
+        "laps": { "type": "integer", "enum": [1, 2] }
+      },
+      "additionalProperties": false
+    },
+
+    "DailyMyBest": {
+      "type": "object",
+      "required": ["score", "runId", "detail", "updatedAt"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0 },
+        "runId": { "$ref": "#/$defs/Uuid" },
+        "detail": { "$ref": "#/$defs/ResultDetail" },
+        "updatedAt": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "LeaderboardRow": {
+      "type": "object",
+      "required": ["rank", "accountId", "displayName", "faction", "score", "detail", "runId", "at"],
+      "properties": {
+        "rank": { "type": "integer", "minimum": 1 },
+        "accountId": { "$ref": "#/$defs/Uuid" },
+        "displayName": { "$ref": "#/$defs/DisplayName" },
+        "faction": { "$ref": "#/$defs/FactionId" },
+        "score": { "type": "integer", "minimum": 0 },
+        "detail": { "$ref": "#/$defs/ResultDetail" },
+        "runId": { "$ref": "#/$defs/Uuid" },
+        "at": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "ErrorBody": {
+      "type": "object",
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "details": { "type": "object" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "RegisterRequest": {
+      "type": "object",
+      "required": ["username", "password"],
+      "properties": {
+        "username": { "$ref": "#/$defs/Username" },
+        "password": { "$ref": "#/$defs/Password" },
+        "displayName": { "$ref": "#/$defs/DisplayName" }
+      },
+      "additionalProperties": false
+    },
+    "AuthResponse": {
+      "type": "object",
+      "required": ["account", "sessionExpiresAt"],
+      "properties": {
+        "account": { "$ref": "#/$defs/Account" },
+        "sessionExpiresAt": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+    "LoginRequest": {
+      "type": "object",
+      "required": ["username", "password"],
+      "properties": {
+        "username": { "$ref": "#/$defs/Username" },
+        "password": { "$ref": "#/$defs/Password" }
+      },
+      "additionalProperties": false
+    },
+
+    "MeResponse": {
+      "type": "object",
+      "required": ["account", "stats"],
+      "properties": {
+        "account": { "$ref": "#/$defs/Account" },
+        "stats": { "$ref": "#/$defs/AccountStats" },
+        "activeRun": { "anyOf": [ { "$ref": "#/$defs/Run" }, { "type": "null" } ] },
+        "activeSave": { "anyOf": [ { "$ref": "#/$defs/SaveRef" }, { "type": "null" } ] }
+      },
+      "additionalProperties": false
+    },
+
+    "DailyResponse": {
+      "type": "object",
+      "required": ["date", "challenge", "myBest", "board"],
+      "properties": {
+        "date": { "$ref": "#/$defs/IsoDate" },
+        "challenge": { "$ref": "#/$defs/DailyChallenge" },
+        "myBest": { "anyOf": [ { "$ref": "#/$defs/DailyMyBest" }, { "type": "null" } ] },
+        "board": { "type": "array", "items": { "$ref": "#/$defs/LeaderboardRow" } }
+      },
+      "additionalProperties": false
+    },
+
+    "CreateRunRequest": {
+      "type": "object",
+      "required": ["mode", "faction"],
+      "properties": {
+        "mode": { "$ref": "#/$defs/Mode" },
+        "faction": { "$ref": "#/$defs/FactionId" },
+        "trackKind": { "$ref": "#/$defs/TrackKind" },
+        "trackSize": { "type": "integer", "minimum": 24, "maximum": 36 },
+        "laps": { "type": "integer", "enum": [1, 2] },
+        "seed": { "type": "integer", "minimum": 0 },
+        "dailyDate": { "$ref": "#/$defs/IsoDate" }
+      },
+      "additionalProperties": false
+    },
+    "CreateRunResponse": {
+      "type": "object",
+      "required": ["run", "save"],
+      "properties": {
+        "run": { "$ref": "#/$defs/Run" },
+        "save": { "$ref": "#/$defs/SaveRef" }
+      },
+      "additionalProperties": false
+    },
+
+    "RunsListResponse": {
+      "type": "object",
+      "required": ["runs", "nextCursor"],
+      "properties": {
+        "runs": { "type": "array", "items": { "$ref": "#/$defs/Run" } },
+        "nextCursor": { "anyOf": [ { "$ref": "#/$defs/Uuid" }, { "type": "null" } ] }
+      },
+      "additionalProperties": false
+    },
+
+    "SavePutRequest": {
+      "type": "object",
+      "required": ["revision", "state"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 0 },
+        "state": { "$ref": "#/$defs/SaveState" },
+        "status": { "$ref": "#/$defs/SaveStatus" },
+        "result": { "$ref": "#/$defs/RunResult" }
+      },
+      "additionalProperties": false
+    },
+    "SavePutResponse": {
+      "type": "object",
+      "required": ["saved", "revision", "finalized", "run"],
+      "properties": {
+        "saved": { "const": true },
+        "revision": { "type": "integer", "minimum": 0 },
+        "finalized": { "type": "boolean" },
+        "score": { "type": ["integer", "null"] },
+        "notImproved": { "type": "boolean" },
+        "run": {
+          "type": "object",
+          "required": ["id", "status"],
+          "properties": {
+            "id": { "$ref": "#/$defs/Uuid" },
+            "status": { "$ref": "#/$defs/RunStatus" },
+            "score": { "type": ["integer", "null"] },
+            "finishedAt": { "anyOf": [ { "$ref": "#/$defs/Timestamp" }, { "type": "null" } ] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "SaveGetResponse": {
+      "type": "object",
+      "required": ["save"],
+      "properties": { "save": { "$ref": "#/$defs/Save" } },
+      "additionalProperties": false
+    },
+
+    "LeaderboardResponse": {
+      "type": "object",
+      "required": ["mode", "date", "rows"],
+      "properties": {
+        "mode": { "$ref": "#/$defs/Mode" },
+        "date": { "anyOf": [ { "$ref": "#/$defs/IsoDate" }, { "type": "null" } ] },
+        "rows": { "type": "array", "items": { "$ref": "#/$defs/LeaderboardRow" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

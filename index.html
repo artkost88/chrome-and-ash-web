@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ХРОМ И ПЕПЕЛ · Chrome & Ash</title>
+<style>
+  :root { --waste:#241f1a; --night:#0b0f12; --brass:#c8a04e; --rust:#a34a24; --flame:#ff7a1e; --chrome:#d8d8d2; --text:#f5f0e8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(120% 90% at 50% 0%, #2a251f 0%, #17130f 55%, #0d0b09 100%); color: var(--text); font-family: "Segoe UI", Roboto, Arial, sans-serif; min-height: 100vh; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 22px 40px; }
+  .kicker { font-size: 11px; letter-spacing: .28em; text-transform: uppercase; color: var(--brass); }
+  h1 { font-family: "Arial Black", Impact, sans-serif; font-size: clamp(44px, 9vw, 96px); line-height: .86; margin: 18px 0 10px; letter-spacing: .02em; }
+  h1 span { color: var(--flame); }
+  .lede { max-width: 760px; font-size: 17px; line-height: 1.55; color: rgba(245,240,232,.72); }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0 34px; }
+  .btn { display: inline-block; padding: 14px 20px; border: 2px solid var(--night); text-decoration: none; font-weight: 700; font-size: 14px; letter-spacing: .04em; box-shadow: 5px 5px 0 #000; }
+  .btn.primary { background: linear-gradient(180deg, #ff9d3f, var(--flame) 60%, #c95c0e); color: var(--waste); }
+  .btn.secondary { background: var(--brass); color: var(--waste); }
+  .btn.ghost { background: transparent; color: var(--text); border-color: rgba(245,240,232,.35); box-shadow: none; }
+  .btn:hover { transform: translateY(-1px); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { border: 1px solid rgba(200,160,78,.35); background: rgba(36,31,26,.55); box-shadow: 0 18px 50px rgba(0,0,0,.4); overflow: hidden; }
+  .card img { display: block; width: 100%; height: auto; }
+  .card .cap { padding: 11px 14px 13px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: rgba(245,240,232,.62); }
+  .card .cap b { color: var(--brass); }
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 26px 0 0; }
+  .fact { border: 1px solid rgba(245,240,232,.12); padding: 12px 14px; }
+  .fact .n { font-family: "Arial Black", Impact, sans-serif; font-size: 26px; color: var(--flame); }
+  .fact .l { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: rgba(245,240,232,.55); }
+  .note { margin-top: 26px; font-size: 13px; line-height: 1.55; color: rgba(245,240,232,.55); }
+  .note b { color: var(--text); }
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid rgba(245,240,232,.1); font-size: 12px; color: rgba(245,240,232,.42); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  @media (max-width: 820px) { .grid, .facts { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">настольная гонка на выживание · цифровой прототип · web + PvP</div>
+    <h1>ХРОМ<br><span>И ПЕПЕЛ</span></h1>
+    <p class="lede">Четверо собирают трассу, по которой поедут сами. Гонка и бой — одно действие.
+      Трасса — мозаика из гексов: повороты 60° и 120°, шпилька, шикана, мост, тоннель и пит-лейн.
+      Каждый заезд собирается заново.</p>
+
+    <div class="actions">
+      <a class="btn primary" href="chrome-and-ash/dist/chrome-and-ash.html">ИГРАТЬ В БРАУЗЕРЕ</a>
+      <a class="btn secondary" href="README.md">ВЕБ-ВЕРСИЯ И PVP</a>
+      <a class="btn ghost" href="chrome-and-ash/docs/04-hex-track-layout.md">КАК СОБРАНА ТРАССА</a>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <img src="chrome-and-ash/screenshots/cards-minis.png" alt="Настольный прототип: машины-мини и карты">
+        <div class="cap"><b>Настольный прототип</b> · камера, мини-модели, 22 карты с артом</div>
+      </div>
+      <div class="card">
+        <img src="chrome-and-ash-web/screenshots/web-game.png" alt="Веб-версия с камерой и мини-картой">
+        <div class="cap"><b>Веб-версия</b> · аккаунты, ежедневный сид, рейтинг, PvP</div>
+      </div>
+    </div>
+
+    <div class="facts">
+      <div class="fact"><div class="n">4</div><div class="l">фракции</div></div>
+      <div class="fact"><div class="n">22</div><div class="l">карты арсенала</div></div>
+      <div class="fact"><div class="n">36+3</div><div class="l">тайлов в круге</div></div>
+      <div class="fact"><div class="n">PvP</div><div class="l">лобби на 4 игроков</div></div>
+    </div>
+
+    <p class="note"><b>Статичная версия</b> открывается сразу, без сервера. <b>Веб-версия и PvP</b> требуют Node 24:
+      <code>cd server &amp;&amp; npm install &amp;&amp; npm start</code>, затем <code>http://127.0.0.1:3000</code>.</p>
+
+    <footer>
+      <span>MIT · код и дизайн</span>
+      <span>арт: Yandex ART + BotHub gpt-image-2</span>
+    </footer>
+  </div>
+</body>
+</html>

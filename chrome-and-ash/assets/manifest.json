@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "base": "assets/",
+  "extension": ".png",
+  "comment": "Точка подключения ассетов. Это СОГЛАШЕНИЕ о путях и именах, а не список готовых файлов: entries пуст, арт ещё не сгенерирован. Рантайм-источник имён — js/assets.js, инструментальный — этот файл; они должны совпадать (ловит tests/assets.js). Полный текст — docs/06-asset-pipeline.md.",
+  "kinds": {
+    "bg":      { "dir": "bg",            "pattern": "{id}.png",  "parts": false },
+    "tile":    { "dir": "tiles",         "pattern": "{id}.png",  "parts": false },
+    "card":    { "dir": "cards/arsenal", "pattern": "{id}.png",  "parts": false },
+    "upgrade": { "dir": "cards/upgrade", "pattern": "{id}.png",  "parts": false },
+    "event":   { "dir": "cards/event",   "pattern": "{id}.png",  "parts": false },
+    "token":   { "dir": "tokens",        "pattern": "{id}.png",  "parts": false },
+    "dice":    { "dir": "dice",          "pattern": "{id}.png",  "parts": false },
+    "faction": { "dir": "factions/{id}", "pattern": "{part}.png", "parts": ["standee", "glyph", "silhouette", "portrait"] }
+  },
+  "catalog": {
+    "tile":    ["start", "straight", "turn", "fork", "sand", "debris", "ramp", "tunnel", "bridge", "event", "pit", "checkpoint", "building", "ruin"],
+    "card":    ["mg", "twin", "rocket", "harpoon", "mine", "oil", "flamer", "smoke", "nitro", "brake", "ramplate", "repair", "jammer", "canister", "drone", "boost", "ramboost", "shield", "emp", "net", "sabotage", "tow"],
+    "upgrade": ["engine2", "engine3", "turbo", "armor", "reactive", "plow", "suspension", "tracks", "balance", "turret", "barrel", "autoloader", "spikes", "cage", "magnet"],
+    "event":   ["sandstorm", "scavengers", "depot", "spill", "asphalt", "sinkhole", "witnesses", "night", "fuel"],
+    "faction": ["chrome", "rust", "carnival", "swarm"],
+    "token":   ["mine", "oil", "fire", "wreck", "shield", "smoke", "burn", "emp", "scrap"],
+    "bg":      ["menu-sunset", "board-desert", "board-night", "card-back"],
+    "dice":    ["d4"]
+  },
+  "naming": {
+    "case": "kebab-case ASCII (строчные, дефисы)",
+    "slug": "идентификатор из data.js без перевода и транслитерации",
+    "variantSuffix": "суффикс перед расширением: -night, -light, -dark",
+    "retina": "@2x перед расширением",
+    "oneAssetPerComponent": true,
+    "noSpriteSheets": "в v1 один компонент = один файл"
+  },
+  "entries": {}
+}

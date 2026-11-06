@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ХРОМ И ПЕПЕЛ — Закат в Пустоши</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============================== ВХОД / РЕГИСТРАЦИЯ ============================== -->
+    <section id="screen-auth" class="screen active">
+      <div class="menu-sky"></div>
+      <div class="menu-sun"></div>
+      <div class="menu-dust"></div>
+      <div class="auth-wrap">
+        <header class="hero">
+          <div class="kicker">веб-клиент · одиночная игра · общий ежедневный сид</div>
+          <h1 class="logo">ХРОМ<br><span>И ПЕПЕЛ</span></h1>
+          <p class="lede">Каждый день — одна трасса, один сид, одна фракция для всех.
+            Пройди ежедневный заезд, поднимись в рейтинге. Прогресс сохраняется в облаке.</p>
+        </header>
+
+        <div class="auth-card panel">
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-auth="login" type="button">ВХОД</button>
+            <button class="auth-tab" data-auth="register" type="button">РЕГИСТРАЦИЯ</button>
+          </div>
+          <form id="auth-form" autocomplete="off" novalidate>
+            <label class="field">
+              <span>ИМЯ</span>
+              <input id="auth-username" name="username" autocomplete="username" required maxlength="32">
+            </label>
+            <label class="field" id="displayname-field" hidden>
+              <span>ОТОБРАЖАЕМОЕ ИМЯ <em>(необязательно)</em></span>
+              <input id="auth-displayname" name="displayName" maxlength="32">
+            </label>
+            <label class="field">
+              <span>ПАРОЛЬ</span>
+              <input id="auth-password" name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="128">
+            </label>
+            <button class="big-btn" id="auth-submit" type="submit">ВОЙТИ</button>
+            <div class="auth-error" id="auth-error" hidden></div>
+          </form>
+          <div class="auth-board">
+            <div class="panel-head"><span class="num">♛</span><h2>ЛУЧШИЕ СЕГОДНЯ</h2></div>
+            <div id="auth-leaderboard" class="leaderboard"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== ЛОББИ ============================== -->
+    <section id="screen-lobby" class="screen">
+      <header class="topbar">
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span></div>
+        <div class="topbar-right">
+          <span id="lobby-user" class="lobby-user"></span>
+          <button id="open-pvp-btn" class="chip-btn" type="button">PvP</button>
+          <button id="logout-btn" class="chip-btn" type="button">ВЫХОД</button>
+        </div>
+      </header>
+
+      <div class="lobby-wrap">
+        <div class="lobby-grid">
+          <div class="panel">
+            <div class="panel-head"><span class="num">01</span><h2>ЕЖЕДНЕВНЫЙ ЗАЕЗД</h2></div>
+            <div id="daily-body" class="daily-body">Загрузка…</div>
+            <button id="start-daily-btn" class="big-btn" type="button">СТАРТ ЕЖЕДНЕВНОГО ЗАЕЗДА</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><span class="num">02</span><h2>СВОБОДНЫЙ ЗАЕЗД</h2></div>
+            <p class="panel-note">Свой случайный сид. Выбери фракцию и выезжай на трассу.</p>
+            <div id="quick-factions" class="faction-row"></div>
+            <button id="start-race-btn" class="big-btn secondary" type="button">СТАРТ ЗАЕЗДА</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><span class="num">03</span><h2>ПРОДОЛЖИТЬ</h2></div>
+            <div id="continue-body" class="continue-body">Нет активной партии.</div>
+            <button id="continue-btn" class="big-btn secondary" type="button" hidden>ПРОДОЛЖИТЬ ЗАЕЗД</button>
+          </div>
+        </div>
+
+        <div class="lobby-grid">
+          <div class="panel">
+            <div class="panel-head"><span class="num">+</span><h2>СТАТИСТИКА</h2></div>
+            <div id="stats-body" class="stats-body"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><span class="num">♛</span><h2>РЕЙТИНГ</h2></div>
+            <div class="board-tabs" data-scope="lobby">
+              <button class="board-tab active" data-board="daily" type="button">ЕЖЕДНЕВНЫЙ</button>
+              <button class="board-tab" data-board="race" type="button">ЗАЕЗД</button>
+              <button class="board-tab" data-board="championship" type="button">ЧЕМПИОНАТ</button>
+            </div>
+            <div id="lobby-board" class="leaderboard"></div>
+            <button id="open-leaderboard-btn" class="ghost-btn" type="button">ОТКРЫТЬ ПОЛНЫЙ РЕЙТИНГ</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== PvP ЛОББИ ============================== -->
+    <section id="screen-pvp-lobby" class="screen">
+      <header class="topbar">
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>PvP</em></div>
+        <button id="pvp-back-btn" class="chip-btn" type="button">В ЛОББИ</button>
+      </header>
+      <div class="sub-wrap">
+        <div class="sub-head">
+          <h2>PvP · ЛОББИ</h2>
+          <p>Создай лобби или войди по коду. 4 слота, пустые занимают боты. Владелец запускает гонку.</p>
+        </div>
+        <div id="pvp-lobby-panels" class="lobby-grid">
+          <div class="panel">
+            <div class="panel-head"><span class="num">01</span><h2>СОЗДАТЬ</h2></div>
+            <label class="field">
+              <span>ТАЙМЕР ХОДА</span>
+              <select id="pvp-timer-select">
+                <option value="90" selected>90 секунд</option>
+                <option value="60">60 секунд</option>
+                <option value="120">120 секунд</option>
+                <option value="null">Без таймера</option>
+              </select>
+            </label>
+            <button id="pvp-create-btn" class="big-btn" type="button">СОЗДАТЬ ЛОББИ</button>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="num">02</span><h2>ВОЙТИ ПО КОДУ</h2></div>
+            <label class="field">
+              <span>КОД ЛОББИ</span>
+              <input id="pvp-join-code" maxlength="6" placeholder="K7P2QA" autocomplete="off">
+            </label>
+            <button id="pvp-join-btn" class="big-btn secondary" type="button">ВОЙТИ</button>
+          </div>
+        </div>
+        <div id="pvp-lobby-state" class="panel pvp-lobby-state" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============================== ИГРА ============================== -->
+    <section id="screen-game" class="screen">
+      <header class="game-top">
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em id="game-mode-label"></em></div>
+        <div id="race-meta" class="race-meta"></div>
+        <div class="top-actions">
+          <span id="save-status" class="save-status" title="Статус автосохранения">—</span>
+          <button id="save-now-btn" class="chip-btn" type="button" title="Сохранить сейчас">СОХРАНИТЬ</button>
+          <button id="pvp-resign-btn" class="chip-btn danger" type="button" hidden>СДАТЬСЯ</button>
+          <button id="game-menu-btn" class="chip-btn danger" type="button">В МЕНЮ</button>
+        </div>
+      </header>
+
+      <main class="game-main">
+        <section class="board-panel">
+          <div class="board-head">
+            <div class="board-title">ТРАССА <span id="track-label"></span></div>
+            <div class="board-tools">
+              <button id="cam-toggle" class="chip-btn" type="button" title="Режим камеры: следить за машиной / вся трасса">Следить</button>
+              <button id="hp-toggle" class="chip-btn" type="button" title="Показывать корпус машин постоянно">HP</button>
+              <button id="zoom-out" class="chip-btn" type="button" title="Мельче">−</button>
+              <button id="zoom-fit" class="chip-btn" type="button" title="Показать всю трассу">Обзор</button>
+              <button id="zoom-in" class="chip-btn" type="button" title="Крупнее">+</button>
+            </div>
+            <div id="leader-label" class="leader-label"></div>
+          </div>
+          <div class="board-wrap">
+            <svg id="board" viewBox="0 0 1000 784" preserveAspectRatio="xMidYMid meet" aria-label="Трасса"></svg>
+            <svg id="minimap" class="minimap" viewBox="0 0 1000 784" aria-label="Мини-карта трассы" role="img"></svg>
+            <div id="board-floats" class="board-floats"></div>
+            <div id="toast-zone" class="toast-zone"></div>
+            <div class="board-legend">
+              <span><i style="background:#5b5142"></i>дорога</span>
+              <span><i style="background:#a34a24"></i>песок</span>
+              <span><i style="background:#9e1f1a"></i>опасность</span>
+              <span><i style="background:#ff7a1e"></i>пустошь ?</span>
+              <span><i style="background:#241f1a"></i>пит</span>
+              <span><i style="background:#d8d8d2"></i>КП · шахматка</span>
+            </div>
+          </div>
+          <div id="dice-strip" class="dice-strip"></div>
+        </section>
+
+        <aside class="side">
+          <div id="turn-card" class="turn-card"></div>
+          <div id="players" class="players"></div>
+        </aside>
+      </main>
+
+      <section class="bottom-strip">
+        <div id="hand-zone" class="hand-zone"></div>
+        <div id="phase-strip" class="phase-strip"></div>
+      </section>
+
+      <section class="log-panel">
+        <div class="log-head"><span>ЖУРНАЛ</span><button id="log-toggle" class="log-toggle" type="button">развернуть</button></div>
+        <div id="log" class="log collapsed"></div>
+      </section>
+    </section>
+
+    <!-- ============================== РЕЗУЛЬТАТЫ ============================== -->
+    <section id="screen-results" class="screen">
+      <header class="topbar">
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>результаты</em></div>
+      </header>
+      <div class="sub-wrap">
+        <div class="sub-head">
+          <h2 id="results-title">ИТОГИ ЗАЕЗДА</h2>
+          <p id="results-sub"></p>
+        </div>
+        <div id="finalize-status" class="finalize-status"></div>
+        <div id="results-table" class="results-table"></div>
+        <div class="sub-actions">
+          <button id="results-leaderboard" class="big-btn secondary" type="button">РЕЙТИНГ</button>
+          <button id="results-menu" class="big-btn" type="button">В ЛОББИ</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== РЕЙТИНГ ============================== -->
+    <section id="screen-leaderboard" class="screen">
+      <header class="topbar">
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>рейтинг</em></div>
+        <button id="lb-back-btn" class="chip-btn" type="button">НАЗАД</button>
+      </header>
+      <div class="sub-wrap">
+        <div class="sub-head"><h2>РЕЙТИНГ</h2><p>Общий зачёт по очкам чемпионата. Тай-брейк — нанесённый урон, затем уничтожения.</p></div>
+        <div class="board-tabs" data-scope="full">
+          <button class="board-tab active" data-lb="daily" type="button">ЕЖЕДНЕВНЫЙ</button>
+          <button class="board-tab" data-lb="race" type="button">ЗАЕЗД</button>
+          <button class="board-tab" data-lb="championship" type="button">ЧЕМПИОНАТ</button>
+        </div>
+        <div id="leaderboard-full" class="leaderboard"></div>
+      </div>
+    </section>
+
+    <!-- ============================== МОДАЛКИ ============================== -->
+    <div id="modal-root" class="modal-root" aria-live="polite"></div>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/track.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/ws.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

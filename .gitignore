@@ -1,0 +1,10 @@
+# game project repo (Games root; only game dirs are tracked)
+node_modules/
+*.db
+*.db-shm
+*.db-wal
+.env
+.agent-teams/
+*.log
+*.env
+!*.env.example

@@ -1,0 +1,13 @@
+# Зависимости
+node_modules/
+
+# Локальная БД (создаётся при запуске) и WAL/SHM
+cna.db
+cna.db-wal
+cna.db-shm
+*.db
+*.db-wal
+*.db-shm
+
+# Локальные секреты
+.env
