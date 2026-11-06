@@ -1,0 +1,18 @@
+[Unit]
+Description=Chrome & Ash web game (loopback only, no public route)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=3
+ExecStartPre=-/usr/bin/docker rm -f chrome-and-ash
+ExecStart=/usr/bin/docker run --rm --name chrome-and-ash \
+  --env-file /etc/chrome-and-ash.env \
+  -p 127.0.0.1:3100:3000 \
+  -v /opt/chrome-and-ash/data:/data \
+  chrome-and-ash:latest
+ExecStop=/usr/bin/docker stop chrome-and-ash
+
+[Install]
+WantedBy=multi-user.target

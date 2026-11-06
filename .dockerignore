@@ -1,0 +1,6 @@
+.git
+.deploy
+node_modules
+**/node_modules
+**/screenshots
+chrome-and-ash
