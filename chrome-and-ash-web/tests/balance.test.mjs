@@ -56,6 +56,34 @@ test('mine limit defaults to 2', () => {
   assert.equal(game.options.mineLimit, 2);
 });
 
+test('Carnival gets one free trap per lap, not per turn', () => {
+  const game = gameFor('carnival', 21);
+  game.laps = 3;
+  const car = game.cars.find((c) => c.human);
+  const nodes = Object.values(game.race.track.nodes).filter((n) => n.next && n.next.length && n.type !== 'start');
+  car.node = nodes[0].id;
+  car.hand = [
+    { uid: 'trap-1', type: 'mine' },
+    { uid: 'trap-2', type: 'oil' },
+    { uid: 'trap-3', type: 'oil' },
+  ];
+  game.race.phase = 'fire';
+  game.race.turn = turn({ fireUsed: false });
+  const first = CnA.placeTrap(game, car, 'trap-1', nodes[0].id);
+  assert.equal(first.ok, true);
+  assert.equal(first.free, true);
+  game.race.turn.fireUsed = false;
+  const opts2 = CnA.trapOptions(game, car, 'trap-2');
+  assert.ok(opts2.length > 0);
+  const second = CnA.placeTrap(game, car, 'trap-2', opts2[0].node);
+  assert.equal(second.ok, true);
+  assert.equal(second.free, false);
+  assert.equal(CnA.freeTrapReady(game, car), false);
+  car.lapsDone = 1;
+  game.race.turn.fireUsed = false;
+  assert.equal(CnA.freeTrapReady(game, car), true);
+});
+
 test('mine card is 2d4', () => {
   assert.equal(CnA.CARDS.mine.dmg, '2d4');
 });

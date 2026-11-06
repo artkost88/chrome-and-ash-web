@@ -159,7 +159,7 @@
     const r = game.race;
     if (!r.turn || r.phase !== 'fire') return null;
     const canAttack = !r.turn.fireUsed;
-    const freeTrap = car.factionId === 'carnival' && !r.turn.freeTrapUsed;
+    const freeTrap = CnA.freeTrapReady(game, car);
     const hand = car.hand;
     const attacks = hand.filter((c) => {
       const card = CnA.CARDS[c.type];

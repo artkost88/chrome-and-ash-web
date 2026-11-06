@@ -137,6 +137,7 @@
       repairUsed: false,
       mineReturned: false,
       freeTrapUsed: false,
+      freeTrapLap: 0,
       pitThisRace: false,
       wildfireCharges: car.factionId === 'chrome' ? 2 : 0,
       rerollUsed: false,
@@ -477,6 +478,14 @@
     car.flags.turboArmed = true;
     log(game, car.name + ' → турбина взведена: следующий бросок движения удвоится', 'ability');
     return { ok: true };
+  }
+
+  function currentLap(game, car) {
+    return Math.min(game.laps, Math.max(1, (car.lapsDone || 0) + 1));
+  }
+
+  function freeTrapReady(game, car) {
+    return car.factionId === 'carnival' && car.flags.freeTrapLap !== currentLap(game, car);
   }
 
   function armWildfire(game, car) {
@@ -1405,7 +1414,7 @@
     if (card.kind !== 'trap') return { ok: false, reason: 'Это не ловушка' };
     const opts = trapOptions(game, car, cardUid);
     if (!opts.some((o) => o.node === nodeId)) return { ok: false, reason: 'Сюда ставить нельзя' };
-    const free = car.factionId === 'carnival' && !r.turn.freeTrapUsed;
+    const free = freeTrapReady(game, car);
     if (!free && r.turn.fireUsed) return { ok: false, reason: 'Действие огня уже потрачено' };
 
     discardCard(game, car, cardUid);
@@ -1415,6 +1424,7 @@
     r.tokens.push({ type: card.trap, node: nodeId, owner: car.id });
     if (free) {
       r.turn.freeTrapUsed = true;
+      car.flags.freeTrapLap = currentLap(game, car);
       log(game, car.name + ' бесплатно ставит ' + card.name + ' на тайл ' + nodeId + ' (способность фракции).', 'trap');
     } else {
       r.turn.fireUsed = true;
@@ -1436,7 +1446,7 @@
       if (r.turn.empDisabled) return false;
       if (card.kind === 'trap') {
         if (trapOptions(game, car, cardUid).length === 0) return false;
-        if (r.turn.fireUsed && !(car.factionId === 'carnival' && !r.turn.freeTrapUsed)) return false;
+        if (r.turn.fireUsed && !freeTrapReady(game, car)) return false;
         return true;
       }
       if (r.turn.fireUsed) return false;
@@ -1711,6 +1721,7 @@
   CnA.returnMine = returnMine;
   CnA.armTurbo = armTurbo;
   CnA.armWildfire = armWildfire;
+  CnA.freeTrapReady = freeTrapReady;
   CnA.startPit = startPit;
   CnA.rollMove = rollMove;
   CnA.rerollMove = rerollMove;
