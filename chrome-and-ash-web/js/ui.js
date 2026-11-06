@@ -152,7 +152,7 @@
   const TRACK_INFO = {
     club: { name: 'Клубное кольцо', size: 24, kind: 'ring', desc: 'Короткое кольцо для обучения: меньше опасностей, чистые обгоны.' },
     horseshoe: { name: 'Пыльная подкова', size: 36, kind: 'mosaic', desc: 'Шикана, тоннель, мост, шпилька и пит-лейн. Основной заезд.' },
-    snake: { name: 'Змея', size: 30, kind: 'mosaic', desc: 'Волнистая техничная трасса со срезом; меньше прямых, больше решений.' },
+    snake: { name: 'Змея', size: 31, kind: 'mosaic', desc: 'Волнистая техничная трасса со срезом; меньше прямых, больше решений.' },
   };
 
   const LS_ONBOARD = 'cna.onboarding.v1';
@@ -350,7 +350,7 @@
     const seed = opts.seed !== undefined ? (Number(opts.seed) >>> 0) : (Math.floor(Math.random() * 4294967295));
     const trackKind = opts.trackKind === 'ring' ? 'ring' : 'mosaic';
     const trackArchetype = opts.trackArchetype || (trackKind === 'ring' ? 'club' : 'horseshoe');
-    const trackSize = opts.trackSize || (trackArchetype === 'club' ? 24 : trackArchetype === 'snake' ? 30 : 36);
+    const trackSize = opts.trackSize || (trackArchetype === 'club' ? 24 : trackArchetype === 'snake' ? 31 : 36);
     const laps = opts.laps === 2 ? 2 : 1;
 
     const game = CnA.createGame({ mode: 'race', humanFaction: factionId, seed, laps, trackKind, trackSize, trackArchetype });
@@ -610,7 +610,7 @@
       if (o.jump) label = 'Прыжок с трамплина';
       else if (node.pitLane) label = 'Пит-лейн';
       else if (curNode && curNode.pitEntry) label = 'Трасса';
-      else if (node.inner) label = 'Короткий срез';
+      else if (node.inner) label = 'Короткий срез' + (CnA.HAZARD_TILES.includes(node.type) ? ' · ' + (CnA.TILES[node.type].label || node.type) : '');
       return '<button class="target-btn" data-route="' + i + '">' +
         '<b>' + esc(label) + ' → ' + esc(type) + '</b>' +
         '<span>тайл ' + node.id + (o.jump ? ' · перелёт через ' + o.via : '') + '</span></button>';
@@ -1185,7 +1185,7 @@
       const tile = CnA.TILES[n.type] || CnA.TILES.straight;
       const isHaz = CnA.HAZARD_TILES.indexOf(n.type) >= 0;
       const cls = 'hex' + (isHaz ? ' hazard' : '') + (n.checkpoint ? ' checkpoint' : '');
-      const title = tile.label + ' · тайл ' + n.id + (n.checkpoint ? ' · контрольный пункт' : '') + (n.inner ? ' · срез' : '');
+      const title = tile.label + ' · тайл ' + n.id + (n.checkpoint ? ' · контрольный пункт' : '') + (n.inner ? ' · срез' : '') + (n.inner && CnA.HAZARD_TILES.includes(n.type) ? ' · ' + tile.label : '');
       parts.push('<g class="tile" data-node="' + n.id + '">');
       parts.push('<title>' + esc(title) + '</title>');
       const hs = (track.size || 34) * (n.inner ? 0.88 : 1);
@@ -1245,7 +1245,7 @@
         parts.push('<text class="hex-label" x="' + n.x + '" y="' + labelY + '" font-size="' + fs + '" fill="' + ink + '">' + esc(label) + '</text>');
       }
       // Чип эффекта: механика тайла прямо на доске, а не только в легенде.
-      const eff = !n.inner ? TILE_EFFECT[n.type] : null;
+      const eff = TILE_EFFECT[n.type] || null;
       if (eff) {
         const effText = eff.icon + ' ' + eff.text;
         const ew = Math.max(18, effText.length * 3.1 + 6);

@@ -90,4 +90,6 @@ test('snake has a shortcut and no pit', () => {
   assert.equal(spec.pit, null);
   assert.ok(spec.shortcut);
   assert.ok(spec.shortcut.nodes.length >= 1);
+  const shortcutTypes = spec.shortcut.nodes.map((id) => spec.nodes.find((n) => n.id === id).type);
+  assert.ok(shortcutTypes.some((t) => ['sand', 'debris', 'event'].includes(t)), 'срез должен иметь риск');
 });

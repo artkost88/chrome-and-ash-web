@@ -29,7 +29,7 @@
     },
     snake: {
       id: 'snake', name: 'Змея', label: 'Змея',
-      minSize: 28, maxSize: 32, defaultSize: 30,
+      minSize: 28, maxSize: 32, defaultSize: 31,
       hazardBudget: [3, 5], pit: 'none', shortcut: true,
       kind: 'mosaic',
     },
@@ -133,13 +133,14 @@
       const entry = opt.shortcut.entry;
       const exit = opt.shortcut.exit;
       const coordsList = Array.isArray(opt.shortcut.node[0]) ? opt.shortcut.node : [opt.shortcut.node];
+      const hazardIndex = opt.shortcut.hazardIndex;
       const ids = [];
       coordsList.forEach(([iq, ir], i) => {
         const id = n + i;
         ids.push(id);
         const p = axialToScreen(iq, ir, 34);
         nodes.push({
-          id, q: iq, r: ir, x: p.x, y: p.y, type: 'straight',
+          id, q: iq, r: ir, x: p.x, y: p.y, type: i === hazardIndex ? 'debris' : 'straight',
           next: [i === coordsList.length - 1 ? exit : n + i + 1],
           prev: [i === 0 ? entry : n + i - 1],
           inner: true, level: 0,
@@ -147,7 +148,7 @@
       });
       nodes[entry].next = [nodes[entry].next[0], ids[0]];
       nodes[exit].prev.push(ids[ids.length - 1]);
-      shortcut = { entry, exit, nodes: ids, type: 'straight' };
+      shortcut = { entry, exit, nodes: ids, type: hazardIndex != null ? 'debris' : 'straight' };
     }
     return {
       schemaVersion: 1, id: opt.id + '-' + (seed >>> 0).toString(36),
@@ -176,7 +177,7 @@
     coords.push([2, 1], [3, 1], [3, 0]);
     for (let q = 4; q <= 9; q++) coords.push([q, 0]);
     // правый разворот
-    coords.push([10, 0], [10, 1], [10, 2], [9, 3]);
+    coords.push([10, 0], [10, 1], [10, 2], [10, 3], [9, 3]);
     // нижняя полоса с шиканой
     coords.push([8, 3], [7, 3], [6, 3]);
     coords.push([6, 4], [5, 4], [5, 3]);
@@ -199,7 +200,7 @@
     const coords = stadiumCoords();
     const spec = buildAxialSpec(seed + 100003, coords, {
       id: 'snake', name: 'Змея', hazardBudget: [3, 5],
-      pit: false, shortcut: { entry: 11, exit: 15, node: [[9, 1], [9, 2]] },
+      pit: false, shortcut: { entry: 11, exit: 16, node: [[9, 1], [9, 2]], hazardIndex: 1 },
     });
     return spec;
   }
