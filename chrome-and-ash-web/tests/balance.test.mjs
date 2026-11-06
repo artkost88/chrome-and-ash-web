@@ -41,9 +41,14 @@ test('start grid uses two tiles with two cars each', () => {
   assert.deepEqual(Object.values(counts).sort((a, b) => a - b), [2, 2]);
 });
 
-test('faction HP is compressed to 18/22/22/18', () => {
+test('faction HP is compressed to 19/22/22/18', () => {
   const hp = Object.fromEntries(CnA.FACTIONS.map((f) => [f.id, f.hp]));
-  assert.deepEqual(hp, { chrome: 18, rust: 22, carnival: 22, swarm: 18 });
+  assert.deepEqual(hp, { chrome: 19, rust: 22, carnival: 22, swarm: 18 });
+});
+
+test('finish window is two rounds after the leader', () => {
+  const game = gameFor('rust', 19);
+  assert.equal(game.options.extraRounds, 2);
 });
 
 test('mine card is 2d4', () => {

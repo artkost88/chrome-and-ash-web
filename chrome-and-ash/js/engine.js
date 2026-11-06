@@ -311,7 +311,7 @@
         respawnFraction: opts.respawnFraction === undefined ? 0.5 : opts.respawnFraction,
         checkpoints: opts.checkpoints !== false,
         spawnProtect: opts.spawnProtect !== false,
-        extraRounds: opts.extraRounds === undefined ? 1 : opts.extraRounds,
+        extraRounds: opts.extraRounds === undefined ? 2 : opts.extraRounds,
         mineLimit: opts.mineLimit === undefined ? 3 : opts.mineLimit,
       },
     };

@@ -18,7 +18,7 @@
       short: 'ХР',
       glyph: '▲',
       car: '«Ревун»',
-      hp: 18,
+      hp: 19,
       slots: 5,
       color: '#d8d8d2',
       ink: '#241f1a',
