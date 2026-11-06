@@ -73,7 +73,7 @@
   }
 
   const SCREENS = {
-    auth: 'screen-auth', lobby: 'screen-lobby', game: 'screen-game',
+    auth: 'screen-auth', lobby: 'screen-lobby', faction: 'screen-faction', game: 'screen-game',
     results: 'screen-results', leaderboard: 'screen-leaderboard', pvpLobby: 'screen-pvp-lobby',
   };
 
@@ -91,6 +91,10 @@
     revision: 0,
     mode: 'daily',
     quickFaction: 'rust',
+    newRaceMode: 'race',
+    helpOpen: false,
+    helpFrom: 'lobby',
+    onboardingStep: 0,
     authMode: 'login',
     busy: false,
     stage: 'idle',
@@ -113,6 +117,39 @@
     miniKey: null,
   };
   root.__CnA_WEB__ = UI;
+
+  /* Справочник по фракциям для экрана выбора и вкладки «Фракции». */
+  const FACTION_INFO = {
+    chrome: {
+      role: 'Таран · стеклянная пушка',
+      strengths: 'Два d4 на таран и лучший результат; убийство тараном возвращает 4 корпуса.',
+      weakness: 'Корпус 16 — самый тонкий; неудачный таран наказывает.',
+      tip: 'Ищи добивание тараном: лечишься только уничтожением.',
+    },
+    rust: {
+      role: 'Танк · мастерская',
+      strengths: '26 корпуса, пит-стоп 2 хода, ремонт d4 на ходу раз за гонку.',
+      weakness: 'Мало слотов (4) и слабый темп на старте.',
+      tip: 'Тянись к пит-лейну и играй от ремонта.',
+    },
+    carnival: {
+      role: 'Ловушки · контроль',
+      strengths: 'Мины и масло бесплатно, не тратя фазу огня; мина возвращается в руку.',
+      weakness: '20 корпуса и мало прямого урона.',
+      tip: 'Готовь поле перед лидером и вынуждай его в мины.',
+    },
+    swarm: {
+      role: 'Дальний бой · охота',
+      strengths: 'Дальность всего оружия +1; по текущему лидеру урон +2.',
+      weakness: '18 корпуса; наказывают в упор.',
+      tip: 'Держи дистанцию и фокусь лидера гонки.',
+    },
+  };
+
+  const LS_ONBOARD = 'cna.onboarding.v1';
+  const LS_HINTS = 'cna.hints.v1';
+  function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function lsSet(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
 
   /* ------------------------------------------------------------------ */
   /* Утилиты                                                            */
@@ -333,6 +370,7 @@
     showScreen('game');
     renderAll();
     await doSave();
+    await maybeShowRaceHint();
     raceLoop();
   }
 
@@ -402,6 +440,7 @@
   async function raceLoop() {
     const gen = UI.loopGen;
     while (gen === UI.loopGen && UI.game && UI.game.race && !UI.game.race.over) {
+      if (UI.helpOpen) { await sleep(200); continue; }
       const started = CnA.beginTurn(UI.game);
       renderAll();
       if (started.skip) {
@@ -1603,82 +1642,311 @@
     showScreen('lobby');
     renderLobby();
     loadDaily();
-    loadLeaderboard('lobby', UI.leaderboardMode);
+    maybeShowOnboarding();
   }
 
   function renderLobby() {
     if (UI.account) {
-      $('#lobby-user').innerHTML = '<b>' + esc(UI.account.displayName || UI.account.username) + '</b>';
+      const name = UI.account.displayName || UI.account.username;
+      $('#lobby-user').innerHTML = '<b>' + esc(name) + '</b>';
+      $('#hub-user').innerHTML = '<b>' + esc(name) + '</b> · в гараже';
     }
     renderStats();
-    renderContinue();
+    renderHubContinue();
+    renderDailyStrip();
   }
 
   function renderStats() {
     const s = UI.stats || {};
     const box = (label, value) => '<div class="stat-box"><b>' + esc(value == null ? '—' : value) + '</b><span>' + esc(label) + '</span></div>';
-    $('#stats-body').innerHTML =
+    const el = $('#stats-body');
+    if (!el) return;
+    el.innerHTML =
       box('заездов', s.runsTotal) +
       box('финишей', s.runsFinished) +
-      box('лучший заезд', s.raceBest) +
       box('лучший день', s.dailyBest);
   }
 
-  function renderContinue() {
-    const body = $('#continue-body');
-    const btn = $('#continue-btn');
+  function renderHubContinue() {
+    const btn = $('#hub-continue');
+    const sub = $('#hub-continue-sub');
+    if (!btn || !sub) return;
     if (UI.activeSave && UI.activeRun) {
       const mode = UI.activeRun.mode === 'daily' ? 'ежедневный' : 'заезд';
-      body.innerHTML = 'Активная партия: <b>' + esc(mode) + '</b> · фракция ' + esc(faction(UI.activeRun.faction).name) + '.<br>Сид ' + UI.activeRun.seed + ' · статус ' + esc(UI.activeRun.status) + '.';
-      btn.hidden = false;
+      const f = faction(UI.activeRun.faction);
+      const statusMap = { active: 'в пути', finished: 'финиш', abandoned: 'брошена', paused: 'пауза' };
+      btn.disabled = false;
+      sub.textContent = mode + ' · ' + f.name + ' · ' + (statusMap[UI.activeRun.status] || 'в пути');
     } else {
-      body.textContent = 'Нет активной партии.';
-      btn.hidden = true;
+      btn.disabled = true;
+      sub.textContent = 'нет активной партии';
     }
+  }
+
+  function renderDailyStrip() {
+    const el = $('#hub-daily');
+    if (!el) return;
+    if (!UI.daily || !UI.daily.challenge) { el.hidden = true; return; }
+    const c = UI.daily.challenge;
+    const f = faction(c.faction);
+    el.hidden = false;
+    el.innerHTML =
+      '<div><b>СЕГОДНЯ</b> · ' + esc(UI.daily.date) + ' · <span style="color:' + f.color + '">' + esc(f.name) + '</span>' +
+      (UI.daily.myBest ? ' · лучший ' + UI.daily.myBest.score : '') + '</div>' +
+      '<button id="hub-daily-start" type="button">ЕЖЕДНЕВНЫЙ →</button>';
+    const b = $('#hub-daily-start');
+    if (b) b.addEventListener('click', () => openFactionScreen('daily'));
   }
 
   async function loadDaily() {
-    const el = $('#daily-body');
     try {
-      const d = await API.daily();
-      UI.daily = d;
-      const c = d.challenge;
-      const f = faction(c.faction);
-      let html = '<div class="daily-fact">ДАТА <b>' + esc(d.date) + '</b></div>';
-      html += '<div class="daily-fact">ФРАКЦИЯ <b style="color:' + f.color + '">' + esc(f.name) + ' · ' + esc(f.car) + '</b></div>';
-      html += '<div class="daily-fact">СИД <b>' + c.seed + '</b></div>';
-      html += '<div class="daily-fact">ТРАССА <b>' + (c.trackKind === 'mosaic' ? 'Пыльная подкова · 36' : 'Кольцо · ' + c.trackSize) + '</b> · КРУГОВ <b>' + c.laps + '</b></div>';
-      html += '<div class="daily-fact">СПОСОБНОСТЬ <b>' + esc(f.abilityName) + '</b> — ' + esc(f.ability) + '</div>';
-      if (d.myBest) {
-        html += '<div class="daily-best">Твой лучший сегодня: <b>' + d.myBest.score + '</b> очков · место ' + d.myBest.detail.pos + '.</div>';
-      } else {
-        html += '<div class="daily-best">Ты ещё не проходил сегодняшний заезд.</div>';
-      }
-      el.innerHTML = html;
-      $('#start-daily-btn').disabled = false;
+      UI.daily = await API.daily();
+      renderDailyStrip();
+      if (UI.screen === 'faction' && UI.newRaceMode === 'daily') renderFactionCards();
     } catch (e) {
-      el.innerHTML = 'Не удалось загрузить ежедневный заезд.';
-      $('#start-daily-btn').disabled = true;
+      UI.daily = null;
+      renderDailyStrip();
+      if (UI.newRaceMode === 'daily') {
+        UI.newRaceMode = 'race';
+        if (UI.screen === 'faction') { renderFactionCards(); showToast('Ежедневный заезд недоступен — свободный заезд.', 'event', 2600); }
+      }
     }
   }
 
-  function renderFactionPicker() {
-    const picker = $('#quick-factions');
-    picker.innerHTML = CnA.FACTIONS.map((f) => (
-      '<button class="faction-card' + (f.id === UI.quickFaction ? ' active' : '') + '" data-faction="' + f.id + '" style="--fc:' + f.color + '" data-glyph="' + esc(f.glyph) + '" type="button">' +
-      '<img class="faction-portrait" src="' + assetUrl('faction', f.id, 'portrait') + '" alt="" aria-hidden="true" onerror="this.remove()">' +
-      '<span class="fname">' + esc(f.name) + '</span>' +
-      '<span class="fcar">' + esc(f.car) + '</span>' +
-      '<span class="fstats">КОРПУС ' + f.hp + ' · СЛОТЫ ' + f.slots + '</span>' +
-      '</button>'
-    )).join('');
-    $$('#quick-factions .faction-card').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        UI.quickFaction = btn.dataset.faction;
-        $$('#quick-factions .faction-card').forEach((b) => b.classList.toggle('active', b === btn));
+  function openFactionScreen(mode) {
+    UI.newRaceMode = mode === 'daily' ? 'daily' : 'race';
+    renderFactionCards();
+    showScreen('faction');
+  }
+
+  function renderFactionCards() {
+    const grid = $('#faction-cards');
+    if (!grid) return;
+    const daily = UI.newRaceMode === 'daily' && UI.daily ? UI.daily.challenge : null;
+    const dailyFaction = daily ? daily.faction : null;
+    if (dailyFaction) UI.quickFaction = dailyFaction;
+
+    $$('#faction-tabs .faction-tab').forEach((t) => t.classList.toggle('active', t.dataset.mode === UI.newRaceMode));
+    const sub = $('#faction-sub');
+    if (sub) {
+      sub.textContent = daily
+        ? 'Ежедневный · ' + UI.daily.date + ' · сид ' + daily.seed + ' · ' + (daily.trackKind === 'mosaic' ? 'Пыльная подкова · 36' : 'Кольцо · ' + daily.trackSize) + ' · кругов ' + daily.laps + '. Фракция фиксирована.'
+        : 'Четыре характера. Один заезд. Выбор за тобой.';
+    }
+
+    grid.innerHTML = CnA.FACTIONS.map((f) => {
+      const info = FACTION_INFO[f.id] || {};
+      const locked = !!dailyFaction && f.id !== dailyFaction;
+      const active = f.id === UI.quickFaction && !locked;
+      return '<article class="car-card' + (active ? ' active' : '') + (locked ? ' locked' : '') + '" data-faction="' + f.id + '" style="--fc:' + f.color + '" tabindex="0" role="button" aria-label="' + esc(f.name) + '">' +
+        '<div class="car-art" data-glyph="' + esc(f.glyph) + '">' +
+          '<img src="assets/factions/' + f.id + '/mini.png" alt="' + esc(f.car) + '" onerror="this.remove()">' +
+        '</div>' +
+        '<div class="car-info">' +
+          '<div class="car-top"><h3>' + esc(f.name) + '</h3><span class="car-car">' + esc(f.car) + '</span></div>' +
+          '<div class="car-meta"><span>КОРПУС <b>' + f.hp + '</b></span><span>СЛОТЫ <b>' + f.slots + '</b></span></div>' +
+          '<div class="car-tags">' + (f.tags || []).map((t) => '<span class="car-tag">' + esc(t) + '</span>').join('') + '</div>' +
+          '<p class="car-ability"><b>' + esc(f.abilityName) + '.</b> ' + esc(f.ability) + '</p>' +
+          (info.role ? '<p class="car-ability" style="color:var(--muted)">' + esc(info.role) + '</p>' : '') +
+          '<button class="car-more" type="button" data-more="' + f.id + '">ПОДРОБНЕЕ</button>' +
+        '</div>' +
+      '</article>';
+    }).join('');
+
+    $$('#faction-cards .car-card').forEach((card) => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('[data-more]')) return;
+        selectFaction(card.dataset.faction);
+      });
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectFaction(card.dataset.faction); }
       });
     });
+    $$('#faction-cards [data-more]').forEach((btn) => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); openFactionInfo(btn.dataset.more); });
+    });
+    renderFactionDetail();
   }
+
+  function selectFaction(id) {
+    const daily = UI.newRaceMode === 'daily' && UI.daily ? UI.daily.challenge : null;
+    if (daily && daily.faction !== id) {
+      showToast('Сегодня фиксирована фракция ' + esc(faction(daily.faction).name) + '.', 'event', 2200);
+      return;
+    }
+    UI.quickFaction = id;
+    $$('#faction-cards .car-card').forEach((c) => c.classList.toggle('active', c.dataset.faction === id));
+    renderFactionDetail();
+  }
+
+  function renderFactionDetail() {
+    const el = $('#faction-detail');
+    const start = $('#faction-start');
+    if (!el || !start) return;
+    const f = faction(UI.quickFaction);
+    const info = FACTION_INFO[f.id] || {};
+    const daily = UI.newRaceMode === 'daily' && UI.daily;
+    el.innerHTML = '<b>' + esc(f.name) + '</b> · ' + esc(f.car) + ' · корпус ' + f.hp + ' · слоты ' + f.slots +
+      (info.tip ? '<br><span style="color:var(--muted)">' + esc(info.tip) + '</span>' : '');
+    start.textContent = daily ? 'СТАРТ ЕЖЕДНЕВНОГО' : 'НА ТРАССУ';
+  }
+
+  function openFactionInfo(id) {
+    const f = faction(id);
+    const info = FACTION_INFO[f.id] || {};
+    const html =
+      '<div class="faction-info">' +
+      '<div class="help-kicker" style="color:' + f.color + '">' + esc(f.short) + '</div>' +
+      '<h3 style="margin:4px 0 2px;color:' + f.color + '">' + esc(f.name) + '</h3>' +
+      '<p style="margin-bottom:10px;color:var(--muted)">' + esc(f.car) + ' · «' + esc(f.motto || '') + '»</p>' +
+      '<div class="car-meta" style="margin-bottom:10px"><span>КОРПУС <b style="color:var(--chrome)">' + f.hp + '</b></span><span>СЛОТЫ <b style="color:var(--chrome)">' + f.slots + '</b></span></div>' +
+      '<p><b>Способность. ' + esc(f.abilityName) + '.</b> ' + esc(f.ability) + '</p>' +
+      (info.role ? '<p style="margin-top:8px;color:var(--muted)"><b>Роль:</b> ' + esc(info.role) + '</p>' : '') +
+      (info.strengths ? '<p style="margin-top:6px"><b>Сильно:</b> ' + esc(info.strengths) + '</p>' : '') +
+      (info.weakness ? '<p style="margin-top:6px"><b>Слабо:</b> ' + esc(info.weakness) + '</p>' : '') +
+      (info.tip ? '<p style="margin-top:6px;color:var(--brass)"><b>Совет:</b> ' + esc(info.tip) + '</p>' : '') +
+      '</div>';
+    modal(html, null, { maxWidth: '560px' });
+  }
+
+  function openHelp(from) {
+    UI.helpFrom = from || (UI.screen === 'game' ? 'game' : 'lobby');
+    UI.helpOpen = UI.helpFrom === 'game';
+    const overlay = $('#help-overlay');
+    if (!overlay) return;
+    overlay.hidden = false;
+    const replay = $('#help-replay');
+    if (replay) replay.hidden = UI.helpFrom !== 'lobby';
+    renderHelp('basics');
+  }
+
+  function closeHelp() {
+    const overlay = $('#help-overlay');
+    if (overlay) overlay.hidden = true;
+    UI.helpOpen = false;
+  }
+
+  function helpFactionBlocks() {
+    return CnA.FACTIONS.map((f) => {
+      const info = FACTION_INFO[f.id] || {};
+      return '<div style="margin-top:12px;padding:12px;border-left:3px solid ' + f.color + ';background:rgba(0,0,0,.22)">' +
+        '<b style="color:' + f.color + '">' + esc(f.name) + '</b> · ' + esc(f.car) + ' · корпус ' + f.hp + ', слоты ' + f.slots +
+        '<div style="margin-top:4px"><b>Способность.</b> ' + esc(f.abilityName) + '. ' + esc(f.ability) + '</div>' +
+        (info.tip ? '<div style="margin-top:4px;color:var(--muted)">' + esc(info.tip) + '</div>' : '') +
+        '</div>';
+    }).join('');
+  }
+
+  function renderHelp(tab) {
+    $$('.help-tab').forEach((t) => t.classList.toggle('active', t.dataset.help === tab));
+    const body = $('#help-body');
+    if (!body) return;
+    const content = {
+      basics:
+        '<h3>Цель</h3><p>Первым пересечь старт-финиш нужное число кругов. Гонка и бой — одно действие: карта, манёвр и выстрел конкурируют за ход.</p>' +
+        '<h3>Три фазы хода</h3><ol><li><b>Подготовка.</b> Одна карта «до движения» или пит-стоп.</li><li><b>Движение.</b> Бросок d4 + модификаторы; машина едет на итог.</li><li><b>Огонь.</b> Одна атака или одна ловушка.</li></ol>' +
+        '<h3>Управление</h3><ul><li>Клик по карте в руке — подготовка или атака.</li><li>Кнопка «Бросок d4» начинает движение.</li><li><b>Esc</b> закрывает окно; <b>?</b> открывает этот устав.</li></ul>' +
+        '<div class="help-note">Новичкам: начни с «Кузнецов Ржавчины» — у них больше всех корпуса и ремонт на ходу.</div>',
+      phases:
+        '<h3>Подготовка</h3><ul><li>Нитро, тормоз, дым, ремонт, канистра — одна карта до броска.</li><li>Пит-стоп лечит и добирает карты; у Кузнецов он на ход короче.</li></ul>' +
+        '<h3>Движение</h3><ul><li>Итог d4 + модификаторы, минимум 1, максимум 8.</li><li>Песок −1, обломки d4 урона и −1, «?» — карта Пустоши в конце движения.</li><li>На повороте при скорости 5+ бросок d4: на 1 машину сносит.</li><li>Трамплин перелетает следующий тайл; на 6+ посадка наносит d4.</li></ul>' +
+        '<h3>Огонь</h3><ul><li>Дальность по линии трассы; назад можно, вперёд — только по прямой.</li><li>Ракеты и турель игнорируют линию огня.</li><li>Одна атака или одна ловушка за ход.</li></ul>',
+      combat:
+        '<h3>Урон</h3><ul><li>Ниже 50% корпуса — −1 к движению; ниже 20% — −2 и нельзя таранить.</li><li>Уничтоженная машина оставляет обломки, пропускает 2 хода и возвращается на последний КП с половиной корпуса.</li><li>После возврата — защита от огня до следующего хода.</li><li>Убийца получает +3 очка и +5 лома; жертва теряет карту и 3 лома.</li></ul>' +
+        '<h3>Ловушки</h3><ul><li>Мина ставится на свой тайл или позади; срабатывает при въезде (3d4).</li><li>Масло — бросок d4: 1–2 занос.</li><li>Карнавал ставит первую ловушку бесплатно.</li></ul>' +
+        '<div class="help-note">Дым нельзя достать с дальности 2+; глушилка отменяет первую атаку по тебе.</div>',
+      cards:
+        '<h3>Рука</h3><ul><li>Старт — 3 карты, лимит руки 5.</li><li>В конце хода — добор 1 карты.</li><li>Фаза карты задаёт, когда её можно сыграть: подготовка, огонь, реакция.</li></ul>' +
+        '<h3>Экономика</h3><ul><li>Лом за место: 1-е — 4, 2-е — 6, 3-е — 8, 4-е — 10; не доехал — 3.</li><li>+1 лом за каждые 5 урона, +5 за уничтожение.</li><li>Очки: 1-е — 10, 2-е — 6, 3-е — 3, 4-е — 1; +3 за уничтожение.</li></ul>' +
+        '<div class="help-note">Улучшения покупаются в мастерской между гонками чемпионата; в одиночном заезде — только карты.</div>',
+      factions: '<h3>Четыре характера</h3><p>Выбор машины — это выбор темпа и риска. Способность важнее одного лишнего слота.</p>' + helpFactionBlocks(),
+      pvp:
+        '<h3>PvP</h3><ul><li>Создай лобби или войди по 6-символьному коду.</li><li>4 слота; пустые занимают боты.</li><li>Таймер хода — 90 секунд (настраивается).</li><li>Руки скрыты; сервер авторитетен.</li><li>При обрыве связи есть окно на переподключение; иначе ход забирает бот.</li></ul>' +
+        '<div class="help-note">PvP не влияет на ежедневный рейтинг — это отдельный стол.</div>',
+      faq:
+        '<h3>Частые вопросы</h3><ul><li><b>Не могу сыграть карту.</b> Проверь фазу: подготовка, огонь или реакция.</li><li><b>Машина не едет.</b> Возможно, пожар, ремонт или пропуск хода — смотри журнал.</li><li><b>Где продолжить?</b> «Продолжить» в гараже; прогресс сохраняется автоматически.</li><li><b>Как открыть рейтинг?</b> «Рейтинг» в гараже или после финиша.</li></ul>' +
+        '<h3>Горячие клавиши</h3><p><b>Пробел</b> — бросок/подтверждение, <b>Esc</b> — закрыть окно.</p>' +
+        '<div class="help-note">Хочешь заново пройти обучение — кнопка «Пройти обучение заново» ниже.</div>',
+    };
+    body.innerHTML = content[tab] || content.basics;
+  }
+
+  function openHubLeaderboard() {
+    UI.leaderboardMode = 'daily';
+    renderFullLeaderboard();
+    showScreen('leaderboard');
+  }
+
+  const ONBOARD_STEPS = [
+    { num: '01', title: 'Это гараж', text: 'Три входа: новый заезд, продолжение и рейтинг. Всё остальное — антураж и твой профиль.' },
+    { num: '02', title: 'Выбери машину', text: 'Новый заезд открывает четыре машины. У каждой свой корпус, слоты и способность. «Подробнее» объясняет стиль.' },
+    { num: '03', title: 'Гонка — три фазы', text: 'Подготовка (карта или пит), движение (d4 + модификаторы), огонь (атака или ловушка). Финиш — нужное число кругов.' },
+  ];
+
+  function maybeShowOnboarding() {
+    if (lsGet(LS_ONBOARD)) return;
+    showOnboarding();
+  }
+
+  function showOnboarding() {
+    UI.onboardingStep = 0;
+    renderOnboarding();
+    const el = $('#onboarding');
+    if (el) el.hidden = false;
+  }
+
+  function renderOnboarding() {
+    const step = ONBOARD_STEPS[UI.onboardingStep] || ONBOARD_STEPS[0];
+    const dots = $('#onboarding-dots');
+    const body = $('#onboarding-body');
+    const next = $('#onboarding-next');
+    if (dots) dots.innerHTML = ONBOARD_STEPS.map((_, i) => '<span class="onboarding-dot' + (i === UI.onboardingStep ? ' active' : '') + '"></span>').join('');
+    if (body) body.innerHTML = '<div class="onb-num">' + step.num + '</div><h3>' + esc(step.title) + '</h3><p>' + esc(step.text) + '</p>';
+    if (next) next.textContent = UI.onboardingStep === ONBOARD_STEPS.length - 1 ? 'ПОЕХАЛИ' : 'ДАЛЕЕ';
+  }
+
+  function finishOnboarding() {
+    lsSet(LS_ONBOARD, '1');
+    const el = $('#onboarding');
+    if (el) el.hidden = true;
+    openFactionScreen('race');
+  }
+
+  function advanceOnboarding() {
+    if (UI.onboardingStep < ONBOARD_STEPS.length - 1) {
+      UI.onboardingStep++;
+      renderOnboarding();
+    } else {
+      finishOnboarding();
+    }
+  }
+
+  function skipOnboarding() {
+    lsSet(LS_ONBOARD, '1');
+    const el = $('#onboarding');
+    if (el) el.hidden = true;
+  }
+
+  async function maybeShowRaceHint() {
+    if (lsGet(LS_HINTS)) return;
+    lsSet(LS_HINTS, '1');
+    await modal(
+      '<h3>ПЕРВЫЙ ЗАЕЗД</h3>' +
+      '<p>Ход состоит из трёх фаз. Сыграй карту в подготовке — или сразу бросай d4 и двигайся.</p>' +
+      '<ol style="margin-top:10px;padding-left:20px;display:flex;flex-direction:column;gap:5px">' +
+      '<li><b>Подготовка</b> — карта до движения или пит-стоп.</li>' +
+      '<li><b>Движение</b> — d4 + модификаторы; машина едет на итог.</li>' +
+      '<li><b>Огонь</b> — атака или ловушка.</li></ol>' +
+      '<p style="margin-top:10px;color:var(--muted)">Кнопка <b>?</b> вверху открывает полный устав.</p>' +
+      '<div class="modal-actions"><button class="act-btn primary" id="hint-go" type="button">ПОГНАЛИ</button></div>',
+      (rootEl, close) => {
+        const b = $('#hint-go', rootEl);
+        if (b) b.addEventListener('click', () => close(true));
+      },
+      { maxWidth: '560px' }
+    );
+  }
+
 
   /* ------------------------------------------------------------------ */
   /* Лидерборд                                                          */
@@ -1687,7 +1955,7 @@
     const el = $(containerSel);
     if (!el) return;
     if (!rows || !rows.length) {
-      el.innerHTML = '<div class="lb-empty">Пока пусто.</div>';
+      el.innerHTML = '<div class="lb-empty">Пока пусто. <button id="lb-empty-new" class="ghost-btn" type="button">СЫГРАТЬ ПЕРВЫЙ ЗАЕЗД</button></div>';
       return;
     }
     const head = '<div class="lb-row head"><div>#</div><div>Гонщик</div><div class="num">ОЧКИ</div><div class="num">УРОН</div><div class="num">МЕСТО</div></div>';
@@ -1706,7 +1974,7 @@
 
   async function loadLeaderboard(scope, mode) {
     const params = { mode, limit: 20 };
-    const sel = scope === 'lobby' ? '#lobby-board' : scope === 'auth' ? '#auth-leaderboard' : '#leaderboard-full';
+    const sel = scope === 'auth' ? '#auth-leaderboard' : '#leaderboard-full';
     try {
       const data = await API.leaderboard(params);
       renderLeaderboard(sel, data.rows, UI.account ? UI.account.id : null);
@@ -1729,7 +1997,7 @@
       showScreen('lobby');
       renderLobby();
       loadDaily();
-      loadLeaderboard('lobby', UI.leaderboardMode);
+      maybeShowOnboarding();
     } catch (e) {
       showScreen('auth');
       loadLeaderboard('auth', 'daily');
@@ -1740,8 +2008,9 @@
     // auth
     $$('.auth-tab').forEach((t) => t.addEventListener('click', () => setAuthMode(t.dataset.auth)));
     $('#auth-form').addEventListener('submit', onAuthSubmit);
+    $('#auth-help').addEventListener('click', () => openHelp('auth'));
 
-    // lobby
+    // гараж
     $('#logout-btn').addEventListener('click', async () => {
       try { await API.logout(); } catch (e) {}
       disconnectPvp();
@@ -1752,19 +2021,37 @@
       UI.daily = null;
       showScreen('auth');
     });
-    $('#start-daily-btn').addEventListener('click', startDaily);
-    $('#start-race-btn').addEventListener('click', startRace);
-    $('#continue-btn').addEventListener('click', continueRun);
-    $('#open-leaderboard-btn').addEventListener('click', () => {
-      UI.leaderboardMode = $('[data-scope="lobby"] .board-tab.active').dataset.board || 'daily';
-      renderFullLeaderboard();
-      showScreen('leaderboard');
+    $('#hub-new').addEventListener('click', () => openFactionScreen('race'));
+    $('#hub-continue').addEventListener('click', () => { if (UI.activeSave) continueRun(); });
+    $('#hub-leaderboard').addEventListener('click', openHubLeaderboard);
+    $('#hub-help').addEventListener('click', () => openHelp('lobby'));
+    $('#hub-help-top').addEventListener('click', () => openHelp('lobby'));
+
+    // выбор машины
+    $('#faction-back').addEventListener('click', () => backToLobby());
+    $('#faction-start').addEventListener('click', () => {
+      if (UI.newRaceMode === 'daily') startDaily(); else startRace();
     });
-    $$('[data-scope="lobby"] .board-tab').forEach((t) => {
-      t.addEventListener('click', () => {
-        $$('[data-scope="lobby"] .board-tab').forEach((b) => b.classList.toggle('active', b === t));
-        loadLeaderboard('lobby', t.dataset.board);
-      });
+    $$('#faction-tabs .faction-tab').forEach((t) => t.addEventListener('click', () => {
+      const mode = t.dataset.mode === 'daily' ? 'daily' : 'race';
+      if (mode === 'daily' && !UI.daily) { showToast('Ежедневный заезд недоступен.', 'event', 2200); return; }
+      UI.newRaceMode = mode;
+      renderFactionCards();
+    }));
+
+    // обучение / помощь
+    $$('#help-tabs .help-tab').forEach((t) => t.addEventListener('click', () => renderHelp(t.dataset.help)));
+    $$('#help-overlay [data-help-close]').forEach((b) => b.addEventListener('click', closeHelp));
+    $('#help-replay').addEventListener('click', () => {
+      try { localStorage.removeItem(LS_ONBOARD); localStorage.removeItem(LS_HINTS); } catch (e) {}
+      closeHelp();
+      showOnboarding();
+    });
+    $('#onboarding-next').addEventListener('click', advanceOnboarding);
+    $('#onboarding-skip').addEventListener('click', skipOnboarding);
+    $('#game-help').addEventListener('click', () => openHelp('game'));
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'lb-empty-new') openFactionScreen('race');
     });
 
     // game
@@ -1806,6 +2093,7 @@
     }
 
     // results
+    $('#results-new').addEventListener('click', () => openFactionScreen('race'));
     $('#results-leaderboard').addEventListener('click', () => {
       UI.leaderboardMode = UI.mode === 'daily' ? 'daily' : 'race';
       renderFullLeaderboard();
@@ -1824,6 +2112,8 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (!$('#help-overlay').hidden) { closeHelp(); return; }
+        if (!$('#onboarding').hidden) { skipOnboarding(); return; }
         if (UI.modalClose) { UI.modalClose(null); return; }
       }
       if (UI.modalClose) return;
@@ -1841,7 +2131,7 @@
       console.warn('unhandledrejection', e.reason);
     });
 
-    renderFactionPicker();
+    renderFactionCards();
     setAuthMode('login');
     bindPvp();
     bootstrap();
@@ -1962,6 +2252,7 @@
     $('#save-now-btn').hidden = true;
     $('#save-status').hidden = true;
     $('#game-menu-btn').hidden = true;
+    $('#game-help').hidden = true;
     $('#pvp-resign-btn').hidden = false;
   }
 
@@ -1969,6 +2260,7 @@
     $('#save-now-btn').hidden = false;
     $('#save-status').hidden = false;
     $('#game-menu-btn').hidden = false;
+    $('#game-help').hidden = false;
     $('#pvp-resign-btn').hidden = true;
     PVP.projection = null;
   }

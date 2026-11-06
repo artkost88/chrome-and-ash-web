@@ -730,3 +730,252 @@ code { font-family: var(--font-mono); color: var(--brass); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
+
+/* ================================================================
+   ГАРАЖ — полноэкранный хаб
+   ================================================================ */
+.hub-screen { min-height: 100vh; min-height: 100dvh; overflow: hidden; background: var(--night); }
+.hub-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(11,15,18,.98) 0%, rgba(11,15,18,.95) 20%, rgba(11,15,18,.66) 42%, rgba(11,15,18,.08) 66%, rgba(11,15,18,.42) 100%),
+    url('assets/bg/garage.png') center / cover no-repeat,
+    radial-gradient(900px 700px at 70% 30%, rgba(255,122,30,.18), transparent 65%),
+    var(--night);
+}
+.hub-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px clamp(18px, 3vw, 44px);
+  background: linear-gradient(180deg, rgba(11,15,18,.88), rgba(11,15,18,0));
+}
+.hub { position: relative; z-index: 2; min-height: 100vh; min-height: 100dvh; display: flex; align-items: stretch; }
+.hub-rail {
+  width: min(540px, 94vw); min-height: 100vh; min-height: 100dvh;
+  padding: 92px clamp(22px, 3.2vw, 52px) 26px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 18px;
+}
+.hub-intro { margin-top: 2vh; }
+.hub-kicker { font-family: var(--font-mono); font-size: 10px; letter-spacing: .3em; color: var(--brass); text-transform: uppercase; }
+.hub-title {
+  margin: 12px 0 10px; font-family: var(--font-display);
+  font-size: clamp(58px, 6.4vw, 104px); line-height: .82; letter-spacing: .01em;
+  color: var(--chrome); text-shadow: 0 5px 0 rgba(0,0,0,.4);
+}
+.hub-title span { color: var(--flame); }
+.hub-sub { max-width: 360px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.hub-menu { display: flex; flex-direction: column; gap: 10px; }
+.hub-item {
+  position: relative; display: grid; grid-template-columns: 42px minmax(0,1fr) 24px; align-items: center; gap: 12px;
+  min-height: 76px; padding: 14px 16px; text-align: left;
+  background: rgba(11,15,18,.62); border: 1px solid rgba(245,240,232,.12);
+  border-left: 3px solid rgba(200,160,78,.38);
+  backdrop-filter: blur(8px); transition: .16s ease;
+}
+.hub-item:hover:not(:disabled) { transform: translateX(5px); border-left-color: var(--brass); background: rgba(20,25,28,.82); }
+.hub-item.primary { border-left-color: var(--flame); background: linear-gradient(90deg, rgba(255,122,30,.17), rgba(11,15,18,.66) 62%); }
+.hub-item:disabled { opacity: .45; }
+.hub-num { font-family: var(--font-mono); font-size: 12px; color: var(--brass); }
+.hub-text b { display: block; font-family: var(--font-display); font-size: clamp(17px, 1.5vw, 21px); letter-spacing: .04em; color: var(--chrome); }
+.hub-text small { display: block; margin-top: 3px; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.hub-arrow { font-size: 20px; color: var(--brass); text-align: right; }
+.hub-help {
+  align-self: flex-start; margin-top: 2px; padding: 5px 0;
+  background: none; border: 0; color: var(--brass);
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .16em;
+  text-decoration: underline; text-underline-offset: 4px;
+}
+.hub-daily {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; border: 1px solid rgba(200,160,78,.32); background: rgba(11,15,18,.58);
+  font-size: 11.5px; color: var(--text-dim);
+}
+.hub-daily b { color: var(--brass); }
+.hub-daily button { background: none; border: 0; color: var(--flame); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; }
+.hub-profile { border-top: 1px solid rgba(245,240,232,.12); padding-top: 12px; }
+.hub-user { margin-bottom: 8px; font-size: 11px; color: var(--muted); }
+.hub-user b { color: var(--brass); }
+.hub-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.hub-stats .stat-box { padding: 5px 9px; background: none; border: 0; border-left: 2px solid rgba(200,160,78,.35); }
+.hub-stats .stat-box b { font-size: 18px; }
+.hub-stats .stat-box span { font-size: 8px; }
+.hub-scene-label {
+  position: absolute; right: clamp(18px, 3vw, 44px); bottom: 22px; z-index: 3; text-align: right;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em; color: rgba(245,240,232,.5);
+}
+.hub-scene-label b { display: block; margin-top: 3px; font-family: var(--font-display); font-size: 20px; letter-spacing: .08em; color: var(--brass); }
+.auth-help {
+  margin-top: 14px; background: none; border: 0; color: var(--brass);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em;
+  text-decoration: underline; text-underline-offset: 4px;
+}
+
+/* ================================================================
+   ВЫБОР МАШИНЫ
+   ================================================================ */
+.faction-screen {
+  min-height: 100vh; min-height: 100dvh;
+  background:
+    radial-gradient(1100px 700px at 50% 0%, rgba(200,160,78,.10), transparent 60%),
+    radial-gradient(900px 800px at 80% 100%, rgba(163,74,36,.12), transparent 65%),
+    var(--night);
+}
+.faction-top {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px clamp(18px, 3vw, 44px);
+  background: rgba(11,15,18,.92); border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+}
+.faction-top .brand { flex: 1; text-align: center; }
+.faction-tabs { display: flex; gap: 4px; }
+.faction-tab {
+  padding: 8px 12px; background: rgba(0,0,0,.3); border: 1px solid rgba(245,240,232,.12);
+  color: var(--muted); font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em;
+}
+.faction-tab.active { color: var(--waste); background: linear-gradient(180deg, #ff9d3f, var(--flame)); border-color: var(--flame); }
+.faction-main { max-width: 2200px; margin: 0 auto; padding: 20px clamp(16px, 3vw, 44px) 104px; }
+.faction-head h2 { font-family: var(--font-display); font-size: clamp(30px, 3.4vw, 54px); letter-spacing: .03em; color: var(--brass); }
+.faction-head p { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.faction-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+.car-card {
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  background: linear-gradient(180deg, rgba(36,31,26,.78), rgba(11,15,18,.92));
+  border: 1px solid rgba(245,240,232,.12); border-top: 3px solid var(--fc);
+  transition: .18s ease;
+}
+.car-card:hover { transform: translateY(-3px); border-color: var(--fc); }
+.car-card.active { border-color: var(--fc); box-shadow: 0 0 0 1px var(--fc) inset, 0 0 40px color-mix(in srgb, var(--fc) 22%, transparent); }
+.car-card.locked { opacity: .42; }
+.car-card.locked::before {
+  content: 'ФИКСИРОВАНА НА СЕГОДНЯ'; position: absolute; top: 8px; left: 8px; z-index: 2;
+  font-family: var(--font-mono); font-size: 8px; letter-spacing: .1em; color: var(--brass);
+  background: rgba(11,15,18,.8); padding: 3px 5px; border: 1px solid rgba(200,160,78,.4);
+}
+.car-art {
+  position: relative; flex: 1; display: grid; place-items: center; min-height: 38vh; padding: 12px;
+  background: radial-gradient(60% 55% at 50% 58%, color-mix(in srgb, var(--fc) 20%, transparent), transparent 72%);
+}
+.car-art::after {
+  content: attr(data-glyph); position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 120px; color: var(--fc); opacity: .06; pointer-events: none;
+}
+.car-art img { position: relative; z-index: 1; width: min(92%, 520px); height: auto; max-height: 54vh; object-fit: contain; filter: drop-shadow(0 18px 24px rgba(0,0,0,.55)); }
+.car-info { padding: 10px 14px 14px; border-top: 1px solid rgba(245,240,232,.1); }
+.car-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.car-top h3 { font-family: var(--font-display); font-size: 17px; letter-spacing: .02em; color: var(--chrome); }
+.car-car { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.car-meta { display: flex; gap: 14px; margin-top: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--fc); }
+.car-meta b { color: var(--chrome); }
+.car-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.car-tag { padding: 2px 5px; border: 1px solid var(--fc); color: var(--fc); font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; }
+.car-ability { margin-top: 8px; font-size: 11px; line-height: 1.45; color: var(--text-dim); }
+.car-ability b { color: var(--chrome); }
+.car-more {
+  margin-top: 10px; align-self: flex-start; padding: 5px 8px;
+  background: none; border: 1px solid rgba(200,160,78,.42); color: var(--brass);
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em;
+}
+.car-more:hover { background: rgba(200,160,78,.12); }
+.faction-cta {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px clamp(18px, 3vw, 44px);
+  background: linear-gradient(0deg, rgba(11,15,18,.98), rgba(11,15,18,.72));
+  border-top: 1px solid var(--line); backdrop-filter: blur(8px);
+}
+.faction-detail { font-size: 12px; line-height: 1.45; color: var(--muted); }
+.faction-detail b { color: var(--chrome); }
+
+/* ================================================================
+   КАК ИГРАТЬ + ОБУЧЕНИЕ
+   ================================================================ */
+.help-overlay { position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.help-overlay[hidden] { display: none; }
+.help-backdrop { position: absolute; inset: 0; background: rgba(5,8,10,.84); backdrop-filter: blur(6px); }
+.help-panel {
+  position: relative; width: min(1100px, 96vw); max-height: 90vh; display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #211c17, #0f0c0a); border: 1px solid var(--line);
+  box-shadow: 0 30px 90px rgba(0,0,0,.6);
+}
+.help-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.help-kicker { font-family: var(--font-mono); font-size: 9px; letter-spacing: .22em; color: var(--brass); }
+.help-head h2 { margin-top: 2px; font-family: var(--font-display); font-size: 26px; letter-spacing: .03em; color: var(--chrome); }
+.help-layout { display: grid; grid-template-columns: 220px minmax(0,1fr); flex: 1; min-height: 0; }
+.help-tabs { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-right: 1px solid rgba(245,240,232,.1); }
+.help-tab {
+  padding: 10px 12px; text-align: left; background: none; border: 0; border-left: 2px solid transparent;
+  color: var(--muted); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em;
+}
+.help-tab.active { color: var(--chrome); border-left-color: var(--flame); background: rgba(255,122,30,.08); }
+.help-body { padding: 18px 24px; overflow: auto; font-size: 13px; line-height: 1.6; color: var(--text-dim); }
+.help-body h3 { margin: 14px 0 6px; font-family: var(--font-display); font-size: 17px; letter-spacing: .03em; color: var(--brass); }
+.help-body h3:first-child { margin-top: 0; }
+.help-body ul, .help-body ol { padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.help-body b { color: var(--chrome); }
+.help-body .help-note { margin-top: 12px; padding: 9px 11px; border-left: 2px solid var(--flame); background: rgba(255,122,30,.08); font-size: 12px; }
+.help-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--line); }
+.onboarding { position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.onboarding[hidden] { display: none; }
+.onboarding-backdrop { position: absolute; inset: 0; background: rgba(5,8,10,.88); backdrop-filter: blur(7px); }
+.onboarding-card {
+  position: relative; width: min(640px, 94vw); padding: 28px;
+  background: linear-gradient(180deg, #241f1a, #0f0c0a); border: 1px solid var(--line);
+  box-shadow: 0 30px 90px rgba(0,0,0,.65);
+}
+.onboarding-dots { display: flex; gap: 6px; margin-bottom: 16px; }
+.onboarding-dot { width: 22px; height: 3px; background: rgba(245,240,232,.15); }
+.onboarding-dot.active { background: var(--flame); }
+.onboarding-body .onb-num { font-family: var(--font-display); font-size: 58px; line-height: .85; color: var(--flame); }
+.onboarding-body h3 { margin: 6px 0; font-family: var(--font-display); font-size: 24px; letter-spacing: .03em; color: var(--chrome); }
+.onboarding-body p { font-size: 13px; line-height: 1.55; color: var(--text-dim); }
+.onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 20px; }
+
+/* ================================================================
+   АДАПТИВ ХАБА / ВЫБОРА МАШИНЫ
+   ================================================================ */
+@media (max-width: 1400px) {
+  .faction-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .car-art { min-height: 32vh; }
+  .car-art img { max-height: 40vh; }
+}
+@media (max-width: 900px) {
+  .hub-bg { background:
+    linear-gradient(180deg, rgba(11,15,18,.86) 0%, rgba(11,15,18,.7) 45%, rgba(11,15,18,.94) 100%),
+    url('assets/bg/garage.png') 62% center / cover no-repeat, var(--night); }
+  .hub-rail { width: 100%; padding: 84px 20px 22px; }
+  .hub-title { font-size: clamp(52px, 12vw, 76px); }
+  .hub-scene-label { display: none; }
+  .faction-top { flex-wrap: wrap; }
+  .faction-top .brand { order: 3; flex-basis: 100%; text-align: left; }
+  .faction-tabs { margin-left: auto; }
+  .help-layout { grid-template-columns: 1fr; }
+  .help-tabs { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid rgba(245,240,232,.1); }
+  .help-tab { border-left: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .help-tab.active { border-left-color: transparent; border-bottom-color: var(--flame); }
+}
+@media (max-width: 640px) {
+  .hub-item { min-height: 68px; padding: 11px 12px; grid-template-columns: 32px minmax(0,1fr) 18px; }
+  .hub-text b { font-size: 16px; }
+  .hub-text small { font-size: 10.5px; }
+  .faction-grid { grid-template-columns: 1fr; }
+  .car-art { min-height: 30vh; }
+  .faction-cta { flex-direction: column; align-items: stretch; }
+  .faction-cta .big-btn { width: 100%; }
+  .help-body { padding: 14px 16px; }
+  .help-foot { flex-direction: column; align-items: stretch; }
+}
+
+/* Экран выбора машины занимает всю высоту: карточки тянутся до CTA. */
+.faction-main { display: flex; flex-direction: column; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); }
+.faction-grid { flex: 1; }
+.car-card { height: 100%; }
+.car-art { min-height: 0; }
+.car-art img { max-height: 52vh; }
+.help-foot .big-btn { width: auto; }
+@media (max-width: 900px) {
+  .faction-main { display: block; min-height: 0; }
+  .faction-grid { flex: none; }
+  .car-card { height: auto; }
+  .car-art { min-height: 30vh; }
+}

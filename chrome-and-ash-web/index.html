@@ -43,6 +43,7 @@
             <button class="big-btn" id="auth-submit" type="submit">ВОЙТИ</button>
             <div class="auth-error" id="auth-error" hidden></div>
           </form>
+          <button id="auth-help" class="auth-help" type="button">КАК ИГРАТЬ →</button>
           <div class="auth-board">
             <div class="panel-head"><span class="num">♛</span><h2>ЛУЧШИЕ СЕГОДНЯ</h2></div>
             <div id="auth-leaderboard" class="leaderboard"></div>
@@ -52,56 +53,84 @@
     </section>
 
     <!-- ============================== ЛОББИ ============================== -->
-    <section id="screen-lobby" class="screen">
-      <header class="topbar">
-        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span></div>
+    <!-- ============================== ГАРАЖ (ХАБ) ============================== -->
+    <section id="screen-lobby" class="screen hub-screen">
+      <div class="hub-bg" aria-hidden="true"></div>
+
+      <header class="hub-top">
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>гараж</em></div>
         <div class="topbar-right">
           <span id="lobby-user" class="lobby-user"></span>
-          <button id="open-pvp-btn" class="chip-btn" type="button">PvP</button>
+          <button id="open-pvp-btn" class="chip-btn" type="button">PVP</button>
+          <button id="hub-help-top" class="chip-btn" type="button" aria-label="Как играть">?</button>
           <button id="logout-btn" class="chip-btn" type="button">ВЫХОД</button>
         </div>
       </header>
 
-      <div class="lobby-wrap">
-        <div class="lobby-grid">
-          <div class="panel">
-            <div class="panel-head"><span class="num">01</span><h2>ЕЖЕДНЕВНЫЙ ЗАЕЗД</h2></div>
-            <div id="daily-body" class="daily-body">Загрузка…</div>
-            <button id="start-daily-btn" class="big-btn" type="button">СТАРТ ЕЖЕДНЕВНОГО ЗАЕЗДА</button>
+      <main class="hub">
+        <div class="hub-rail">
+          <div class="hub-intro">
+            <div class="hub-kicker">ГОНКА НА ВЫЖИВАНИЕ</div>
+            <h1 class="hub-title">ХРОМ<br><span>И ПЕПЕЛ</span></h1>
+            <p class="hub-sub">Собери трассу. Выезжай. Не тормози.</p>
           </div>
 
-          <div class="panel">
-            <div class="panel-head"><span class="num">02</span><h2>СВОБОДНЫЙ ЗАЕЗД</h2></div>
-            <p class="panel-note">Свой случайный сид. Выбери фракцию и выезжай на трассу.</p>
-            <div id="quick-factions" class="faction-row"></div>
-            <button id="start-race-btn" class="big-btn secondary" type="button">СТАРТ ЗАЕЗДА</button>
-          </div>
+          <nav class="hub-menu" aria-label="Главное меню">
+            <button id="hub-new" class="hub-item primary" type="button">
+              <span class="hub-num">01</span>
+              <span class="hub-text"><b>НОВЫЙ ЗАЕЗД</b><small>выбрать машину и выехать на трассу</small></span>
+              <span class="hub-arrow" aria-hidden="true">→</span>
+            </button>
+            <button id="hub-continue" class="hub-item" type="button">
+              <span class="hub-num">02</span>
+              <span class="hub-text"><b>ПРОДОЛЖИТЬ</b><small id="hub-continue-sub">нет активной партии</small></span>
+              <span class="hub-arrow" aria-hidden="true">→</span>
+            </button>
+            <button id="hub-leaderboard" class="hub-item" type="button">
+              <span class="hub-num">03</span>
+              <span class="hub-text"><b>РЕЙТИНГ</b><small>ежедневный · заезд · чемпионат</small></span>
+              <span class="hub-arrow" aria-hidden="true">→</span>
+            </button>
+            <button id="hub-help" class="hub-help" type="button">КАК ИГРАТЬ</button>
+          </nav>
 
-          <div class="panel">
-            <div class="panel-head"><span class="num">03</span><h2>ПРОДОЛЖИТЬ</h2></div>
-            <div id="continue-body" class="continue-body">Нет активной партии.</div>
-            <button id="continue-btn" class="big-btn secondary" type="button" hidden>ПРОДОЛЖИТЬ ЗАЕЗД</button>
+          <div id="hub-daily" class="hub-daily" hidden></div>
+
+          <div class="hub-profile">
+            <div id="hub-user" class="hub-user"></div>
+            <div id="stats-body" class="hub-stats"></div>
           </div>
         </div>
 
-        <div class="lobby-grid">
-          <div class="panel">
-            <div class="panel-head"><span class="num">+</span><h2>СТАТИСТИКА</h2></div>
-            <div id="stats-body" class="stats-body"></div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-head"><span class="num">♛</span><h2>РЕЙТИНГ</h2></div>
-            <div class="board-tabs" data-scope="lobby">
-              <button class="board-tab active" data-board="daily" type="button">ЕЖЕДНЕВНЫЙ</button>
-              <button class="board-tab" data-board="race" type="button">ЗАЕЗД</button>
-              <button class="board-tab" data-board="championship" type="button">ЧЕМПИОНАТ</button>
-            </div>
-            <div id="lobby-board" class="leaderboard"></div>
-            <button id="open-leaderboard-btn" class="ghost-btn" type="button">ОТКРЫТЬ ПОЛНЫЙ РЕЙТИНГ</button>
-          </div>
+        <div class="hub-scene-label" aria-hidden="true">
+          <span>ГАРАЖ 07 · СЕКТОР РЖАВЧИНЫ</span>
+          <b>«НАКОВАЛЬНЯ»</b>
         </div>
-      </div>
+      </main>
+    </section>
+
+    <!-- ============================== ВЫБОР МАШИНЫ ============================== -->
+    <section id="screen-faction" class="screen faction-screen">
+      <header class="faction-top">
+        <button id="faction-back" class="chip-btn" type="button">← В ГАРАЖ</button>
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>выбор машины</em></div>
+        <div id="faction-tabs" class="faction-tabs">
+          <button class="faction-tab active" data-mode="race" type="button">СВОБОДНЫЙ</button>
+          <button class="faction-tab" data-mode="daily" type="button">ЕЖЕДНЕВНЫЙ</button>
+        </div>
+      </header>
+
+      <main class="faction-main">
+        <div class="faction-head">
+          <h2>ВЫБЕРИ МАШИНУ</h2>
+          <p id="faction-sub">Четыре характера. Один заезд. Выбор за тобой.</p>
+        </div>
+        <div id="faction-cards" class="faction-grid"></div>
+        <div class="faction-cta">
+          <div id="faction-detail" class="faction-detail"></div>
+          <button id="faction-start" class="big-btn" type="button">НА ТРАССУ</button>
+        </div>
+      </main>
     </section>
 
     <!-- ============================== PvP ЛОББИ ============================== -->
@@ -150,6 +179,7 @@
         <div class="top-actions">
           <span id="save-status" class="save-status" title="Статус автосохранения">—</span>
           <button id="save-now-btn" class="chip-btn" type="button" title="Сохранить сейчас">СОХРАНИТЬ</button>
+          <button id="game-help" class="chip-btn" type="button" aria-label="Как играть" title="Как играть">?</button>
           <button id="pvp-resign-btn" class="chip-btn danger" type="button" hidden>СДАТЬСЯ</button>
           <button id="game-menu-btn" class="chip-btn danger" type="button">В МЕНЮ</button>
         </div>
@@ -215,8 +245,9 @@
         <div id="finalize-status" class="finalize-status"></div>
         <div id="results-table" class="results-table"></div>
         <div class="sub-actions">
+          <button id="results-new" class="big-btn" type="button">НОВЫЙ ЗАЕЗД</button>
           <button id="results-leaderboard" class="big-btn secondary" type="button">РЕЙТИНГ</button>
-          <button id="results-menu" class="big-btn" type="button">В ЛОББИ</button>
+          <button id="results-menu" class="ghost-btn" type="button">В ЛОББИ</button>
         </div>
       </div>
     </section>
@@ -237,6 +268,46 @@
         <div id="leaderboard-full" class="leaderboard"></div>
       </div>
     </section>
+
+    <!-- ============================== КАК ИГРАТЬ ============================== -->
+    <div id="help-overlay" class="help-overlay" hidden>
+      <div class="help-backdrop" data-help-close></div>
+      <section class="help-panel" role="dialog" aria-modal="true" aria-label="Как играть">
+        <header class="help-head">
+          <div><span class="help-kicker">ПОЛЕВОЙ УСТАВ</span><h2>КАК ИГРАТЬ</h2></div>
+          <button class="modal-close" data-help-close type="button" aria-label="Закрыть">×</button>
+        </header>
+        <div class="help-layout">
+          <nav id="help-tabs" class="help-tabs">
+            <button class="help-tab active" data-help="basics" type="button">ОСНОВЫ</button>
+            <button class="help-tab" data-help="phases" type="button">ФАЗЫ</button>
+            <button class="help-tab" data-help="combat" type="button">БОЙ</button>
+            <button class="help-tab" data-help="cards" type="button">КАРТЫ</button>
+            <button class="help-tab" data-help="factions" type="button">ФРАКЦИИ</button>
+            <button class="help-tab" data-help="pvp" type="button">PVP</button>
+            <button class="help-tab" data-help="faq" type="button">FAQ</button>
+          </nav>
+          <div id="help-body" class="help-body"></div>
+        </div>
+        <footer class="help-foot">
+          <button id="help-replay" class="chip-btn" type="button">ПРОЙТИ ОБУЧЕНИЕ ЗАНОВО</button>
+          <button class="big-btn secondary" data-help-close type="button">ЗАКРЫТЬ</button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- ============================== ОБУЧЕНИЕ ============================== -->
+    <div id="onboarding" class="onboarding" hidden>
+      <div class="onboarding-backdrop"></div>
+      <section class="onboarding-card" role="dialog" aria-modal="true" aria-label="Обучение">
+        <div id="onboarding-dots" class="onboarding-dots"></div>
+        <div id="onboarding-body" class="onboarding-body"></div>
+        <div class="onboarding-actions">
+          <button id="onboarding-skip" class="chip-btn" type="button">ПРОПУСТИТЬ</button>
+          <button id="onboarding-next" class="big-btn" type="button">ДАЛЕЕ</button>
+        </div>
+      </section>
+    </div>
 
     <!-- ============================== МОДАЛКИ ============================== -->
     <div id="modal-root" class="modal-root" aria-live="polite"></div>
