@@ -1480,7 +1480,7 @@
       hint = 'Гонка завершена.';
     } else if (isHuman) {
       if (phase === 'prep') {
-        hint = 'Сыграй карту, объяви пит-стоп — или сразу бросай d4.';
+        hint = 'Сыграй карту или бросай d4.';
         actions += '<button id="roll-btn" class="act-btn primary">БРОСОК d4</button>';
         if (CnA.isPitNode(game, c.node) && !c.flags.pitThisRace) actions += '<button id="pit-btn" class="act-btn sky">ПИТ-СТОП</button>';
         if (c.factionId === 'rust' && !c.flags.repairUsed && c.hp < c.maxHp) actions += '<button id="rust-btn" class="act-btn">ЛАТАЕМ НА ХОДУ</button>';
@@ -1489,10 +1489,10 @@
       } else if (phase === 'move') {
         const t = game.race.turn || { speed: 0, remaining: 0 };
         if (UI.moveReady && !UI.busy) {
-          hint = 'Бросок сделан. Можно перебросить d4 или ехать.';
+          hint = 'Бросок сделан: перебросить или ехать.';
           actions += '<button id="ride-btn" class="act-btn primary">ЕХАТЬ</button>';
         } else {
-          hint = 'Движение: ' + t.speed + ' · осталось ' + t.remaining + '. Машина едет ровно на итог.';
+          hint = 'Движение: ' + t.speed + ' · осталось ' + t.remaining + '.';
         }
       } else if (phase === 'fire') {
         const t = game.race.turn || {};
@@ -1502,10 +1502,10 @@
           if (card.kind === 'trap') return CnA.trapOptions(game, c, h.uid).length > 0;
           return CnA.attackTargets(game, c, h.type).length > 0;
         });
-        hint = t.fireUsed ? 'Действие огня использовано. Заверши ход.'
-          : anyTarget ? 'Фаза огня: одна атака или ловушка. После выстрела — отдача: −1 к движению.'
-          : 'В радиусе нет целей. Можно поставить ловушку или завершить ход.';
-        if (t.wildfire) hint = 'Дикий огонь взведён: следующий выстрел без отдачи.';
+        hint = t.fireUsed ? 'Огонь использован. Заверши ход.'
+          : anyTarget ? 'Огонь: атака/ловушка · после выстрела −1 к движению.'
+          : 'Нет целей. Ловушка или завершить ход.';
+        if (t.wildfire) hint = 'Дикий огонь: выстрел без отдачи.';
         if (!t.fireUsed && c.factionId === 'chrome' && (c.flags.wildfireCharges || 0) > 0) {
           actions += '<button id="wildfire-btn" class="act-btn ' + (t.wildfire ? 'primary' : '') + '">WILDFIRE ' + c.flags.wildfireCharges + '/2</button>';
         }
@@ -2533,7 +2533,7 @@
       hint = 'Гонка завершена.';
     } else if (isMyTurn) {
       if (phase === 'prep') {
-        hint = 'Сыграй карту, объяви пит-стоп — или сразу бросай d4.';
+        hint = 'Сыграй карту или бросай d4.';
         actions += '<button id="pvp-roll-btn" class="act-btn primary">БРОСОК d4</button>';
         if (my && CnA.isPitNode(proj, my.node) && !(my.flags && my.flags.pitThisRace)) {
           actions += '<button id="pvp-pit-btn" class="act-btn sky">ПИТ-СТОП</button>';
