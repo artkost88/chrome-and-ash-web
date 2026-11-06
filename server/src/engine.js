@@ -11,7 +11,7 @@ const DEFAULT_ENGINE_DIR = path.join(__dirname, '..', '..', 'chrome-and-ash-web'
  */
 export function loadEngine(engineDir = process.env.ENGINE_DIR || DEFAULT_ENGINE_DIR) {
   if (globalThis.__CnA_LOADED__) return globalThis.CnA;
-  for (const name of ['data.js', 'track.js', 'engine.js', 'ai.js']) {
+  for (const name of ['data.js', 'track-gen.js', 'track.js', 'engine.js', 'ai.js']) {
     const code = readFileSync(path.join(engineDir, name), 'utf8');
     (0, eval)(code);
   }

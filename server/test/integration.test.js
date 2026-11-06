@@ -13,6 +13,7 @@ function loadClient(name) {
   (0, eval)(code);
 }
 loadClient('data.js');
+loadClient('track-gen.js');
 loadClient('track.js');
 loadClient('engine.js');
 loadClient('ai.js');

@@ -215,7 +215,10 @@
   }
 
   function readMenuOptions() {
-    UI.trackKind = $('#opt-track').value === 'ring' ? 'ring' : 'mosaic';
+    const tv = $('#opt-track').value;
+    UI.trackArchetype = tv === 'ring' ? 'club' : tv === 'snake' ? 'snake' : 'horseshoe';
+    UI.trackKind = tv === 'ring' ? 'ring' : 'mosaic';
+    UI.trackSize = UI.trackArchetype === 'club' ? 28 : UI.trackArchetype === 'snake' ? 30 : 36;
     UI.laps = Number($('#opt-laps').value) === 2 ? 2 : 1;
     UI.speed = Number($('#opt-speed').value) || 1;
     UI.patch = $('#opt-patch').checked;
@@ -240,6 +243,8 @@
       laps: UI.laps,
       hpPatch: UI.patch,
       trackKind: UI.trackKind,
+      trackArchetype: UI.trackArchetype,
+      trackSize: UI.trackSize,
     });
     showScreen('game');
     renderAll();

@@ -14,6 +14,7 @@ function load(name) {
 }
 
 load('data.js');
+load('track-gen.js');
 load('track.js');
 load('engine.js');
 load('ai.js');

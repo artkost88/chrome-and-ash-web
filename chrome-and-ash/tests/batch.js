@@ -1,5 +1,6 @@
 const path = require('path');
 require(path.join(__dirname, '..', 'js', 'data.js'));
+require(path.join(__dirname, '..', 'js', 'track-gen.js'));
 require(path.join(__dirname, '..', 'js', 'track.js'));
 require(path.join(__dirname, '..', 'js', 'engine.js'));
 require(path.join(__dirname, '..', 'js', 'ai.js'));
@@ -103,3 +104,4 @@ if (mode === 'championship') {
   console.log('championship wins', agg.finalWins);
   console.log('final cp total', agg.finalCp);
 }
+

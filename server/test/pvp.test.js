@@ -266,7 +266,8 @@ test('route_choice: развилка паузит движение, choose_route
     assert.equal(rc.from, fork.id);
 
     client.drain('state'); // убрать state от roll, ждать свежий кадр после choose_route
-    client.send({ type: 'choose_route', nodeId: rc.options[0].node });
+    const chosen = rc.options[rc.options.length - 1];
+    client.send({ type: 'choose_route', nodeId: chosen.node });
     await client.next('state', 6000);
     assert.notEqual(game.cars[0].node, fork.id, 'машина ушла с развилки');
     client.close();

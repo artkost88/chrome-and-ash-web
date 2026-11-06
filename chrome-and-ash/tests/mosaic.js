@@ -1,6 +1,7 @@
 /* Прогон мозаичной трассы «Пыльная подкова». */
 const path = require('path');
 require(path.join(__dirname, '..', 'js', 'data.js'));
+require(path.join(__dirname, '..', 'js', 'track-gen.js'));
 require(path.join(__dirname, '..', 'js', 'track.js'));
 require(path.join(__dirname, '..', 'js', 'engine.js'));
 require(path.join(__dirname, '..', 'js', 'ai.js'));
@@ -47,3 +48,4 @@ console.log('Урона/гонка:', (damage / r).toFixed(0));
 console.log('Ходов с огнём:', (fireTurns / Math.max(1, turns) * 100).toFixed(0) + '%');
 console.log('Победы:', wins);
 console.log('Очки/гонка:', Object.fromEntries(Object.entries(cp).map(([k, v]) => [k, (v / r).toFixed(2)])));
+

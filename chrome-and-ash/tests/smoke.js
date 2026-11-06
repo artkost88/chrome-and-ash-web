@@ -1,5 +1,6 @@
 const path = require('path');
 require(path.join(__dirname, '..', 'js', 'data.js'));
+require(path.join(__dirname, '..', 'js', 'track-gen.js'));
 require(path.join(__dirname, '..', 'js', 'track.js'));
 require(path.join(__dirname, '..', 'js', 'engine.js'));
 require(path.join(__dirname, '..', 'js', 'ai.js'));
@@ -26,3 +27,4 @@ const cars = game.cars.map(c => ({
   raceStats: c.raceStats,
 }));
 console.log(cars);
+

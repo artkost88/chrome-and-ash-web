@@ -94,6 +94,7 @@
     mode: 'daily',
     quickFaction: 'rust',
     newRaceMode: 'race',
+    trackArchetype: 'horseshoe',
     helpOpen: false,
     helpFrom: 'lobby',
     onboardingStep: 0,
@@ -121,8 +122,7 @@
   root.__CnA_WEB__ = UI;
 
   /* Справочник по фракциям для экрана выбора и вкладки «Фракции». */
-  const FACTION_INFO = {
-    chrome: {
+  const FACTION_INFO = {    chrome: {
       role: 'Дикий огонь · риск',
       strengths: 'Два раза за гонку следующий выстрел не даёт отдачи. 5 слотов под улучшения.',
       weakness: '19 корпусов — один из самых хрупких. Wildfire помогает темпу, но не броне.',
@@ -146,6 +146,12 @@
       weakness: '18 корпусов — в ближнем бою не выживает.',
       tip: 'Держи дистанцию и бей по лидеру.',
     },
+  };
+
+  const TRACK_INFO = {
+    club: { name: 'Клубное кольцо', size: 28, kind: 'ring', desc: 'Короткое кольцо для обучения: меньше опасностей, чистые обгоны.' },
+    horseshoe: { name: 'Пыльная подкова', size: 36, kind: 'mosaic', desc: 'Шикана, тоннель, мост, шпилька и пит-лейн. Основной заезд.' },
+    snake: { name: 'Змея', size: 30, kind: 'mosaic', desc: 'Волнистая техничная трасса со срезом; меньше прямых, больше решений.' },
   };
 
   const LS_ONBOARD = 'cna.onboarding.v1';
@@ -342,10 +348,11 @@
     cancelLoop();
     const seed = opts.seed !== undefined ? (Number(opts.seed) >>> 0) : (Math.floor(Math.random() * 4294967295));
     const trackKind = opts.trackKind === 'ring' ? 'ring' : 'mosaic';
-    const trackSize = opts.trackSize || (trackKind === 'mosaic' ? 36 : 28);
+    const trackArchetype = opts.trackArchetype || (trackKind === 'ring' ? 'club' : 'horseshoe');
+    const trackSize = opts.trackSize || (trackArchetype === 'club' ? 28 : trackArchetype === 'snake' ? 30 : 36);
     const laps = opts.laps === 2 ? 2 : 1;
 
-    const game = CnA.createGame({ mode: 'race', humanFaction: factionId, seed, laps, trackKind, trackSize });
+    const game = CnA.createGame({ mode: 'race', humanFaction: factionId, seed, laps, trackKind, trackSize, trackArchetype });
     if (runMode === 'daily') game.mode = 'daily';
 
     const payload = { mode: runMode, faction: factionId, trackKind, trackSize, laps, seed };
@@ -383,7 +390,11 @@
   }
 
   async function startRace() {
-    await startNewRun('race', UI.quickFaction, { trackKind: 'mosaic', trackSize: 36, laps: 1 });
+    const archetype = TRACK_INFO[UI.trackArchetype] ? UI.trackArchetype : 'horseshoe';
+    const info = TRACK_INFO[archetype];
+    await startNewRun('race', UI.quickFaction, {
+      trackKind: info.kind, trackSize: info.size, trackArchetype: archetype, laps: 1,
+    });
   }
 
   async function continueRun() {
@@ -1807,6 +1818,25 @@
     showScreen('faction');
   }
 
+  function renderTrackCards() {
+    const wrap = $('#track-cards');
+    if (!wrap) return;
+    if (!TRACK_INFO[UI.trackArchetype]) UI.trackArchetype = 'horseshoe';
+    wrap.innerHTML = Object.keys(TRACK_INFO).map((id) => {
+      const t = TRACK_INFO[id];
+      return '<button type="button" class="track-card' + (id === UI.trackArchetype ? ' active' : '') + '" data-track="' + id + '">' +
+        '<b>' + esc(t.name) + '</b><span>' + t.size + ' тайлов · ' + (t.kind === 'ring' ? 'кольцо' : 'мозаика') + '</span>' +
+        '<small>' + esc(t.desc) + '</small></button>';
+    }).join('');
+    $$('#track-cards [data-track]').forEach((b) => {
+      b.addEventListener('click', () => {
+        UI.trackArchetype = b.dataset.track;
+        lsSet('cna.track', UI.trackArchetype);
+        renderTrackCards();
+      });
+    });
+  }
+
   function renderFactionCards() {
     const grid = $('#faction-cards');
     if (!grid) return;
@@ -1821,6 +1851,9 @@
         ? 'Ежедневный · ' + UI.daily.date + ' · сид ' + daily.seed + ' · ' + (daily.trackKind === 'mosaic' ? 'Пыльная подкова · 36' : 'Кольцо · ' + daily.trackSize) + ' · кругов ' + daily.laps + '. Фракция фиксирована.'
         : 'Четыре характера. Один заезд. Выбирай.';
     }
+    const picker = $('#track-picker');
+    if (picker) picker.hidden = !!daily;
+    if (!daily) renderTrackCards();
 
     grid.innerHTML = CnA.FACTIONS.map((f) => {
       const info = FACTION_INFO[f.id] || {};

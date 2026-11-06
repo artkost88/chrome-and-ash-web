@@ -189,9 +189,11 @@
   function setupRace(game) {
     game.rng = CnA.mulberry32(game.seed + game.raceIndex * 1013 + 7);
     const trackSize = game.trackSize || 28;
-    const track = game.trackKind === 'mosaic'
-      ? CnA.buildMosaicTrack()
-      : CnA.generateTrack(game.seed + game.raceIndex * 977, trackSize);
+    const track = CnA.generateTrack(game.seed + game.raceIndex * 977, {
+      archetype: game.trackArchetype || (game.trackKind === 'ring' ? 'club' : 'horseshoe'),
+      size: trackSize,
+      kind: game.trackKind,
+    });
     game.stage = 'race';
     game.race = {
       track,
@@ -273,7 +275,8 @@
     game.race.phase = 'prep';
 
     // Стартовая решётка 2×2: две последние линии, по две машины на тайл.
-    const baseGrid = track.grid || [track.count - 1, track.count - 2, track.count - 3, track.count - 4];
+    const baseGrid = [...new Set(track.grid || [track.count - 1, track.count - 2, track.count - 3, track.count - 4])];
+    while (baseGrid.length < 2) baseGrid.push(baseGrid[0] ?? track.count - 1);
     const grid = [baseGrid[0], baseGrid[0], baseGrid[1], baseGrid[1]];
     order.forEach((id, i) => {
       const c = carById(game, id);
@@ -299,6 +302,7 @@
       laps: opts.laps === 2 ? 2 : 1,
       trackSize: opts.trackSize || 28,
       trackKind: opts.trackKind === 'mosaic' ? 'mosaic' : 'ring',
+      trackArchetype: opts.trackArchetype || null,
       raceIndex: 0,
       stage: 'race',
       cars: CnA.FACTIONS.map((f, i) => makeCar(f, i)),

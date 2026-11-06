@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const js = path.join(here, '..', 'js');
-for (const f of ['data.js', 'track.js', 'engine.js', 'ai.js']) require(path.join(js, f));
+for (const f of ['data.js', 'track-gen.js', 'track.js', 'engine.js', 'ai.js']) require(path.join(js, f));
 const CnA = globalThis.CnA;
 
 function gameFor(faction = 'chrome', seed = 7) {
@@ -91,8 +91,9 @@ test('mine card is 2d4', () => {
 test('debris deals exactly 1 damage and keeps its movement penalty', () => {
   const game = gameFor('rust', 12);
   const car = game.cars.find((c) => c.human);
-  const debris = Object.values(game.race.track.nodes).find((n) => n.type === 'debris' && n.prev && n.prev.length);
-  assert.ok(debris, 'track must contain debris');
+  const debris = Object.values(game.race.track.nodes).find((n) => n.road !== false && n.prev && n.prev.length && n.next && n.next.length);
+  assert.ok(debris, 'track must contain a road node');
+  debris.type = 'debris';
   car.node = debris.prev[0];
   car.hp = car.maxHp;
   game.race.phase = 'move';
@@ -105,8 +106,9 @@ test('debris deals exactly 1 damage and keeps its movement penalty', () => {
 test('mine log says 2d4 and damage is within 2..8', () => {
   const game = gameFor('rust', 13);
   const car = game.cars.find((c) => c.human);
-  const debris = Object.values(game.race.track.nodes).find((n) => n.type === 'debris' && n.prev && n.prev.length);
+  const debris = Object.values(game.race.track.nodes).find((n) => n.road !== false && n.prev && n.prev.length && n.next && n.next.length);
   assert.ok(debris);
+  debris.type = 'debris';
   car.node = debris.prev[0];
   car.hp = car.maxHp;
   game.race.tokens = [{ type: 'mine', node: debris.id, owner: null }];

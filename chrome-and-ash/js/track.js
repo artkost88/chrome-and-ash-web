@@ -518,9 +518,9 @@
     return issues;
   }
 
-  CnA.generateTrack = generateTrack;
+  if (!CnA.generateTrack) CnA.generateTrack = generateTrack;
   CnA.buildMosaicTrack = buildMosaicTrack;
-  CnA.validateTrack = validateTrack;
+  if (!CnA.validateTrack) CnA.validateTrack = validateTrack;
   CnA.trackForwardPath = forwardPath;
   CnA.trackBackwardPath = backwardPath;
   CnA.behindNode = behindNode;

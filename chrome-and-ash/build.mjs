@@ -15,7 +15,7 @@ let html = read('index.html');
 const css = read('css/style.css').replace(/url\(\s*(['"]?)\.\.\/assets\//g, 'url($1assets/');
 html = html.replace('<link rel="stylesheet" href="css/style.css">', () => '<style>\n' + css + '\n</style>');
 
-const scripts = ['js/data.js', 'js/assets.js', 'js/track.js', 'js/engine.js', 'js/ai.js', 'js/ui.js'];
+const scripts = ['js/data.js', 'js/assets.js', 'js/track-gen.js', 'js/track.js', 'js/engine.js', 'js/ai.js', 'js/ui.js'];
 for (const file of scripts) {
   const tag = '<script src="' + file + '"></script>';
   if (!html.includes(tag)) throw new Error('Не найден тег ' + tag);

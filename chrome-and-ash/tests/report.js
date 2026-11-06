@@ -2,6 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 require(path.join(__dirname, '..', 'js', 'data.js'));
+require(path.join(__dirname, '..', 'js', 'track-gen.js'));
 require(path.join(__dirname, '..', 'js', 'track.js'));
 require(path.join(__dirname, '..', 'js', 'engine.js'));
 require(path.join(__dirname, '..', 'js', 'ai.js'));
@@ -197,3 +198,4 @@ out.push('');
 const text = out.join('\n');
 fs.writeFileSync(path.join(__dirname, '..', 'docs', '03-balance-report-generated.md'), text, 'utf8');
 console.log(text);
+
