@@ -397,11 +397,13 @@ export function createPvp({ db, config }) {
     }
 
     if (msg.type === 'ability') {
-      if (game.race.phase !== 'prep') return sendToSlot(gameId, slot, { type: 'error', code: 'invalid_action', message: 'Способность доступна только в подготовке' });
+      const wildfireInFire = msg.id === 'wildfire' && game.race.phase === 'fire';
+      if (game.race.phase !== 'prep' && !wildfireInFire) return sendToSlot(gameId, slot, { type: 'error', code: 'invalid_action', message: 'Способность доступна только в подготовке' });
       let res;
       if (msg.id === 'rust') res = CnA.useRustRepair(game, car);
       else if (msg.id === 'returnMine') res = CnA.returnMine(game, car);
       else if (msg.id === 'turbo') res = CnA.armTurbo(game, car);
+      else if (msg.id === 'wildfire') res = CnA.armWildfire(game, car);
       else return sendToSlot(gameId, slot, { type: 'error', code: 'invalid_action', message: 'Неизвестная способность: ' + msg.id });
       if (!res.ok) return sendToSlot(gameId, slot, { type: 'error', code: 'invalid_action', message: res.reason });
       commit(gameId);

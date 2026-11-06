@@ -318,12 +318,37 @@
     return car && car.human && !UI.busy && UI.game && !UI.game.race.over;
   }
 
+  async function rollAndMaybeReroll(car) {
+    const res = CnA.rollMove(UI.game, car);
+    if (!res.ok || res.destroyed || car.flags.rerollUsed || UI.game.race.turn.brake) return res;
+    showDice(res.roll, res.total, res.mods, res.nitroRoll);
+    renderAll();
+    const choice = await modal(
+      '<h3>ПЕРЕБРОС d4</h3><p>Выпало <b>' + res.roll + '</b> → движение <b>' + res.total + '</b>. ' +
+      'Можно один раз за гонку перебросить кубик.</p>' +
+      '<div class="target-list">' +
+      '<button class="target-btn" data-keep><b>Оставить ' + res.roll + '</b><span>движение ' + res.total + '</span></button>' +
+      '<button class="target-btn" data-reroll><b>Перебросить d4</b><span>один раз за гонку</span></button>' +
+      '</div>',
+      (rootEl, close) => {
+        rootEl.querySelector('[data-keep]').addEventListener('click', () => close(false));
+        rootEl.querySelector('[data-reroll]').addEventListener('click', () => close(true));
+      });
+    if (!choice) return res;
+    const rr = CnA.rerollMove(UI.game, car);
+    if (!rr.ok) {
+      showToast(esc(rr.reason || 'Нельзя перебросить'), 'damage');
+      return res;
+    }
+    return Object.assign({}, res, rr, { mods: [] });
+  }
+
   async function onRoll() {
     if (!humanReady() || UI.game.race.phase !== 'prep') return;
     const car = currentCar();
     UI.busy = true;
     UI.stage = 'move';
-    const res = CnA.rollMove(UI.game, car);
+    const res = await rollAndMaybeReroll(car);
     if (!res.ok) {
       UI.busy = false;
       showToast(esc(res.reason || 'Нельзя двигаться'), 'damage');
@@ -446,6 +471,14 @@
     const r = CnA.useRustRepair(UI.game, currentCar());
     if (!r.ok) { showToast(esc(r.reason), 'damage'); return; }
     showToast('«Латаем на ходу»: +' + r.heal + ' корпуса.', 'event');
+    renderAll();
+  }
+
+  function onWildfire() {
+    if (!humanReady()) return;
+    const r = CnA.armWildfire(UI.game, currentCar());
+    if (!r.ok) { showToast(esc(r.reason), 'damage'); return; }
+    showToast(r.armed ? '«Дикий огонь»: следующий выстрел без отдачи.' : '«Дикий огонь» отменён.', 'event', 1800);
     renderAll();
   }
 
@@ -971,7 +1004,7 @@
     // гексы
     const TILE_EFFECT = {
       sand: { icon: '≈', text: '−1', color: '#ffb27a' },
-      debris: { icon: '✕', text: 'd4 −1', color: '#ff8c7a' },
+      debris: { icon: '✕', text: '1 −1', color: '#ff8c7a' },
       event: { icon: '?', text: 'ПУСТОШЬ', color: '#ff7a1e' },
       pit: { icon: '⚙', text: 'РЕМОНТ', color: '#c8a04e' },
       ramp: { icon: '⌒', text: 'ПРЫЖОК', color: '#c8a04e' },
@@ -1272,8 +1305,12 @@
           return CnA.attackTargets(game, c, h.type).length > 0;
         });
         hint = t.fireUsed ? 'Действие огня использовано. Завершите ход.'
-          : anyTarget ? 'Фаза огня: одна атака или ловушка. Карты в руке подсвечены.'
+          : anyTarget ? 'Фаза огня: одна атака или ловушка. После выстрела — отдача: −1 к движению.'
           : 'В радиусе нет целей. Можно поставить ловушку или завершить ход.';
+        if (t.wildfire) hint = 'Дикий огонь взведён: следующий выстрел без отдачи.';
+        if (!t.fireUsed && c.factionId === 'chrome' && (c.flags.wildfireCharges || 0) > 0) {
+          actions += '<button id="wildfire-btn" class="act-btn ' + (t.wildfire ? 'primary' : '') + '">WILDFIRE ' + c.flags.wildfireCharges + '/2</button>';
+        }
         actions += '<button id="end-turn-btn" class="act-btn primary">ЗАВЕРШИТЬ ХОД</button>';
       } else {
         hint = 'Ход завершается…';
@@ -1297,6 +1334,7 @@
     const rustBtn = $('#rust-btn'); if (rustBtn) rustBtn.addEventListener('click', onRustRepair);
     const mineBtn = $('#mine-return-btn'); if (mineBtn) mineBtn.addEventListener('click', onReturnMine);
     const turboBtn = $('#turbo-btn'); if (turboBtn) turboBtn.addEventListener('click', onTurbo);
+    const wildfireBtn = $('#wildfire-btn'); if (wildfireBtn) wildfireBtn.addEventListener('click', onWildfire);
     const endBtn = $('#end-turn-btn'); if (endBtn) endBtn.addEventListener('click', () => { if (!UI.busy) finishTurn(); });
   }
 
@@ -1447,7 +1485,7 @@
       '<span>кругов <b>' + game.laps + '</b></span>';
     $('#results-title').textContent = 'ИТОГИ ГОНКИ ' + (game.raceIndex + 1);
     $('#results-sub').textContent = 'После финиша лидера остальные доезжают ещё один полный раунд. ' +
-      'Не доехавшие получают 0 очков чемпионата. Лом за место — по инверсии: чем хуже финиш, тем больше запчастей.';
+      'Финишировавшие получают полные очки за место, не доехавшие — половину по прогрессу. Лом за место — по инверсии: чем хуже финиш, тем больше запчастей.';
 
     const rows = res.rows;
     const head = '<div class="res-row head"><div class="place">#</div><div>Гонщик</div><div class="num">ОЧ</div>' +

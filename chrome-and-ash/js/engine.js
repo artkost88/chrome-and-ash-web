@@ -138,6 +138,8 @@
       mineReturned: false,
       freeTrapUsed: false,
       pitThisRace: false,
+      wildfireCharges: car.factionId === 'chrome' ? 2 : 0,
+      rerollUsed: false,
     };
     car.raceStats = {
       turns: 0,
@@ -269,8 +271,9 @@
     game.race.currentId = order.length ? order[0] : null;
     game.race.phase = 'prep';
 
-    // Стартовая решётка: четыре тайла перед старт-финишем, по машине на тайл.
-    const grid = track.grid || [track.count - 1, track.count - 2, track.count - 3, track.count - 4];
+    // Стартовая решётка 2×2: две последние линии, по две машины на тайл.
+    const baseGrid = track.grid || [track.count - 1, track.count - 2, track.count - 3, track.count - 4];
+    const grid = [baseGrid[0], baseGrid[0], baseGrid[1], baseGrid[1]];
     order.forEach((id, i) => {
       const c = carById(game, id);
       if (c) c.node = grid[i];
@@ -476,6 +479,19 @@
     return { ok: true };
   }
 
+  function armWildfire(game, car) {
+    const r = game.race;
+    if (car.factionId !== 'chrome') return { ok: false, reason: 'Только Хромированные' };
+    if (!r.turn || r.phase !== 'fire') return { ok: false, reason: 'Только в фазе огня' };
+    if (r.turn.fireUsed) return { ok: false, reason: 'Огонь уже использован' };
+    if ((car.flags.wildfireCharges || 0) <= 0) return { ok: false, reason: 'Заряды Wildfire закончились' };
+    r.turn.wildfire = !r.turn.wildfire;
+    log(game, car.name + (r.turn.wildfire
+      ? ' → «Дикий огонь»: следующий выстрел без отдачи.'
+      : ' → «Дикий огонь» отменён.'), 'ability');
+    return { ok: true, armed: r.turn.wildfire, charges: car.flags.wildfireCharges };
+  }
+
   /* ------------------------------------------------------------------ */
   /* Пит-стоп                                                           */
   /* ------------------------------------------------------------------ */
@@ -566,6 +582,9 @@
       extraAttack: false,
       speedBase: 0,
       empDisabled,
+      wildfire: false,
+      rollMult: 1,
+      rollPlus: 0,
     };
     r.phase = 'prep';
     if (empDisabled) log(game, car.name + ' под действием ЭМИ: атака и ловушки в этот ход недоступны.', 'status');
@@ -612,8 +631,10 @@
     const mods = [];
     let roll = CnA.d4(game.rng);
     let base = roll;
+    let mult = 1;
     if (car.flags.turboArmed && hasUpgrade(car, 'turbo')) {
       base = base * 2;
+      mult = 2;
       car.flags.turboArmed = false;
       car.flags.turboUsed = true;
       mods.push('турбина ×2');
@@ -647,6 +668,8 @@
       mods.push('экстренный тормоз');
     }
 
+    r.turn.rollMult = mult;
+    r.turn.rollPlus = total - base;
     total = CnA.clamp(total, 1, 8);
     car.nextMoveBonus = 0;
     car.nextMovePenalty = 0;
@@ -672,6 +695,34 @@
       return { ok: true, roll, total, mods, overheat: dmg };
     }
     return { ok: true, roll, total, mods };
+  }
+
+  function rerollMove(game, car) {
+    const r = game.race;
+    if (!r.turn || r.phase !== 'move' || !r.turn.rolled) return { ok: false, reason: 'Сначала брось движение' };
+    if (car.destroyed || car.finished) return { ok: false, reason: 'Машина не может двигаться' };
+    if (car.flags.rerollUsed) return { ok: false, reason: 'Реролл уже использован в этой гонке' };
+    if (r.turn.brake) return { ok: false, reason: 'С экстренным тормозом переброс недоступен' };
+    if (r.turn.remaining !== r.turn.speed) return { ok: false, reason: 'Машина уже начала движение' };
+
+    const old = r.turn.speed;
+    const roll = CnA.d4(game.rng);
+    const total = CnA.clamp(roll * (r.turn.rollMult || 1) + (r.turn.rollPlus || 0), 1, 8);
+    car.flags.rerollUsed = true;
+    r.stats.movementSum += total - old;
+    r.turn.roll = roll;
+    r.turn.speed = total;
+    r.turn.remaining = total;
+    car.lastMove = total;
+    log(game, car.name + ' перебрасывает d4: ' + roll + ' → движение ' + total + ' (было ' + old + ').', 'move');
+
+    if (r.turn.nitro && total >= 7) {
+      const dmg = damageCar(game, car, 1, null, { cause: 'overheat' });
+      log(game, car.name + ' перегревается при перебросе: 1 урон.', 'damage');
+      if (car.destroyed) return { ok: true, roll, total, destroyed: true, overheat: dmg, old };
+      return { ok: true, roll, total, overheat: dmg, old };
+    }
+    return { ok: true, roll, total, old };
   }
 
   function movementOptions(game, car) {
@@ -742,12 +793,12 @@
           else log(game, car.name + ' снимает мину, но рука полна.', 'ability');
           continue;
         }
-        const dmgRoll = CnA.rollDice(game.rng, '3d4');
+        const dmgRoll = CnA.rollDice(game.rng, '2d4');
         const dmg = damageCar(game, car, dmgRoll, tok.owner != null ? carById(game, tok.owner) : null, { cause: 'mine', mine: true });
         r.tokens = r.tokens.filter((t) => t !== tok);
         r.stats.mineTriggers++;
         if (tok.owner != null) { const o = carById(game, tok.owner); if (o) o.raceStats.mineTriggers = (o.raceStats.mineTriggers || 0) + 1; }
-        log(game, 'МИНА! ' + car.name + ' получает ' + dmg + ' урона (3d4=' + dmgRoll + ').', 'damage');
+        log(game, 'МИНА! ' + car.name + ' получает ' + dmg + ' урона (2d4=' + dmgRoll + ').', 'damage');
         events.push({ type: 'damage', carId: car.id, amount: dmg, text: 'мина' });
         if (car.destroyed) { r.turn.remaining = 0; return { ok: true, node: dest, stop: true, destroyed: true, events }; }
       } else if (tok.type === 'oil') {
@@ -794,10 +845,10 @@
       }
     } else if (destNode.type === 'debris') {
       if (!ignore) {
-        const dmgRoll = CnA.d4(game.rng);
-        damageCar(game, car, dmgRoll, null, { cause: 'debris' });
-        log(game, car.name + ' влетает в обломки: ' + dmgRoll + ' урона.', 'damage');
-        events.push({ type: 'damage', carId: car.id, amount: dmgRoll, text: 'обломки' });
+        const dmg = 1;
+        damageCar(game, car, dmg, null, { cause: 'debris' });
+        log(game, car.name + ' влетает в обломки: ' + dmg + ' урона.', 'damage');
+        events.push({ type: 'damage', carId: car.id, amount: dmg, text: 'обломки' });
         if (car.destroyed) { r.turn.remaining = 0; return { ok: true, node: dest, stop: true, destroyed: true, events }; }
         if (!hasUpgrade(car, 'tracks')) r.turn.remaining = Math.max(0, r.turn.remaining - 1);
       }
@@ -882,10 +933,6 @@
     const defender = defenders[Math.floor(game.rng() * defenders.length)];
 
     let aRoll = CnA.d4(game.rng);
-    if (attacker.factionId === 'chrome') {
-      const second = CnA.d4(game.rng);
-      aRoll = Math.max(aRoll, second);
-    }
     if (r.turn && r.turn.ramBonus) aRoll += r.turn.ramBonus;
     const dRoll = CnA.d4(game.rng);
     const aSpeed = r.turn ? r.turn.speed : 0;
@@ -1039,18 +1086,14 @@
     car.scrap -= lost;
 
     if (source && source.id !== car.id) {
-      source.cp += 3;
-      source.raceCpKills += 3;
+      const killCp = (source.lapsDone || 0) < 1 ? 1 : 3;
+      source.cp += killCp;
+      source.raceCpKills += killCp;
       source.scrap += 5;
       source.raceScrapKills += 5;
       source.raceKills++;
       source.killsTotal++;
-      log(game, source.name + ' уничтожает ' + car.name + ': +3 ОЧ, +5 лома.', 'kill');
-      if (cause === 'ram' && source.factionId === 'chrome') {
-        const before = source.hp;
-        source.hp = Math.min(source.maxHp, source.hp + 4);
-        if (source.hp > before) log(game, source.name + ' получает +4 корпуса за таранное уничтожение.', 'ability');
-      }
+      log(game, source.name + ' уничтожает ' + car.name + ': +' + killCp + (killCp === 1 ? ' очко' : ' очка') + ', +5 лома.', 'kill');
     } else {
       log(game, car.name + ' уничтожена.', 'death');
     }
@@ -1188,6 +1231,19 @@
     return true;
   }
 
+  function applyRecoil(game, car) {
+    const r = game.race;
+    if (r.turn && r.turn.wildfire && (car.flags.wildfireCharges || 0) > 0) {
+      r.turn.wildfire = false;
+      car.flags.wildfireCharges--;
+      log(game, car.name + ' → «Дикий огонь»: выстрел без отдачи (осталось ' + car.flags.wildfireCharges + ').', 'ability');
+      return;
+    }
+    if (r.turn) r.turn.wildfire = false;
+    car.nextMovePenalty += 1;
+    log(game, car.name + ' → отдача: −1 к следующему движению.', 'move');
+  }
+
   function playAttack(game, car, cardUid, targetId) {
     const r = game.race;
     if (!r.turn || r.phase !== 'fire') return { ok: false, reason: 'Не фаза огня' };
@@ -1279,6 +1335,7 @@
 
     log(game, parts.join('. ') + '.', 'attack');
     consumeFire(game, car);
+    applyRecoil(game, car);
     if (car.raceStats.shootTurns !== undefined) car.raceStats.shootTurns++;
     else car.raceStats.shootTurns = 1;
     r.stats.shootTurns++;
@@ -1311,6 +1368,7 @@
       log(game, car.name + ' → спаренный пулемёт по ' + target.name + ': ' + roll + ' урона (факт. ' + dealt + ').', 'attack');
     }
     consumeFire(game, car);
+    applyRecoil(game, car);
     car.raceStats.shootTurns = (car.raceStats.shootTurns || 0) + 1;
     r.stats.shootTurns++;
     r.stats.fireTurns++;
@@ -1408,11 +1466,9 @@
     switch (id) {
       case 'sandstorm':
         r.roundEffect.rangeCap = 1;
-        log(game, 'До конца раунда дальность всего оружия — не больше 1.', 'event');
         break;
       case 'night':
         r.roundEffect.rangeDelta -= 1;
-        log(game, 'До конца раунда дальность всего оружия −1.', 'event');
         break;
       case 'scavengers': {
         const nodes = new Set([car.node]);
@@ -1489,13 +1545,14 @@
       .sort((a, b) => progressOf(game, b) - progressOf(game, a));
     const ranked = finished.concat(rest);
     const cpTable = [10, 6, 3, 1];
+    const dnfCpTable = [5, 3, 1, 0];
     const scrapTable = [4, 6, 8, 10];
     const rows = [];
 
     ranked.forEach((car, i) => {
       const pos = i + 1;
       car.racePos = pos;
-      const cpPos = car.finished ? (cpTable[pos - 1] || 0) : 0;
+      const cpPos = car.finished ? (cpTable[pos - 1] || 0) : (dnfCpTable[pos - 1] || 0);
       const scrapPos = car.finished ? (scrapTable[pos - 1] || 3) : 3;
       const scrapDamage = Math.floor(car.raceDamage / 5);
       car.cp += cpPos;
@@ -1653,8 +1710,10 @@
   CnA.useRustRepair = useRustRepair;
   CnA.returnMine = returnMine;
   CnA.armTurbo = armTurbo;
+  CnA.armWildfire = armWildfire;
   CnA.startPit = startPit;
   CnA.rollMove = rollMove;
+  CnA.rerollMove = rerollMove;
   CnA.movementOptions = movementOptions;
   CnA.stepMovement = stepMovement;
   CnA.finishMovement = finishMovement;

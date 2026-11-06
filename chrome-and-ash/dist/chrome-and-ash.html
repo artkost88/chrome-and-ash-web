@@ -944,10 +944,13 @@ code { font-family: var(--font-mono); color: var(--brass); }
             <div class="board-legend">
               <span><i style="background:#3a332c"></i>дорога</span>
               <span><i style="background:#a34a24"></i>песок −1</span>
-              <span><i style="background:#9e1f1a"></i>обломки d4 −1</span>
+              <span><i style="background:#9e1f1a"></i>обломки 1 −1</span>
               <span><i style="background:#ff7a1e"></i>пустошь ?</span>
               <span><i style="background:#241f1a"></i>пит</span>
               <span><i style="background:#d8d8d2"></i>КП</span>
+              <span><i style="background:#9e1f1a"></i>мина</span>
+              <span><i style="background:#0b0f12;border-color:#c8a04e"></i>масло</span>
+              <span><i style="background:#ff7a1e"></i>огонь</span>
               <span><i style="background:#9e1f1a"></i>мина</span>
               <span><i style="background:#0b0f12;border-color:#c8a04e"></i>масло</span>
               <span><i style="background:#ff7a1e"></i>огонь</span>
@@ -1181,14 +1184,14 @@ code { font-family: var(--font-mono); color: var(--brass); }
       short: 'ХР',
       glyph: '▲',
       car: '«Ревун»',
-      hp: 16,
+      hp: 18,
       slots: 5,
       color: '#d8d8d2',
       ink: '#241f1a',
       motto: 'Культ скорости. Едут умирать красиво.',
-      abilityName: 'Запомни меня!',
-      ability: 'При таране бросает d4 дважды и берёт лучший результат. Если таран уничтожает цель — восстанавливает 4 корпуса.',
-      tags: ['таран', 'стеклянная пушка'],
+      abilityName: 'Дикий огонь',
+      ability: 'Два раза за гонку следующий выстрел не даёт отдачи. 5 слотов под улучшения.',
+      tags: ['огонь', 'риск'],
     },
     {
       id: 'rust',
@@ -1196,13 +1199,13 @@ code { font-family: var(--font-mono); color: var(--brass); }
       short: 'КР',
       glyph: '■',
       car: '«Наковальня»',
-      hp: 26,
+      hp: 22,
       slots: 4,
       color: '#ff7a1e',
       ink: '#241f1a',
       motto: 'Автоколонна-мастерская. Чинят всё, кроме совести.',
       abilityName: 'Латаем на ходу',
-      ability: 'Пит-стоп длится 2 хода вместо 3. Один раз за гонку чинит d4 корпуса, не останавливаясь (действие в фазе подготовки).',
+      ability: 'Пит-стоп занимает 2 хода вместо 3. Раз за гонку ремонтирует d4 корпуса на ходу (действие в фазе подготовки).',
       tags: ['танк', 'ремонт'],
     },
     {
@@ -1211,13 +1214,13 @@ code { font-family: var(--font-mono); color: var(--brass); }
       short: 'КБ',
       glyph: '☠',
       car: '«Сахарный зуб»',
-      hp: 20,
+      hp: 22,
       slots: 4,
       color: '#3ba7b0',
       ink: '#241f1a',
       motto: 'Фургон мороженщика с горелкой. Дети плачут от счастья.',
       abilityName: 'Оставь им подарок',
-      ability: 'Мины и масло ставит бесплатно, не тратя фазу огня. Один раз за гонку возвращает мину в руку.',
+      ability: 'Первую ловушку в ход ставит бесплатно, не тратя фазу огня. Раз за гонку возвращает мину в руку.',
       tags: ['ловушки', 'контроль'],
     },
     {
@@ -1232,8 +1235,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
       ink: '#241f1a',
       motto: 'Охотники на багги. Бьют первыми и издалека.',
       abilityName: 'Ведущий выстрел',
-      ability: 'Дальность всего оружия +1. По текущему лидеру гонки урон +2.',
-      tags: ['дальний бой', '5 слотов'],
+      ability: 'Дальность всего оружия +1. Урон по лидеру гонки +2.',
+      tags: ['дальний бой', 'охота'],
     },
   ];
 
@@ -1275,9 +1278,9 @@ code { font-family: var(--font-mono); color: var(--brass); }
     },
     mine: {
       id: 'mine', name: 'Мина', phase: 'fire', kind: 'trap', count: 6,
-      dmg: '3d4', range: 0, dir: 'none', trap: 'mine',
-      text: 'Жетон мины на свой тайл или тайл позади. Срабатывает, когда машина въезжает: 3d4 урона.',
-      short: '3d4 · жетон',
+      dmg: '2d4', range: 0, dir: 'none', trap: 'mine',
+      text: 'Жетон мины на свой тайл или тайл позади. Срабатывает, когда машина въезжает: 2d4 урона.',
+      short: '2d4 · жетон',
     },
     oil: {
       id: 'oil', name: 'Масло', phase: 'fire', kind: 'trap', count: 5,
@@ -1494,6 +1497,11 @@ code { font-family: var(--font-mono); color: var(--brass); }
 
   let uidCounter = 1;
   CnA.nextUid = function () { return uidCounter++; };
+  /* Веб-клиент: сохранение/загрузка партии (см. docs/06-web-api.md §5.1) требует
+     читать и восстанавливать счётчик uid карт, чтобы после восстановления новые
+     карты не получали uid, совпадающий с уже лежащими в руках. */
+  CnA.getUidCounter = function () { return uidCounter; };
+  CnA.setUidCounter = function (n) { uidCounter = Number(n) || 1; };
 
   /* Целевые ориентиры из дизайн-документа — используются в отчёте. */
   CnA.TARGETS = {
@@ -2248,6 +2256,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
       mineReturned: false,
       freeTrapUsed: false,
       pitThisRace: false,
+      wildfireCharges: car.factionId === 'chrome' ? 2 : 0,
+      rerollUsed: false,
     };
     car.raceStats = {
       turns: 0,
@@ -2379,8 +2389,9 @@ code { font-family: var(--font-mono); color: var(--brass); }
     game.race.currentId = order.length ? order[0] : null;
     game.race.phase = 'prep';
 
-    // Стартовая решётка: четыре тайла перед старт-финишем, по машине на тайл.
-    const grid = track.grid || [track.count - 1, track.count - 2, track.count - 3, track.count - 4];
+    // Стартовая решётка 2×2: две последние линии, по две машины на тайл.
+    const baseGrid = track.grid || [track.count - 1, track.count - 2, track.count - 3, track.count - 4];
+    const grid = [baseGrid[0], baseGrid[0], baseGrid[1], baseGrid[1]];
     order.forEach((id, i) => {
       const c = carById(game, id);
       if (c) c.node = grid[i];
@@ -2586,6 +2597,19 @@ code { font-family: var(--font-mono); color: var(--brass); }
     return { ok: true };
   }
 
+  function armWildfire(game, car) {
+    const r = game.race;
+    if (car.factionId !== 'chrome') return { ok: false, reason: 'Только Хромированные' };
+    if (!r.turn || r.phase !== 'fire') return { ok: false, reason: 'Только в фазе огня' };
+    if (r.turn.fireUsed) return { ok: false, reason: 'Огонь уже использован' };
+    if ((car.flags.wildfireCharges || 0) <= 0) return { ok: false, reason: 'Заряды Wildfire закончились' };
+    r.turn.wildfire = !r.turn.wildfire;
+    log(game, car.name + (r.turn.wildfire
+      ? ' → «Дикий огонь»: следующий выстрел без отдачи.'
+      : ' → «Дикий огонь» отменён.'), 'ability');
+    return { ok: true, armed: r.turn.wildfire, charges: car.flags.wildfireCharges };
+  }
+
   /* ------------------------------------------------------------------ */
   /* Пит-стоп                                                           */
   /* ------------------------------------------------------------------ */
@@ -2676,6 +2700,9 @@ code { font-family: var(--font-mono); color: var(--brass); }
       extraAttack: false,
       speedBase: 0,
       empDisabled,
+      wildfire: false,
+      rollMult: 1,
+      rollPlus: 0,
     };
     r.phase = 'prep';
     if (empDisabled) log(game, car.name + ' под действием ЭМИ: атака и ловушки в этот ход недоступны.', 'status');
@@ -2722,8 +2749,10 @@ code { font-family: var(--font-mono); color: var(--brass); }
     const mods = [];
     let roll = CnA.d4(game.rng);
     let base = roll;
+    let mult = 1;
     if (car.flags.turboArmed && hasUpgrade(car, 'turbo')) {
       base = base * 2;
+      mult = 2;
       car.flags.turboArmed = false;
       car.flags.turboUsed = true;
       mods.push('турбина ×2');
@@ -2757,6 +2786,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
       mods.push('экстренный тормоз');
     }
 
+    r.turn.rollMult = mult;
+    r.turn.rollPlus = total - base;
     total = CnA.clamp(total, 1, 8);
     car.nextMoveBonus = 0;
     car.nextMovePenalty = 0;
@@ -2782,6 +2813,34 @@ code { font-family: var(--font-mono); color: var(--brass); }
       return { ok: true, roll, total, mods, overheat: dmg };
     }
     return { ok: true, roll, total, mods };
+  }
+
+  function rerollMove(game, car) {
+    const r = game.race;
+    if (!r.turn || r.phase !== 'move' || !r.turn.rolled) return { ok: false, reason: 'Сначала брось движение' };
+    if (car.destroyed || car.finished) return { ok: false, reason: 'Машина не может двигаться' };
+    if (car.flags.rerollUsed) return { ok: false, reason: 'Реролл уже использован в этой гонке' };
+    if (r.turn.brake) return { ok: false, reason: 'С экстренным тормозом переброс недоступен' };
+    if (r.turn.remaining !== r.turn.speed) return { ok: false, reason: 'Машина уже начала движение' };
+
+    const old = r.turn.speed;
+    const roll = CnA.d4(game.rng);
+    const total = CnA.clamp(roll * (r.turn.rollMult || 1) + (r.turn.rollPlus || 0), 1, 8);
+    car.flags.rerollUsed = true;
+    r.stats.movementSum += total - old;
+    r.turn.roll = roll;
+    r.turn.speed = total;
+    r.turn.remaining = total;
+    car.lastMove = total;
+    log(game, car.name + ' перебрасывает d4: ' + roll + ' → движение ' + total + ' (было ' + old + ').', 'move');
+
+    if (r.turn.nitro && total >= 7) {
+      const dmg = damageCar(game, car, 1, null, { cause: 'overheat' });
+      log(game, car.name + ' перегревается при перебросе: 1 урон.', 'damage');
+      if (car.destroyed) return { ok: true, roll, total, destroyed: true, overheat: dmg, old };
+      return { ok: true, roll, total, overheat: dmg, old };
+    }
+    return { ok: true, roll, total, old };
   }
 
   function movementOptions(game, car) {
@@ -2852,12 +2911,12 @@ code { font-family: var(--font-mono); color: var(--brass); }
           else log(game, car.name + ' снимает мину, но рука полна.', 'ability');
           continue;
         }
-        const dmgRoll = CnA.rollDice(game.rng, '3d4');
+        const dmgRoll = CnA.rollDice(game.rng, '2d4');
         const dmg = damageCar(game, car, dmgRoll, tok.owner != null ? carById(game, tok.owner) : null, { cause: 'mine', mine: true });
         r.tokens = r.tokens.filter((t) => t !== tok);
         r.stats.mineTriggers++;
         if (tok.owner != null) { const o = carById(game, tok.owner); if (o) o.raceStats.mineTriggers = (o.raceStats.mineTriggers || 0) + 1; }
-        log(game, 'МИНА! ' + car.name + ' получает ' + dmg + ' урона (3d4=' + dmgRoll + ').', 'damage');
+        log(game, 'МИНА! ' + car.name + ' получает ' + dmg + ' урона (2d4=' + dmgRoll + ').', 'damage');
         events.push({ type: 'damage', carId: car.id, amount: dmg, text: 'мина' });
         if (car.destroyed) { r.turn.remaining = 0; return { ok: true, node: dest, stop: true, destroyed: true, events }; }
       } else if (tok.type === 'oil') {
@@ -2904,10 +2963,10 @@ code { font-family: var(--font-mono); color: var(--brass); }
       }
     } else if (destNode.type === 'debris') {
       if (!ignore) {
-        const dmgRoll = CnA.d4(game.rng);
-        damageCar(game, car, dmgRoll, null, { cause: 'debris' });
-        log(game, car.name + ' влетает в обломки: ' + dmgRoll + ' урона.', 'damage');
-        events.push({ type: 'damage', carId: car.id, amount: dmgRoll, text: 'обломки' });
+        const dmg = 1;
+        damageCar(game, car, dmg, null, { cause: 'debris' });
+        log(game, car.name + ' влетает в обломки: ' + dmg + ' урона.', 'damage');
+        events.push({ type: 'damage', carId: car.id, amount: dmg, text: 'обломки' });
         if (car.destroyed) { r.turn.remaining = 0; return { ok: true, node: dest, stop: true, destroyed: true, events }; }
         if (!hasUpgrade(car, 'tracks')) r.turn.remaining = Math.max(0, r.turn.remaining - 1);
       }
@@ -2992,10 +3051,6 @@ code { font-family: var(--font-mono); color: var(--brass); }
     const defender = defenders[Math.floor(game.rng() * defenders.length)];
 
     let aRoll = CnA.d4(game.rng);
-    if (attacker.factionId === 'chrome') {
-      const second = CnA.d4(game.rng);
-      aRoll = Math.max(aRoll, second);
-    }
     if (r.turn && r.turn.ramBonus) aRoll += r.turn.ramBonus;
     const dRoll = CnA.d4(game.rng);
     const aSpeed = r.turn ? r.turn.speed : 0;
@@ -3149,18 +3204,14 @@ code { font-family: var(--font-mono); color: var(--brass); }
     car.scrap -= lost;
 
     if (source && source.id !== car.id) {
-      source.cp += 3;
-      source.raceCpKills += 3;
+      const killCp = (source.lapsDone || 0) < 1 ? 1 : 3;
+      source.cp += killCp;
+      source.raceCpKills += killCp;
       source.scrap += 5;
       source.raceScrapKills += 5;
       source.raceKills++;
       source.killsTotal++;
-      log(game, source.name + ' уничтожает ' + car.name + ': +3 ОЧ, +5 лома.', 'kill');
-      if (cause === 'ram' && source.factionId === 'chrome') {
-        const before = source.hp;
-        source.hp = Math.min(source.maxHp, source.hp + 4);
-        if (source.hp > before) log(game, source.name + ' получает +4 корпуса за таранное уничтожение.', 'ability');
-      }
+      log(game, source.name + ' уничтожает ' + car.name + ': +' + killCp + (killCp === 1 ? ' очко' : ' очка') + ', +5 лома.', 'kill');
     } else {
       log(game, car.name + ' уничтожена.', 'death');
     }
@@ -3298,6 +3349,19 @@ code { font-family: var(--font-mono); color: var(--brass); }
     return true;
   }
 
+  function applyRecoil(game, car) {
+    const r = game.race;
+    if (r.turn && r.turn.wildfire && (car.flags.wildfireCharges || 0) > 0) {
+      r.turn.wildfire = false;
+      car.flags.wildfireCharges--;
+      log(game, car.name + ' → «Дикий огонь»: выстрел без отдачи (осталось ' + car.flags.wildfireCharges + ').', 'ability');
+      return;
+    }
+    if (r.turn) r.turn.wildfire = false;
+    car.nextMovePenalty += 1;
+    log(game, car.name + ' → отдача: −1 к следующему движению.', 'move');
+  }
+
   function playAttack(game, car, cardUid, targetId) {
     const r = game.race;
     if (!r.turn || r.phase !== 'fire') return { ok: false, reason: 'Не фаза огня' };
@@ -3389,6 +3453,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 
     log(game, parts.join('. ') + '.', 'attack');
     consumeFire(game, car);
+    applyRecoil(game, car);
     if (car.raceStats.shootTurns !== undefined) car.raceStats.shootTurns++;
     else car.raceStats.shootTurns = 1;
     r.stats.shootTurns++;
@@ -3421,6 +3486,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
       log(game, car.name + ' → спаренный пулемёт по ' + target.name + ': ' + roll + ' урона (факт. ' + dealt + ').', 'attack');
     }
     consumeFire(game, car);
+    applyRecoil(game, car);
     car.raceStats.shootTurns = (car.raceStats.shootTurns || 0) + 1;
     r.stats.shootTurns++;
     r.stats.fireTurns++;
@@ -3518,11 +3584,9 @@ code { font-family: var(--font-mono); color: var(--brass); }
     switch (id) {
       case 'sandstorm':
         r.roundEffect.rangeCap = 1;
-        log(game, 'До конца раунда дальность всего оружия — не больше 1.', 'event');
         break;
       case 'night':
         r.roundEffect.rangeDelta -= 1;
-        log(game, 'До конца раунда дальность всего оружия −1.', 'event');
         break;
       case 'scavengers': {
         const nodes = new Set([car.node]);
@@ -3599,13 +3663,14 @@ code { font-family: var(--font-mono); color: var(--brass); }
       .sort((a, b) => progressOf(game, b) - progressOf(game, a));
     const ranked = finished.concat(rest);
     const cpTable = [10, 6, 3, 1];
+    const dnfCpTable = [5, 3, 1, 0];
     const scrapTable = [4, 6, 8, 10];
     const rows = [];
 
     ranked.forEach((car, i) => {
       const pos = i + 1;
       car.racePos = pos;
-      const cpPos = car.finished ? (cpTable[pos - 1] || 0) : 0;
+      const cpPos = car.finished ? (cpTable[pos - 1] || 0) : (dnfCpTable[pos - 1] || 0);
       const scrapPos = car.finished ? (scrapTable[pos - 1] || 3) : 3;
       const scrapDamage = Math.floor(car.raceDamage / 5);
       car.cp += cpPos;
@@ -3763,8 +3828,10 @@ code { font-family: var(--font-mono); color: var(--brass); }
   CnA.useRustRepair = useRustRepair;
   CnA.returnMine = returnMine;
   CnA.armTurbo = armTurbo;
+  CnA.armWildfire = armWildfire;
   CnA.startPit = startPit;
   CnA.rollMove = rollMove;
+  CnA.rerollMove = rerollMove;
   CnA.movementOptions = movementOptions;
   CnA.stepMovement = stepMovement;
   CnA.finishMovement = finishMovement;
@@ -4034,6 +4101,9 @@ code { font-family: var(--font-mono); color: var(--brass); }
 
     const roll = CnA.rollMove(game, car);
     if (!roll.ok || car.destroyed) { if (!game.race.over) CnA.endTurn(game); return; }
+    if (!car.destroyed && !car.finished && !car.flags.rerollUsed && !game.race.turn.brake && roll.total <= 2) {
+      CnA.rerollMove(game, car);
+    }
 
     let guard = 0;
     while (!game.race.over && guard++ < 20) {
@@ -4049,6 +4119,10 @@ code { font-family: var(--font-mono); color: var(--brass); }
     if (car.destroyed || car.finished) { CnA.endTurn(game); return; }
 
     guard = 0;
+    if (car.factionId === 'chrome' && (car.flags.wildfireCharges || 0) > 0 && !r.turn.wildfire) {
+      const peek = aiChooseFire(game, car);
+      if (peek && (peek.type === 'attack' || peek.type === 'twin')) CnA.armWildfire(game, car);
+    }
     while (guard++ < 4) {
       const action = aiChooseFire(game, car);
       if (!action) break;
@@ -4396,12 +4470,37 @@ code { font-family: var(--font-mono); color: var(--brass); }
     return car && car.human && !UI.busy && UI.game && !UI.game.race.over;
   }
 
+  async function rollAndMaybeReroll(car) {
+    const res = CnA.rollMove(UI.game, car);
+    if (!res.ok || res.destroyed || car.flags.rerollUsed || UI.game.race.turn.brake) return res;
+    showDice(res.roll, res.total, res.mods, res.nitroRoll);
+    renderAll();
+    const choice = await modal(
+      '<h3>ПЕРЕБРОС d4</h3><p>Выпало <b>' + res.roll + '</b> → движение <b>' + res.total + '</b>. ' +
+      'Можно один раз за гонку перебросить кубик.</p>' +
+      '<div class="target-list">' +
+      '<button class="target-btn" data-keep><b>Оставить ' + res.roll + '</b><span>движение ' + res.total + '</span></button>' +
+      '<button class="target-btn" data-reroll><b>Перебросить d4</b><span>один раз за гонку</span></button>' +
+      '</div>',
+      (rootEl, close) => {
+        rootEl.querySelector('[data-keep]').addEventListener('click', () => close(false));
+        rootEl.querySelector('[data-reroll]').addEventListener('click', () => close(true));
+      });
+    if (!choice) return res;
+    const rr = CnA.rerollMove(UI.game, car);
+    if (!rr.ok) {
+      showToast(esc(rr.reason || 'Нельзя перебросить'), 'damage');
+      return res;
+    }
+    return Object.assign({}, res, rr, { mods: [] });
+  }
+
   async function onRoll() {
     if (!humanReady() || UI.game.race.phase !== 'prep') return;
     const car = currentCar();
     UI.busy = true;
     UI.stage = 'move';
-    const res = CnA.rollMove(UI.game, car);
+    const res = await rollAndMaybeReroll(car);
     if (!res.ok) {
       UI.busy = false;
       showToast(esc(res.reason || 'Нельзя двигаться'), 'damage');
@@ -4524,6 +4623,14 @@ code { font-family: var(--font-mono); color: var(--brass); }
     const r = CnA.useRustRepair(UI.game, currentCar());
     if (!r.ok) { showToast(esc(r.reason), 'damage'); return; }
     showToast('«Латаем на ходу»: +' + r.heal + ' корпуса.', 'event');
+    renderAll();
+  }
+
+  function onWildfire() {
+    if (!humanReady()) return;
+    const r = CnA.armWildfire(UI.game, currentCar());
+    if (!r.ok) { showToast(esc(r.reason), 'damage'); return; }
+    showToast(r.armed ? '«Дикий огонь»: следующий выстрел без отдачи.' : '«Дикий огонь» отменён.', 'event', 1800);
     renderAll();
   }
 
@@ -5049,7 +5156,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
     // гексы
     const TILE_EFFECT = {
       sand: { icon: '≈', text: '−1', color: '#ffb27a' },
-      debris: { icon: '✕', text: 'd4 −1', color: '#ff8c7a' },
+      debris: { icon: '✕', text: '1 −1', color: '#ff8c7a' },
       event: { icon: '?', text: 'ПУСТОШЬ', color: '#ff7a1e' },
       pit: { icon: '⚙', text: 'РЕМОНТ', color: '#c8a04e' },
       ramp: { icon: '⌒', text: 'ПРЫЖОК', color: '#c8a04e' },
@@ -5350,8 +5457,12 @@ code { font-family: var(--font-mono); color: var(--brass); }
           return CnA.attackTargets(game, c, h.type).length > 0;
         });
         hint = t.fireUsed ? 'Действие огня использовано. Завершите ход.'
-          : anyTarget ? 'Фаза огня: одна атака или ловушка. Карты в руке подсвечены.'
+          : anyTarget ? 'Фаза огня: одна атака или ловушка. После выстрела — отдача: −1 к движению.'
           : 'В радиусе нет целей. Можно поставить ловушку или завершить ход.';
+        if (t.wildfire) hint = 'Дикий огонь взведён: следующий выстрел без отдачи.';
+        if (!t.fireUsed && c.factionId === 'chrome' && (c.flags.wildfireCharges || 0) > 0) {
+          actions += '<button id="wildfire-btn" class="act-btn ' + (t.wildfire ? 'primary' : '') + '">WILDFIRE ' + c.flags.wildfireCharges + '/2</button>';
+        }
         actions += '<button id="end-turn-btn" class="act-btn primary">ЗАВЕРШИТЬ ХОД</button>';
       } else {
         hint = 'Ход завершается…';
@@ -5375,6 +5486,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
     const rustBtn = $('#rust-btn'); if (rustBtn) rustBtn.addEventListener('click', onRustRepair);
     const mineBtn = $('#mine-return-btn'); if (mineBtn) mineBtn.addEventListener('click', onReturnMine);
     const turboBtn = $('#turbo-btn'); if (turboBtn) turboBtn.addEventListener('click', onTurbo);
+    const wildfireBtn = $('#wildfire-btn'); if (wildfireBtn) wildfireBtn.addEventListener('click', onWildfire);
     const endBtn = $('#end-turn-btn'); if (endBtn) endBtn.addEventListener('click', () => { if (!UI.busy) finishTurn(); });
   }
 
@@ -5525,7 +5637,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
       '<span>кругов <b>' + game.laps + '</b></span>';
     $('#results-title').textContent = 'ИТОГИ ГОНКИ ' + (game.raceIndex + 1);
     $('#results-sub').textContent = 'После финиша лидера остальные доезжают ещё один полный раунд. ' +
-      'Не доехавшие получают 0 очков чемпионата. Лом за место — по инверсии: чем хуже финиш, тем больше запчастей.';
+      'Финишировавшие получают полные очки за место, не доехавшие — половину по прогрессу. Лом за место — по инверсии: чем хуже финиш, тем больше запчастей.';
 
     const rows = res.rows;
     const head = '<div class="res-row head"><div class="place">#</div><div>Гонщик</div><div class="num">ОЧ</div>' +

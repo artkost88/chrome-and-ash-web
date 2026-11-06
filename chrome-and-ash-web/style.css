@@ -316,7 +316,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .board-tools { display: flex; gap: 4px; align-items: center; }
 .board-tools .chip-btn { min-width: 34px; min-height: 32px; padding: 4px 0; text-align: center; }
 .board-wrap { position: relative; padding: 4px; }
-#board { display: block; width: 100%; height: auto; max-height: calc(100vh - 520px); min-height: 320px; }
+#board { display: block; width: 100%; height: auto; max-height: calc(100vh - 660px); min-height: 300px; }
 
 /* Гексы: толстая светлая обводка + белая разметка. Опасность и КП рисуются
    SVG-паттернами в ui.js (красная штриховка / шахматка). */

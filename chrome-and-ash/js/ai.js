@@ -231,6 +231,9 @@
 
     const roll = CnA.rollMove(game, car);
     if (!roll.ok || car.destroyed) { if (!game.race.over) CnA.endTurn(game); return; }
+    if (!car.destroyed && !car.finished && !car.flags.rerollUsed && !game.race.turn.brake && roll.total <= 2) {
+      CnA.rerollMove(game, car);
+    }
 
     let guard = 0;
     while (!game.race.over && guard++ < 20) {
@@ -246,6 +249,10 @@
     if (car.destroyed || car.finished) { CnA.endTurn(game); return; }
 
     guard = 0;
+    if (car.factionId === 'chrome' && (car.flags.wildfireCharges || 0) > 0 && !r.turn.wildfire) {
+      const peek = aiChooseFire(game, car);
+      if (peek && (peek.type === 'attack' || peek.type === 'twin')) CnA.armWildfire(game, car);
+    }
     while (guard++ < 4) {
       const action = aiChooseFire(game, car);
       if (!action) break;

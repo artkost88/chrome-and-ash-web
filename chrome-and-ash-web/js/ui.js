@@ -123,21 +123,21 @@
   /* Справочник по фракциям для экрана выбора и вкладки «Фракции». */
   const FACTION_INFO = {
     chrome: {
-      role: 'Таран · риск',
-      strengths: 'На таране бросают два d4 и берут лучший результат. Если таран уничтожает цель, возвращают 4 корпуса.',
-      weakness: 'Корпус всего 16 — самый хрупкий в игре. Неудачный таран может стоить гонки.',
-      tip: 'Ищи момент добить тараном: только так «Ревун» лечится.',
+      role: 'Дикий огонь · риск',
+      strengths: 'Два раза за гонку следующий выстрел не даёт отдачи. 5 слотов под улучшения.',
+      weakness: '18 корпусов — один из самых хрупких. Wildfire помогает темпу, но не броне.',
+      tip: 'Трать Wildfire на ключевой выстрел, а не на первый попавшийся.',
     },
     rust: {
       role: 'Танк · ремонт',
-      strengths: '26 корпусов. Пит-стоп на ход короче, а раз за гонку можно починить d4 корпуса на ходу.',
+      strengths: '22 корпуса. Пит-стоп на ход короче, а раз за гонку можно починить d4 корпуса на ходу.',
       weakness: 'Всего 4 слота и медленный разгон.',
       tip: 'Держись ближе к пит-лейну: ремонт — твоё главное оружие.',
     },
     carnival: {
       role: 'Ловушки · контроль',
       strengths: 'Первую ловушку в ход ставит бесплатно, не тратя фазу огня. Раз за гонку возвращает мину в руку.',
-      weakness: '20 корпусов и мало прямого урона.',
+      weakness: '22 корпуса и мало прямого урона.',
       tip: 'Ставь ловушки на пути лидера — пусть сам в них въедет.',
     },
     swarm: {
@@ -498,12 +498,38 @@
     return car && car.human && !UI.busy && UI.game && !UI.game.race.over;
   }
 
+  async function rollAndMaybeReroll(car) {
+    const res = CnA.rollMove(UI.game, car);
+    if (!res.ok || res.destroyed || car.flags.rerollUsed || UI.game.race.turn.brake) return res;
+    showDice(res.roll, res.total, res.mods, res.nitroRoll);
+    renderAll();
+    const choice = await modal(
+      '<h3>ПЕРЕБРОС d4</h3><p>Выпало <b>' + res.roll + '</b> → движение <b>' + res.total + '</b>. ' +
+      'Можно один раз за гонку перебросить кубик.</p>' +
+      '<div class="target-list">' +
+      '<button class="target-btn" data-keep><b>Оставить ' + res.roll + '</b><span>движение ' + res.total + '</span></button>' +
+      '<button class="target-btn" data-reroll><b>Перебросить d4</b><span>один раз за гонку</span></button>' +
+      '</div>',
+      (rootEl, close) => {
+        rootEl.querySelector('[data-keep]').addEventListener('click', () => close(false));
+        rootEl.querySelector('[data-reroll]').addEventListener('click', () => close(true));
+      });
+    if (!choice) return res;
+    const rr = CnA.rerollMove(UI.game, car);
+    if (!rr.ok) {
+      showToast(esc(rr.reason || 'Нельзя перебросить'), 'damage');
+      return res;
+    }
+    return Object.assign({}, res, rr, { mods: [] });
+  }
+
   async function onRoll() {
     if (!humanReady() || UI.game.race.phase !== 'prep') return;
     const car = currentCar();
     UI.busy = true;
     UI.stage = 'move';
-    const res = CnA.rollMove(UI.game, car);
+    const res = await rollAndMaybeReroll(car);
+    if (!res) { UI.busy = false; renderAll(); return; }
     if (!res.ok) {
       UI.busy = false;
       showToast(esc(res.reason || 'Нельзя двигаться'), 'damage');
@@ -614,6 +640,23 @@
     const r = CnA.useRustRepair(UI.game, currentCar());
     if (!r.ok) { showToast(esc(r.reason), 'damage'); return; }
     showToast('«Латаем на ходу»: +' + r.heal + ' корпуса.', 'event');
+    renderAll();
+  }
+
+  function onWildfire() {
+    if (!humanReady()) return;
+    const r = CnA.armWildfire(UI.game, currentCar());
+    if (!r.ok) { showToast(esc(r.reason), 'damage'); return; }
+    showToast(r.armed ? '«Дикий огонь»: следующий выстрел без отдачи.' : '«Дикий огонь» отменён.', 'event', 1800);
+    renderAll();
+  }
+
+  function onReroll() {
+    if (!humanReady() || UI.game.race.phase !== 'move') return;
+    const car = currentCar();
+    const r = CnA.rerollMove(UI.game, car);
+    if (!r.ok) { showToast(esc(r.reason || 'Нельзя перебросить'), 'damage'); return; }
+    showDice(r.roll, r.total, [], 0);
     renderAll();
   }
 
@@ -1113,7 +1156,7 @@
     // гексы
     const TILE_EFFECT = {
       sand: { icon: '≈', text: '−1', color: '#ffb27a' },
-      debris: { icon: '✕', text: 'd4 −1', color: '#ff8c7a' },
+      debris: { icon: '✕', text: '1 −1', color: '#ff8c7a' },
       event: { icon: '?', text: 'ПУСТОШЬ', color: '#ff7a1e' },
       pit: { icon: '⚙', text: 'РЕМОНТ', color: '#c8a04e' },
       ramp: { icon: '⌒', text: 'ПРЫЖОК', color: '#c8a04e' },
@@ -1216,7 +1259,7 @@
         parts.push('<circle cx="' + x + '" cy="' + y + '" r="10" fill="none" stroke="#9e1f1a" stroke-width="1.2" opacity=".75"></circle>');
         parts.push('<polygon class="token-mine" points="' + starPoints(x, y, 8.5) + '"></polygon>');
         parts.push('<text class="token-label" x="' + x + '" y="' + (y + 2.5) + '">✸</text>');
-        parts.push('<text x="' + x + '" y="' + (y + 12) + '" text-anchor="middle" font-family="Cascadia Mono, Consolas, monospace" font-size="5" fill="#ff8c7a">3d4</text>');
+        parts.push('<text x="' + x + '" y="' + (y + 12) + '" text-anchor="middle" font-family="Cascadia Mono, Consolas, monospace" font-size="5" fill="#ff8c7a">2d4</text>');
       } else if (tok.type === 'oil') {
         parts.push('<ellipse class="token-oil" cx="' + x + '" cy="' + y + '" rx="9" ry="6"></ellipse>');
         parts.push('<text class="token-label" x="' + x + '" y="' + (y + 2.5) + '" font-size="8">≈</text>');
@@ -1403,7 +1446,7 @@
       ? 'd4 ' + turn.roll + (turn.mods && turn.mods.length ? ' · ' + turn.mods.join(' · ') : '') + ' = ' + turn.speed
       : '';
     const finishNote = game.race.firstFinishRound != null
-      ? 'ФИНИШ ЛИДЕРА · ещё раунд; не доехавшие — без очков за место'
+      ? 'ФИНИШ ЛИДЕРА · ещё раунд; DNF — 50% очков за место'
       : '';
 
     const chips = [['prep', 'ПОДГОТОВКА'], ['move', 'ДВИЖЕНИЕ'], ['fire', 'ОГОНЬ']].map(([p, label]) => {
@@ -1437,8 +1480,12 @@
           return CnA.attackTargets(game, c, h.type).length > 0;
         });
         hint = t.fireUsed ? 'Действие огня использовано. Заверши ход.'
-          : anyTarget ? 'Фаза огня: одна атака или ловушка. Карты в руке подсвечены.'
+          : anyTarget ? 'Фаза огня: одна атака или ловушка. После выстрела — отдача: −1 к движению.'
           : 'В радиусе нет целей. Можно поставить ловушку или завершить ход.';
+        if (t.wildfire) hint = 'Дикий огонь взведён: следующий выстрел без отдачи.';
+        if (!t.fireUsed && c.factionId === 'chrome' && (c.flags.wildfireCharges || 0) > 0) {
+          actions += '<button id="wildfire-btn" class="act-btn ' + (t.wildfire ? 'primary' : '') + '">WILDFIRE ' + c.flags.wildfireCharges + '/2</button>';
+        }
         actions += '<button id="end-turn-btn" class="act-btn primary">ЗАВЕРШИТЬ ХОД</button>';
       } else {
         hint = 'Ход завершается…';
@@ -1465,6 +1512,7 @@
     const rustBtn = $('#rust-btn'); if (rustBtn) rustBtn.addEventListener('click', onRustRepair);
     const mineBtn = $('#mine-return-btn'); if (mineBtn) mineBtn.addEventListener('click', onReturnMine);
     const turboBtn = $('#turbo-btn'); if (turboBtn) turboBtn.addEventListener('click', onTurbo);
+    const wildfireBtn = $('#wildfire-btn'); if (wildfireBtn) wildfireBtn.addEventListener('click', onWildfire);
     const endBtn = $('#end-turn-btn'); if (endBtn) endBtn.addEventListener('click', () => { if (!UI.busy) finishTurn(); });
   }
 
@@ -1616,7 +1664,7 @@
     const note = $('#results-note');
     if (note) {
       note.textContent = res.rows.some((r) => !r.finished)
-        ? 'Очки за место получают только финишировавшие. Не доехавшие сохраняют очки за уничтожения и лидерство по кругам.'
+        ? 'Финишировавшие получают полные очки за место, не доехавшие — половину по прогрессу. Очки за уничтожения и лидерство сохраняются.'
         : '';
     }
   }
@@ -1884,21 +1932,21 @@
     const content = {
       basics:
         '<h3>Цель</h3><p>Первым пересечь финишную черту, пройдя нужное число кругов. В один ход всего не сделать: на карту, манёвр и выстрел отведено по фазе.</p>' +
-        '<p><b>Финиш.</b> После финиша лидера остальные доезжают ещё один раунд. Очки за место получают только финишировавшие; не доехавшие могут добрать очки за уничтожения и лидерство по кругам.</p>' +
+        '<p><b>Финиш.</b> После финиша лидера остальные доезжают ещё один раунд. Финишировавшие получают полные очки за место (10/6/3/1), не доехавшие — половину по прогрессу (5/3/1/0).</p>' +
         '<h3>Три фазы хода</h3><ol><li><b>Подготовка.</b> Одна карта до движения — или пит-стоп.</li><li><b>Движение.</b> Бросок d4 + модификаторы; машина едет на итоговую сумму.</li><li><b>Огонь.</b> Одна атака или одна ловушка.</li></ol>' +
         '<h3>Управление</h3><ul><li>Нажми карту в руке — подготовка или атака.</li><li>Кнопка «Бросок d4» начинает движение.</li><li><b>Esc</b> закрывает окно; <b>?</b> открывает этот устав.</li></ul>' +
         '<div class="help-note">Новичку: начни с «Кузнецов Ржавчины» — у них самый большой корпус и ремонт на ходу.</div>',
       phases:
         '<h3>Подготовка</h3><ul><li>Нитро, тормоз, дым, ремонт, канистра — одна карта до броска.</li><li>Пит-стоп ремонтирует машину и добирает карты; у Кузнецов он на ход короче.</li></ul>' +
-        '<h3>Движение</h3><ul><li>Итог d4 + модификаторы, минимум 1, максимум 8.</li><li>Песок отнимает 1 движение, обломки наносят d4 урона и тоже −1; на «?» в конце движения добирается карта Пустоши.</li><li>На повороте при скорости 5+ — бросок d4: на 1 машину заносит.</li><li>Трамплин переносит машину через следующий тайл; при скорости 6+ посадка наносит d4 урона.</li></ul>' +
-        '<h3>Огонь</h3><ul><li>Дальность считается вдоль трассы; назад стрелять можно, вперёд — только по прямой.</li><li>Ракеты и турель игнорируют линию огня.</li><li>Одна атака или одна ловушка за ход.</li></ul>',
+        '<h3>Движение</h3><ul><li>Итог d4 + модификаторы, минимум 1, максимум 8.</li><li>Песок отнимает 1 движение, обломки наносят 1 урон и тоже −1; на «?» в конце движения добирается карта Пустоши.</li><li>На повороте при скорости 5+ — бросок d4: на 1 машину заносит.</li><li>Трамплин переносит машину через следующий тайл; при скорости 6+ посадка наносит d4 урона.</li><li>Один раз за гонку можно перебросить d4 до начала движения.</li></ul>' +
+        '<h3>Огонь</h3><ul><li>Дальность считается вдоль трассы; назад стрелять можно, вперёд — только по прямой.</li><li>Ракеты и турель игнорируют линию огня.</li><li>Одна атака или одна ловушка за ход.</li><li>После атаки — отдача: −1 к следующему движению. Chrome дважды за гонку отменяет её через «Дикий огонь».</li></ul>',
       combat:
-        '<h3>Урон</h3><ul><li>Ниже 50% корпуса — −1 к движению; ниже 20% — −2 и нельзя таранить.</li><li>Уничтоженная машина оставляет обломки, пропускает 2 хода и возвращается на последний КП с половиной корпуса.</li><li>После возврата — защита от огня до следующего хода.</li><li>За уничтожение — +3 очка и +5 лома; жертва теряет карту и 3 лома.</li></ul>' +
-        '<h3>Ловушки</h3><ul><li>Мина ставится на свой тайл или позади; на въезде — 3d4.</li><li>Масло — бросок d4: 1–2 — занос, ход заканчивается.</li><li>Карнавал ставит первую ловушку в ход бесплатно.</li></ul>' +
+        '<h3>Урон</h3><ul><li>Ниже 50% корпуса — −1 к движению; ниже 20% — −2 и нельзя таранить.</li><li>Уничтоженная машина оставляет обломки, пропускает 2 хода и возвращается на последний КП с половиной корпуса.</li><li>После возврата — защита от огня до следующего хода.</li><li>За уничтожение — +1 очко в первом круге, +3 дальше; +5 лома. Жертва теряет карту и 3 лома.</li></ul>' +
+        '<h3>Ловушки</h3><ul><li>Мина ставится на свой тайл или позади; на въезде — 2d4.</li><li>Масло — бросок d4: 1–2 — занос, ход заканчивается.</li><li>Карнавал ставит первую ловушку в ход бесплатно.</li></ul>' +
         '<div class="help-note">В дым не стреляют с дистанции 2 и больше. Глушилка отменяет первую атаку по тебе.</div>',
       cards:
         '<h3>Рука</h3><ul><li>Старт — 3 карты, лимит руки 5.</li><li>В конце хода добираешь 1 карту.</li><li>Фаза карты задаёт, когда её можно сыграть: подготовка, огонь, реакция.</li></ul>' +
-        '<h3>Экономика</h3><ul><li>Лом за место: 1-е — 4, 2-е — 6, 3-е — 8, 4-е — 10 (чем хуже место, тем больше); не доехал — 3.</li><li>+1 лом за каждые 5 урона, +5 за уничтожение.</li><li>Очки: 1-е — 10, 2-е — 6, 3-е — 3, 4-е — 1; +3 за уничтожение.</li></ul>' +
+        '<h3>Экономика</h3><ul><li>Лом за место: 1-е — 4, 2-е — 6, 3-е — 8, 4-е — 10 (чем хуже место, тем больше); не доехал — 3.</li><li>+1 лом за каждые 5 урона, +5 за уничтожение.</li><li>Очки за место: 10/6/3/1; DNF — 5/3/1/0 по прогрессу. За уничтожение — +1 в первом круге, +3 дальше.</li></ul>' +
         '<div class="help-note">Улучшения покупаются в мастерской между гонками чемпионата; в свободном заезде — только карты.</div>',
       factions: '<h3>Четыре характера</h3><p>Выбор машины — это выбор темпа и риска. Способность важнее лишнего слота.</p><p class="help-note">Слоты — ячейки под улучшения из мастерской: +1 слот = +1 улучшение.</p>' + helpFactionBlocks(),
       pvp:
@@ -2453,7 +2501,13 @@
         const t = proj.race.turn || { speed: 0, remaining: 0 };
         hint = 'Движение: ' + (t.speed || 0) + ' · осталось ' + (t.remaining || 0) + '.';
       } else if (phase === 'fire') {
-        hint = 'Фаза огня: одна атака или ловушка. Карты в руке подсвечены.';
+        hint = 'Фаза огня: одна атака или ловушка. После выстрела — отдача: −1 к движению.';
+        const t = proj.race.turn || {};
+        if (my && my.factionId === 'chrome' && !t.fireUsed && ((my.flags && my.flags.wildfireCharges) || 0) > 0) {
+          const charges = my.flags.wildfireCharges;
+          const armed = t.wildfire;
+          actions = '<button id="pvp-ability-wildfire" class="act-btn ' + (armed ? 'primary' : '') + '">WILDFIRE ' + charges + '/2</button>' + actions;
+        }
       } else {
         hint = 'Ход завершается…';
       }
@@ -2480,6 +2534,8 @@
     if (mineBtn) mineBtn.addEventListener('click', () => pvpAbility('returnMine'));
     const turboBtn = $('#pvp-ability-turbo');
     if (turboBtn) turboBtn.addEventListener('click', () => pvpAbility('turbo'));
+    const wildfireBtn = $('#pvp-ability-wildfire');
+    if (wildfireBtn) wildfireBtn.addEventListener('click', () => pvpAbility('wildfire'));
     const endBtn = $('#pvp-end-btn');
     if (endBtn) endBtn.addEventListener('click', pvpEndTurn);
   }
