@@ -285,8 +285,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .save-status.error { color: #ffb1a8; }
 
 .game-main {
-  display: grid; grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 12px; padding: 12px 14px; align-items: start; max-width: 1600px; margin: 0 auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 13vw, 380px);
+  gap: 12px; padding: 12px clamp(14px, 2vw, 28px); align-items: start; max-width: 2400px; margin: 0 auto;
 }
 .board-panel {
   border: 1px solid var(--line);
@@ -444,7 +444,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .empty-hand { color: var(--muted); font-size: 11.5px; padding: 14px 4px; }
 
 /* Нижняя полоса: крупная рука + фазы хода (центр внимания игрока). */
-.bottom-strip { max-width: 1600px; margin: 0 auto; padding: 0 14px 10px; display: flex; flex-direction: column; gap: 8px; }
+.bottom-strip { max-width: 2400px; margin: 0 auto; padding: 0 clamp(14px, 2vw, 28px) 10px; display: flex; flex-direction: column; gap: 8px; }
 .bottom-strip .hand-zone { width: 100%; }
 .phase-strip {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -575,7 +575,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 /* ================================================================
    ЖУРНАЛ
    ================================================================ */
-.log-panel { max-width: 1600px; margin: 0 auto; padding: 0 14px 14px; }
+.log-panel { max-width: 2400px; margin: 0 auto; padding: 0 clamp(14px, 2vw, 28px) 14px; }
 .log-head { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); font-size: 10px; letter-spacing: .16em; color: var(--muted); padding: 5px 8px; border: 1px solid var(--line); border-bottom: 0; background: rgba(36,31,26,.72); }
 .log-toggle { background: none; border: 0; color: var(--muted); font-size: 10px; cursor: pointer; }
 .log-toggle:hover { color: var(--brass); }
@@ -725,6 +725,40 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .res-row .num:nth-child(5), .res-row .num:nth-child(6) { display: none; }
   .log { height: 110px; }
   .board-legend { display: none; }
+}
+
+@media (min-width: 1800px) {
+  .game-top { padding: 12px clamp(18px, 2vw, 30px); }
+  .game-top .brand { font-size: 18px; }
+  .race-meta { font-size: 14px; gap: 18px; }
+  .race-meta .pill { padding: 5px 10px; }
+  .top-actions .chip-btn { font-size: 12px; padding: 8px 11px; }
+  .save-status { font-size: 11px; }
+  .board-title { font-size: 13px; }
+  .leader-label { font-size: 13px; }
+  .board-tools .chip-btn { min-width: 40px; min-height: 36px; font-size: 12px; }
+  #board { max-height: calc(100vh - 620px); }
+  .hand-head h3 { font-size: 11.5px; }
+  .hand-count { font-size: 12px; }
+  .card { width: 170px; min-height: 250px; padding: 11px 11px 10px; }
+  .card .phase { margin: -11px -11px 7px; font-size: 9.5px; padding: 3px 6px; }
+  .card-illu { width: calc(100% + 22px); height: 92px; margin: 0 -11px 8px; }
+  .card .cname { font-size: 14px; min-height: 32px; }
+  .card .cstats { font-size: 13px; }
+  .card .cshort { font-size: 13px; line-height: 1.35; }
+  .hand { min-height: 258px; gap: 10px; }
+  .phase-chip { font-size: 11px; padding: 6px 11px; }
+  .phase-turn { font-size: 13px; }
+  .phase-hint { font-size: 13px; }
+  .act-btn { font-size: 13px; padding: 9px 13px; }
+  .turn-who { font-size: 20px; }
+  .turn-sub { font-size: 12px; }
+  .turn-phase { font-size: 10.5px; }
+  .turn-body { font-size: 14px; }
+  .p-name { font-size: 13px; }
+  .p-pos { font-size: 11.5px; }
+  .p-stats { font-size: 11px; }
+  .board-legend { font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1415,7 +1415,7 @@
     } else {
       hint = phase === 'prep' ? 'ИИ оценивает обстановку.' :
         phase === 'move' ? 'ИИ едет по трассе.' :
-        phase === 'fire' ? 'ИИ выбирает, кого ударить.' : 'ИИ завершает ход.';
+        phase === 'fire' ? 'Соперник выбирает, кого ударить.' : 'Соперник завершает ход.';
       actions += '<button class="act-btn ghost" disabled>ХОД СОПЕРНИКА</button>';
     }
 
@@ -1437,7 +1437,7 @@
   function renderHand() {
     const game = UI.game;
     if (!game || !game.race) { $('#hand-zone').innerHTML = ''; return; }
-    const c = currentCar();
+    const c = humanCar() || currentCar();
     if (!c) { $('#hand-zone').innerHTML = ''; return; }
     const head = '<div class="hand-head"><h3>' + (c.human ? 'РУКА АРСЕНАЛА' : 'РУКА СОПЕРНИКА') + '</h3><span class="hand-count">' + c.hand.length + ' / 5</span></div>';
 
@@ -1452,7 +1452,7 @@
 
     const cards = c.hand.map((h) => {
       const card = CnA.CARDS[h.type];
-      const playable = !UI.busy && CnA.cardPlayable(game, c, h.uid);
+      const playable = !UI.busy && isHumanTurn() && CnA.cardPlayable(game, c, h.uid);
       const kindCls = card.kind === 'attack' ? 'attack' : card.kind === 'trap' ? 'trap' : card.kind === 'prep' ? 'prep' : 'reaction';
       const phaseText = card.phase === 'prep' ? 'ПОДГОТОВКА' : card.phase === 'fire' ? 'ОГОНЬ' : 'РЕАКЦИЯ';
       const stats = card.noDamage
