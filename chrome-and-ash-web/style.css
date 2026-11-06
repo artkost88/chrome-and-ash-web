@@ -960,7 +960,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .help-overlay[hidden] { display: none; }
 .help-backdrop { position: absolute; inset: 0; background: rgba(5,8,10,.84); backdrop-filter: blur(6px); }
 .help-panel {
-  position: relative; width: min(1100px, 96vw); max-height: 90vh; display: flex; flex-direction: column;
+  position: relative; width: min(1100px, 96vw); height: min(88vh, 820px); max-height: 90vh; display: flex; flex-direction: column;
   background: linear-gradient(180deg, #211c17, #0f0c0a); border: 1px solid var(--line);
   box-shadow: 0 30px 90px rgba(0,0,0,.6);
 }
