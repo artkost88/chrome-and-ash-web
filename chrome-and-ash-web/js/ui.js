@@ -1231,7 +1231,7 @@
         // 3–4 машины на тайле — уменьшаем фигурки, чтобы влезли в 2×2.
         const shrink = list.length >= 3 ? 0.72 : 1;
         parts.push('<g class="' + cls + '" transform="translate(' + x + ',' + y + ')" data-car="' + c.id + '">');
-        parts.push('<title>' + esc(c.name + ' · ' + c.hp + '/' + c.maxHp + ' корпуса · ОЧ ' + c.cp + ' · лом ' + c.scrap) + '</title>');
+        parts.push('<title>' + esc(c.name + ' · ' + c.hp + '/' + c.maxHp + ' корпуса · очки ' + c.cp + ' · лом ' + c.scrap) + '</title>');
         if (shrink !== 1) parts.push('<g transform="scale(' + shrink + ')">');
         parts.push(carFigure(c, f, isCur, isTarget));
         if (shrink !== 1) parts.push('</g>');
@@ -1311,7 +1311,7 @@
       const cls = 'player' + (cur && cur.id === c.id ? ' active' : '') + (c.finished || c.destroyed ? ' out' : '');
       return '<div class="' + cls + '" style="--fc:' + f.color + '">' +
         '<div class="p-top"><span class="p-name"><span class="p-glyph" title="' + esc(f.name) + '">' + f.glyph + '</span>' + esc(c.name) + (c.human ? ' ★' : '') + '</span><span class="p-pos">' + pos[c.id] + '/4</span></div>' +
-        '<div class="p-stats"><span>КОРПУС <b>' + c.hp + '</b>/' + c.maxHp + '</span><span>ОЧ <b>' + c.cp + '</b></span><span>ЛОМ <b>' + c.scrap + '</b></span></div>' +
+        '<div class="p-stats"><span>КОРПУС <b>' + c.hp + '</b>/' + c.maxHp + '</span><span>ОЧКИ <b>' + c.cp + '</b></span><span>ЛОМ <b>' + c.scrap + '</b></span></div>' +
         '<div class="hp-bar"><div class="hp-fill" style="width:' + hpPct + '%"></div><span class="hp-mark" style="left:50%"></span><span class="hp-mark" style="left:20%"></span></div>' +
         '<div class="p-status">' + statuses.join('') + '</div>' +
         (ups ? '<div class="p-upgrades">' + ups + '</div>' : '') +
@@ -1374,6 +1374,13 @@
     const c = currentCar();
     const phase = game.race.phase;
     const isHuman = c && c.human;
+    const turn = game.race.turn;
+    const calc = turn && turn.rolled
+      ? 'd4 ' + turn.roll + (turn.mods && turn.mods.length ? ' · ' + turn.mods.join(' · ') : '') + ' = ' + turn.speed
+      : '';
+    const finishNote = game.race.firstFinishRound != null
+      ? 'ФИНИШ ЛИДЕРА · ещё раунд; не доехавшие — без очков за место'
+      : '';
 
     const chips = [['prep', 'ПОДГОТОВКА'], ['move', 'ДВИЖЕНИЕ'], ['fire', 'ОГОНЬ']].map(([p, label]) => {
       const active = phase === p;
@@ -1423,7 +1430,10 @@
     const turnLine = 'РАУНД ' + game.race.round + ' · КРУГ ' + lap + '/' + game.laps + ' · ' + (isHuman ? 'ТВОЙ ХОД' : 'ХОД СОПЕРНИКА');
     el.innerHTML =
       '<div class="phase-chips">' + chips + '</div>' +
-      '<div class="phase-info"><span class="phase-turn">' + turnLine + '</span><span class="phase-hint">' + hint + '</span></div>' +
+      '<div class="phase-info"><span class="phase-turn">' + turnLine + '</span>' +
+      (finishNote ? '<span class="phase-finish">' + esc(finishNote) + '</span>' : '') +
+      '<span class="phase-hint">' + hint + '</span>' +
+      (calc ? '<span class="phase-calc">' + esc(calc) + '</span>' : '') + '</div>' +
       '<div class="phase-actions">' + actions + '</div>';
 
     const rollBtn = $('#roll-btn'); if (rollBtn) rollBtn.addEventListener('click', onRoll);
@@ -1468,7 +1478,7 @@
         '<div class="cname">' + esc(card.name) + '</div>' +
         '<div class="cstats">' + esc(stats) + '</div>' +
         '<div class="cshort">' + esc(card.short) + '</div>' +
-        (card.phase === 'reaction' ? '<div class="badge-auto">АВТО</div>' : '') +
+        (card.phase === 'reaction' ? '<div class="badge-auto" title="Реакция: срабатывает автоматически, кликать не нужно">АВТО</div>' : '') +
         '</button>';
     }).join('');
 
@@ -1566,19 +1576,25 @@
     const res = game.results;
     $('#results-title').textContent = game.mode === 'daily' ? 'ИТОГИ ЕЖЕДНЕВНОГО ЗАЕЗДА' : 'ИТОГИ ЗАЕЗДА';
     $('#results-sub').textContent = 'Сид ' + game.seed + ' · кругов ' + game.laps + ' · трасса ' + (game.race.track.label || game.race.track.count + ' тайлов');
-    const head = '<div class="res-row head"><div class="place">#</div><div>Гонщик</div><div class="num">ОЧ</div><div class="num">ЛОМ</div><div class="num">УРОН</div><div class="num">ФИНИШ</div></div>';
+    const head = '<div class="res-row head"><div class="place">#</div><div>Гонщик</div><div class="num">ОЧКИ</div><div class="num">ЛОМ</div><div class="num">УРОН</div><div class="num">ФИНИШ</div></div>';
     $('#results-table').innerHTML = head + res.rows.map((r) => {
       const f = faction(r.factionId);
       const cls = 'res-row' + (r.pos === 1 ? ' winner' : '') + (!r.finished ? ' dnf' : '');
       return '<div class="' + cls + '" style="--fc:' + f.color + '">' +
         '<div class="place">' + r.pos + '</div>' +
         '<div class="who"><b>' + esc(r.name) + '</b><span>' + esc(f.car) + (r.finished ? '' : ' · не доехал') + '</span></div>' +
-        '<div class="num cp">+' + r.cpGained + '<small>ОЧ за гонку</small></div>' +
+        '<div class="num cp">+' + r.cpGained + '<small>очки за гонку</small></div>' +
         '<div class="num scrap">+' + r.scrapGained + '<small>лом</small></div>' +
         '<div class="num">' + r.damage + '<small>' + r.kills + ' убийств</small></div>' +
         '<div class="num">' + (r.finished ? '🏁' : '—') + '<small>корпус ' + r.hp + '</small></div>' +
         '</div>';
     }).join('');
+    const note = $('#results-note');
+    if (note) {
+      note.textContent = res.rows.some((r) => !r.finished)
+        ? 'Очки за место получают только финишировавшие. Не доехавшие сохраняют очки за уничтожения и лидерство по кругам.'
+        : '';
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -1744,7 +1760,7 @@
         '</div>' +
         '<div class="car-info">' +
           '<div class="car-top"><h3>' + esc(f.name) + '</h3><span class="car-car">' + esc(f.car) + '</span></div>' +
-          '<div class="car-meta"><span>КОРПУС <b>' + f.hp + '</b></span><span>СЛОТЫ <b>' + f.slots + '</b></span></div>' +
+          '<div class="car-meta"><span>КОРПУС <b>' + f.hp + '</b></span><span title="Слоты — ячейки под улучшения из мастерской; +1 слот = +1 улучшение">СЛОТЫ <b>' + f.slots + '</b></span></div>' +
           '<div class="car-tags">' + (f.tags || []).map((t) => '<span class="car-tag">' + esc(t) + '</span>').join('') + '</div>' +
           (info.role ? '<p class="car-ability car-role">' + esc(info.role) + '</p>' : '') +
           '<p class="car-ability car-desc"><b>' + esc(f.abilityName) + '</b> ' + esc(f.ability) + '</p>' +
@@ -1799,7 +1815,7 @@
       '<div class="help-kicker" style="color:' + f.color + '">' + esc(f.short) + '</div>' +
       '<h3 style="margin:4px 0 2px;color:' + f.color + '">' + esc(f.name) + '</h3>' +
       '<p style="margin-bottom:10px;color:var(--muted)">' + esc(f.car) + ' · «' + esc(f.motto || '') + '»</p>' +
-      '<div class="car-meta" style="margin-bottom:10px"><span>КОРПУС <b style="color:var(--chrome)">' + f.hp + '</b></span><span>СЛОТЫ <b style="color:var(--chrome)">' + f.slots + '</b></span></div>' +
+      '<div class="car-meta" style="margin-bottom:10px"><span>КОРПУС <b style="color:var(--chrome)">' + f.hp + '</b></span><span title="Слоты — ячейки под улучшения из мастерской; +1 слот = +1 улучшение">СЛОТЫ <b style="color:var(--chrome)">' + f.slots + '</b></span></div>' +
       '<p><b>Способность:</b> «' + esc(f.abilityName) + '» — ' + esc(f.ability) + '</p>' +
       (info.role ? '<p style="margin-top:8px;color:var(--muted)"><b>Роль:</b> ' + esc(info.role) + '</p>' : '') +
       (info.strengths ? '<p style="margin-top:6px"><b>Сильно:</b> ' + esc(info.strengths) + '</p>' : '') +
@@ -1844,6 +1860,7 @@
     const content = {
       basics:
         '<h3>Цель</h3><p>Первым пересечь финишную черту, пройдя нужное число кругов. В один ход всего не сделать: на карту, манёвр и выстрел отведено по фазе.</p>' +
+        '<p><b>Финиш.</b> После финиша лидера остальные доезжают ещё один раунд. Очки за место получают только финишировавшие; не доехавшие могут добрать очки за уничтожения и лидерство по кругам.</p>' +
         '<h3>Три фазы хода</h3><ol><li><b>Подготовка.</b> Одна карта до движения — или пит-стоп.</li><li><b>Движение.</b> Бросок d4 + модификаторы; машина едет на итоговую сумму.</li><li><b>Огонь.</b> Одна атака или одна ловушка.</li></ol>' +
         '<h3>Управление</h3><ul><li>Нажми карту в руке — подготовка или атака.</li><li>Кнопка «Бросок d4» начинает движение.</li><li><b>Esc</b> закрывает окно; <b>?</b> открывает этот устав.</li></ul>' +
         '<div class="help-note">Новичку: начни с «Кузнецов Ржавчины» — у них самый большой корпус и ремонт на ходу.</div>',
@@ -1859,12 +1876,12 @@
         '<h3>Рука</h3><ul><li>Старт — 3 карты, лимит руки 5.</li><li>В конце хода добираешь 1 карту.</li><li>Фаза карты задаёт, когда её можно сыграть: подготовка, огонь, реакция.</li></ul>' +
         '<h3>Экономика</h3><ul><li>Лом за место: 1-е — 4, 2-е — 6, 3-е — 8, 4-е — 10 (чем хуже место, тем больше); не доехал — 3.</li><li>+1 лом за каждые 5 урона, +5 за уничтожение.</li><li>Очки: 1-е — 10, 2-е — 6, 3-е — 3, 4-е — 1; +3 за уничтожение.</li></ul>' +
         '<div class="help-note">Улучшения покупаются в мастерской между гонками чемпионата; в свободном заезде — только карты.</div>',
-      factions: '<h3>Четыре характера</h3><p>Выбор машины — это выбор темпа и риска. Способность важнее лишнего слота.</p>' + helpFactionBlocks(),
+      factions: '<h3>Четыре характера</h3><p>Выбор машины — это выбор темпа и риска. Способность важнее лишнего слота.</p><p class="help-note">Слоты — ячейки под улучшения из мастерской: +1 слот = +1 улучшение.</p>' + helpFactionBlocks(),
       pvp:
         '<h3>PvP</h3><ul><li>Создай лобби или войди по коду из 6 знаков.</li><li>4 места; пустые занимают боты.</li><li>Таймер хода — 90 секунд (настраивается).</li><li>Карты соперников скрыты — все расчёты ведёт сервер.</li><li>При обрыве связи успеешь вернуться, иначе за тебя сходит бот.</li></ul>' +
         '<div class="help-note">PvP не влияет на ежедневный рейтинг — это отдельный зачёт.</div>',
       faq:
-        '<h3>Частые вопросы</h3><ul><li><b>Не могу сыграть карту.</b> Проверь фазу: подготовка, огонь или реакция.</li><li><b>Машина не едет.</b> Возможно, пожар, ремонт или пропуск хода — смотри журнал.</li><li><b>Где продолжить?</b> «Продолжить» в гараже; прогресс сохраняется автоматически.</li><li><b>Как открыть рейтинг?</b> «Рейтинг» в гараже или после финиша.</li></ul>' +
+        '<h3>Частые вопросы</h3><ul><li><b>Не могу сыграть карту.</b> Проверь фазу: подготовка, огонь или реакция.</li><li><b>Машина не едет.</b> Возможно, пожар, ремонт или пропуск хода — смотри журнал.</li><li><b>Что значит «факт.» в журнале?</b> Это урон после брони и щитов.</li><li><b>Где продолжить?</b> «Продолжить» в гараже; прогресс сохраняется автоматически.</li><li><b>Как открыть рейтинг?</b> «Рейтинг» в гараже или после финиша.</li></ul>' +
         '<h3>Горячие клавиши</h3><p><b>Пробел</b> — бросок/подтверждение, <b>Esc</b> — закрыть окно.</p>' +
         '<div class="help-note">Хочешь заново пройти обучение — кнопка «Пройти обучение заново» ниже.</div>',
     };

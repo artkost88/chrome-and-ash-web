@@ -1045,7 +1045,7 @@
       source.raceScrapKills += 5;
       source.raceKills++;
       source.killsTotal++;
-      log(game, source.name + ' уничтожает ' + car.name + ': +3 ОЧ, +5 лома.', 'kill');
+      log(game, source.name + ' уничтожает ' + car.name + ': +3 очка, +5 лома.', 'kill');
       if (cause === 'ram' && source.factionId === 'chrome') {
         const before = source.hp;
         source.hp = Math.min(source.maxHp, source.hp + 4);
@@ -1408,11 +1408,9 @@
     switch (id) {
       case 'sandstorm':
         r.roundEffect.rangeCap = 1;
-        log(game, 'До конца раунда дальность всего оружия — не больше 1.', 'event');
         break;
       case 'night':
         r.roundEffect.rangeDelta -= 1;
-        log(game, 'До конца раунда дальность всего оружия −1.', 'event');
         break;
       case 'scavengers': {
         const nodes = new Set([car.node]);

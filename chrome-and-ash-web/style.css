@@ -463,6 +463,10 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .phase-info { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .phase-turn { font-family: var(--font-mono); font-size: 12px; color: var(--brass); letter-spacing: .05em; }
 .phase-hint { font-size: 12px; line-height: 1.35; color: var(--text-dim); }
+.phase-calc { font-family: var(--font-mono); font-size: 10.5px; color: var(--brass); }
+.phase-finish { font-family: var(--font-mono); font-size: 10px; color: var(--flame); letter-spacing: .03em; }
+.badge-auto { cursor: help; }
+.results-note { margin-top: 10px; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .phase-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* Мини-карта в углу доски: контур трассы + машины + текущий вид. */
@@ -752,6 +756,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .phase-chip { font-size: 11px; padding: 6px 11px; }
   .phase-turn { font-size: 13px; }
   .phase-hint { font-size: 13px; }
+  .phase-calc { font-size: 12px; }
+  .phase-finish { font-size: 11px; }
   .act-btn { font-size: 13px; padding: 9px 13px; }
   .turn-who { font-size: 20px; }
   .turn-sub { font-size: 12px; }
