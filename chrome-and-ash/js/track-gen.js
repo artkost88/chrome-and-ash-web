@@ -17,20 +17,20 @@
   const ARCHETYPES = {
     club: {
       id: 'club', name: 'Клубное кольцо', label: 'Клубное кольцо',
-      minSize: 24, maxSize: 28, defaultSize: 28,
+      minSize: 24, maxSize: 28, defaultSize: 24,
       hazardBudget: [2, 4], pit: 'tile', shortcut: true,
       kind: 'ring',
     },
     horseshoe: {
       id: 'horseshoe', name: 'Пыльная подкова', label: 'Пыльная подкова',
       minSize: 36, maxSize: 36, defaultSize: 36,
-      hazardBudget: [3, 5], pit: 'branch', shortcut: false,
+      hazardBudget: [2, 4], pit: 'branch', shortcut: false,
       kind: 'mosaic',
     },
     snake: {
       id: 'snake', name: 'Змея', label: 'Змея',
-      minSize: 28, maxSize: 32, defaultSize: 30,
-      hazardBudget: [4, 6], pit: 'none', shortcut: true,
+      minSize: 28, maxSize: 32, defaultSize: 28,
+      hazardBudget: [3, 5], pit: 'none', shortcut: true,
       kind: 'mosaic',
     },
   };
@@ -92,6 +92,105 @@
   }
   function pick(nodes, pred) { return nodes.find(pred) || null; }
 
+  function buildAxialSpec(seed, coords, opt) {
+    const n = coords.length;
+    const rng = CnA.mulberry32(seed + 41);
+    const grid = [n - 1, n - 1, n - 2, n - 2];
+    const cpIndex = Math.floor(n / 2);
+    const pitIndex = opt.pit ? Math.max(4, Math.floor(n / 4)) : -1;
+    const protectedIdx = new Set([0, cpIndex, n - 1, n - 2, n - 3, 1, 2, 3]);
+    if (pitIndex >= 0) protectedIdx.add(pitIndex);
+    const types = new Array(n).fill('straight');
+    for (let i = 0; i < n; i++) {
+      const p = coords[(i - 1 + n) % n];
+      const q = coords[i];
+      const z = coords[(i + 1) % n];
+      const d1 = dirOf(q[0], q[1], p[0], p[1]);
+      const d2 = dirOf(q[0], q[1], z[0], z[1]);
+      types[i] = d1 && d2 && OPPOSITE[d1.port] === d2.port ? 'straight' : 'turn';
+    }
+    types[0] = 'start';
+    types[cpIndex] = 'checkpoint';
+    types[n - 1] = 'straight'; types[n - 2] = 'straight';
+    if (pitIndex >= 0) types[pitIndex] = 'pit';
+    const hazardCount = opt.hazardBudget[0] + Math.floor((opt.hazardBudget[1] - opt.hazardBudget[0] + 1) * rng());
+    const safe = [];
+    for (let i = 0; i < n; i++) if (!protectedIdx.has(i) && types[i] === 'straight') safe.push(i);
+    const chosen = [];
+    for (let i = 0; i < safe.length && chosen.length < hazardCount; i++) {
+      const idx = safe[(i + Math.floor(rng() * safe.length)) % safe.length];
+      if (chosen.some((x) => (x - idx + n) % n <= 1 || (idx - x + n) % n <= 1)) continue;
+      chosen.push(idx);
+    }
+    chosen.forEach((idx, i) => { types[idx] = ['sand', 'debris', 'event'][(i + seed) % 3]; });
+    repairHazardRuns(types, protectedIdx, rng);
+    const nodes = coords.map(([q, r], i) => {
+      const p = axialToScreen(q, r, 34);
+      return { id: i, q, r, x: p.x, y: p.y, type: types[i], next: [(i + 1) % n], prev: [(i - 1 + n) % n], checkpoint: i === cpIndex, pitLane: i === pitIndex, level: 0 };
+    });
+    let shortcut = null;
+    if (opt.shortcut) {
+      const entry = opt.shortcut.entry;
+      const exit = opt.shortcut.exit;
+      const innerId = n;
+      const [iq, ir] = opt.shortcut.node;
+      const p = axialToScreen(iq, ir, 34);
+      nodes.push({ id: innerId, q: iq, r: ir, x: p.x, y: p.y, type: 'straight', next: [exit], prev: [entry], inner: true, level: 0 });
+      nodes[entry].next = [nodes[entry].next[0], innerId];
+      nodes[exit].prev.push(innerId);
+      shortcut = { entry, exit, nodes: [innerId], type: 'straight' };
+    }
+    return {
+      schemaVersion: 1, id: opt.id + '-' + (seed >>> 0).toString(36),
+      name: opt.name, archetype: opt.id, seed: seed >>> 0, size: n,
+      hexSize: 34, levels: 1, theme: 'dust', layout: 'axial', startNode: 0,
+      grid, main: Array.from({ length: n }, (_, i) => i), nodes,
+      pit: pitIndex >= 0 ? { tile: pitIndex, entry: null, exit: null, nodes: [] } : null,
+      shortcut, checkpoints: [0, cpIndex], decor: [],
+    };
+  }
+
+  function hexRing(k) {
+    const coords = [];
+    let q = 0, r = -k;
+    const sides = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+    for (const [dq, dr] of sides) {
+      for (let i = 0; i < k; i++) { coords.push([q, r]); q += dq; r += dr; }
+    }
+    return coords;
+  }
+
+  function stadiumCoords() {
+    const coords = [];
+    const top = 12;
+    for (let q = 0; q < top; q++) coords.push([q, 0]);
+    coords.push([top, 0], [top, 1], [top - 1, 2]);
+    for (let q = top - 2; q >= 0; q--) coords.push([q, 2]);
+    coords.push([-1, 2], [-1, 1]);
+    return coords;
+  }
+
+  function buildClubSpec(seed, size) {
+    const coords = hexRing(4);
+    const spec = buildAxialSpec(seed + 200003, coords, {
+      id: 'club', name: 'Клубное кольцо', hazardBudget: [2, 4],
+      pit: true, shortcut: null,
+    });
+    return spec;
+  }
+
+  function buildSnakeSpec(seed, size) {
+    const coords = stadiumCoords();
+    const top = 12;
+    const entry = 11;
+    const exit = 14; // (11,2)
+    const spec = buildAxialSpec(seed + 100003, coords, {
+      id: 'snake', name: 'Змея', hazardBudget: [3, 5],
+      pit: false, shortcut: { entry, exit, node: [11, 1] },
+    });
+    return spec;
+  }
+
   function buildPolarMain(seed, size, opt) {
     const n = Math.max(opt.minSize, Math.min(opt.maxSize, size || opt.defaultSize));
     const rng = CnA.mulberry32(seed + 17);
@@ -101,7 +200,7 @@
     const grid = [n - 1, n - 1, n - 2, n - 2];
     const start = 0;
     const checkpoint = Math.floor(n / 2);
-    const protectedIdx = new Set([start, checkpoint, n - 1, n - 2]);
+    const protectedIdx = new Set([start, checkpoint, n - 1, n - 2, n - 3, n - 4, 1, 2, 3, 4, 5]);
     const fork = 7 + Math.floor((n - 14) * 0.65);
     const safeFork = Math.max(6, Math.min(n - 4, fork));
     protectedIdx.add(safeFork);
@@ -109,6 +208,11 @@
     types[checkpoint] = 'checkpoint';
     types[n - 1] = 'straight';
     types[n - 2] = 'straight';
+    types[n - 3] = 'straight';
+    types[n - 4] = 'straight';
+    types[1] = 'straight';
+    if (types[2] !== 'pit') types[2] = 'straight';
+    types[3] = 'straight'; types[4] = 'straight'; types[5] = 'straight';
     if (opt.pit === 'tile') {
       types[2] = 'pit';
       protectedIdx.add(2);
@@ -205,7 +309,7 @@
     const start = 0;
     const cpIndex = mainCoords.findIndex(([q, r]) => q === 7 && r === 5);
     const grid = [n - 1, n - 1, n - 2, n - 2];
-    const protectedIdx = new Set([start, cpIndex, n - 1, n - 2]);
+    const protectedIdx = new Set([start, cpIndex, n - 1, n - 2, n - 3, n - 4, 1, 2, 3, 4, 5]);
     const safe = [];
     for (let i = 0; i < n; i++) {
       if (protectedIdx.has(i)) continue;
@@ -218,7 +322,8 @@
     const types = new Array(n).fill('straight');
     types[start] = 'start';
     types[cpIndex] = 'checkpoint';
-    types[n - 1] = 'straight'; types[n - 2] = 'straight';
+    types[n - 1] = 'straight'; types[n - 2] = 'straight'; types[n - 3] = 'straight'; types[n - 4] = 'straight';
+    types[1] = 'straight'; types[2] = 'straight'; types[3] = 'straight'; types[4] = 'straight'; types[5] = 'straight';
     types[mainCoords.findIndex(([q, r]) => q === 11 && r === 2)] = 'tunnel';
     types[mainCoords.findIndex(([q, r]) => q === 6 && r === 5)] = 'bridge';
     types[mainCoords.findIndex(([q, r]) => q === 5 && r === 5)] = 'ramp';
@@ -267,32 +372,6 @@
       pit: { entry: pitEntry, exit: pitExit, nodes: pit },
       shortcut: null, checkpoints: [start, cpIndex], decor,
     };
-  }
-
-  function buildSnakeSpec(seed, size) {
-    const opt = ARCHETYPES.snake;
-    const n = Math.max(opt.minSize, Math.min(opt.maxSize, size || opt.defaultSize));
-    const spec = buildPolarMain(seed + 100003, n, {
-      id: 'snake', name: 'Змея', minSize: opt.minSize, maxSize: opt.maxSize,
-      defaultSize: opt.defaultSize, hazardBudget: opt.hazardBudget,
-      pit: 'none', shortcut: true,
-    });
-    spec.layout = 'snake';
-    spec.name = 'Змея';
-    return spec;
-  }
-
-  function buildClubSpec(seed, size) {
-    const opt = ARCHETYPES.club;
-    const n = Math.max(opt.minSize, Math.min(opt.maxSize, size || opt.defaultSize));
-    const spec = buildPolarMain(seed + 200003, n, {
-      id: 'club', name: 'Клубное кольцо', minSize: opt.minSize, maxSize: opt.maxSize,
-      defaultSize: opt.defaultSize, hazardBudget: opt.hazardBudget,
-      pit: 'tile', shortcut: true,
-    });
-    spec.layout = 'ring';
-    spec.name = 'Клубное кольцо';
-    return spec;
   }
 
   function compileTrack(spec) {

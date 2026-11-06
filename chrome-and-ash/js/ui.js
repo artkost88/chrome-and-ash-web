@@ -218,7 +218,7 @@
     const tv = $('#opt-track').value;
     UI.trackArchetype = tv === 'ring' ? 'club' : tv === 'snake' ? 'snake' : 'horseshoe';
     UI.trackKind = tv === 'ring' ? 'ring' : 'mosaic';
-    UI.trackSize = UI.trackArchetype === 'club' ? 28 : UI.trackArchetype === 'snake' ? 30 : 36;
+    UI.trackSize = UI.trackArchetype === 'club' ? 24 : UI.trackArchetype === 'snake' ? 28 : 36;
     UI.laps = Number($('#opt-laps').value) === 2 ? 2 : 1;
     UI.speed = Number($('#opt-speed').value) || 1;
     UI.patch = $('#opt-patch').checked;
