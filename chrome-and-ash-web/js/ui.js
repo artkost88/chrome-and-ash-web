@@ -37,8 +37,8 @@
   };
   /* Сгенерированные мини-модели машин (assets/factions/<id>/mini.png). */
   const MINI = { chrome: false, rust: false, carnival: false, swarm: false };
-  /* Куда смотрит нос 3/4-модели в её картинке (0=вправо, 90=вниз). */
-  const MINI_FACING = { chrome: 225, rust: 225, carnival: 315, swarm: 225 };
+  /* Только горизонтальные отражения: у кого нос в картинке смотрит вправо. */
+  const FRONT_RIGHT = { chrome: false, rust: false, carnival: true, swarm: false };
   function carAngle(c) {
     const track = UI.game && UI.game.race && UI.game.race.track;
     if (!track || !track.nodes[c.node]) return 0;
@@ -975,9 +975,10 @@
     const useMini = !!MINI[f.id];
     const ang = carAngle(c);
     if (useMini) {
-      // Поворот в сторону движения: 3/4-модель крутится на подставке.
-      const rot = ang - (MINI_FACING[f.id] || 225);
-      s += '<g transform="rotate(' + rot + ',0,3)"><image class="car-mini" href="' + assetUrl('faction', f.id, 'mini') + '" x="-28" y="-50" width="56" height="56" preserveAspectRatio="xMidYMid meet"/></g>';
+      // Только влево/вправо, без поворотов и вертикальных отражений.
+      const wantRight = Math.cos(ang * Math.PI / 180) >= 0;
+      const mirror = (wantRight === !!FRONT_RIGHT[f.id]) ? 1 : -1;
+      s += '<g transform="scale(' + mirror + ',1)"><image class="car-mini" href="' + assetUrl('faction', f.id, 'mini') + '" x="-28" y="-50" width="56" height="56" preserveAspectRatio="xMidYMid meet"/></g>';
     } else {
     // корпус-силуэт
     s += '<g transform="translate(0,-10)">';

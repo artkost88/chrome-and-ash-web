@@ -56,7 +56,7 @@
   };
   /* Сгенерированные мини-модели машин (assets/factions/<id>/mini.png). */
   const MINI = { chrome: false, rust: false, carnival: false, swarm: false };
-  const MINI_FACING = { chrome: 225, rust: 225, carnival: 315, swarm: 225 };
+  const FRONT_RIGHT = { chrome: false, rust: false, carnival: true, swarm: false };
   function carAngle(c) {
     const track = UI.game && UI.game.race && UI.game.race.track;
     if (!track || !track.nodes[c.node]) return 0;
@@ -834,8 +834,9 @@
     const useMini = !!MINI[f.id];
     const ang = carAngle(c);
     if (useMini) {
-      const rot = ang - (MINI_FACING[f.id] || 225);
-      s += '<g transform="rotate(' + rot + ',0,3)"><image class="car-mini" href="assets/factions/' + f.id + '/mini.png" x="-28" y="-50" width="56" height="56" preserveAspectRatio="xMidYMid meet"/></g>';
+      const wantRight = Math.cos(ang * Math.PI / 180) >= 0;
+      const mirror = (wantRight === !!FRONT_RIGHT[f.id]) ? 1 : -1;
+      s += '<g transform="scale(' + mirror + ',1)"><image class="car-mini" href="assets/factions/' + f.id + '/mini.png" x="-28" y="-50" width="56" height="56" preserveAspectRatio="xMidYMid meet"/></g>';
     } else {
     // корпус-силуэт
     s += '<g transform="translate(0,-10)">';
