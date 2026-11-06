@@ -37,6 +37,8 @@
   };
   /* Сгенерированные мини-модели машин (assets/factions/<id>/mini.png). */
   const MINI = { chrome: false, rust: false, carnival: false, swarm: false };
+  /* Топ-даун токены для доски (assets/factions/<id>/token.png). */
+  const TOKEN = { chrome: false, rust: false, carnival: false, swarm: false };
   function carAngle(c) {
     const track = UI.game && UI.game.race && UI.game.race.track;
     if (!track || !track.nodes[c.node]) return 0;
@@ -52,6 +54,10 @@
       img.onload = () => { MINI[f.id] = true; if (UI.game) renderBoard(); };
       img.onerror = () => { MINI[f.id] = false; };
       img.src = assetUrl('faction', f.id, 'mini');
+      const token = new Image();
+      token.onload = () => { TOKEN[f.id] = true; if (UI.game) renderBoard(); };
+      token.onerror = () => { TOKEN[f.id] = false; };
+      token.src = 'assets/factions/' + f.id + '/token.png';
     });
   }
   /* Иллюстрации карт арсенала: список сгенерированных id. */
@@ -970,11 +976,14 @@
     s += '<ellipse cx="0" cy="1" rx="17" ry="6" fill="' + accent + '" opacity=".30" stroke="' + INK + '" stroke-width="1.2"/>';
     s += '<ellipse cx="0" cy="0" rx="11" ry="3.8" fill="' + NIGHT + '" opacity=".55"/>';
 
-    const useMini = !!MINI[f.id];
+    const useToken = !!TOKEN[f.id];
+    const useMini = !useToken && !!MINI[f.id];
     const ang = carAngle(c);
-    if (useMini) {
-      // Зеркалим 3/4-модель под направление влево/вправо; полный поворот
-      // выглядел бы как падающая картонка. Точное направление — стрелка на базе.
+    if (useToken) {
+      // Топ-даун токен: нос вверх в исходнике, поворачиваем на угол трассы.
+      const rot = ang + 90;
+      s += '<g transform="rotate(' + rot + ',0,3)"><image class="car-mini" href="assets/factions/' + f.id + '/token.png" x="-24" y="-26" width="48" height="48" preserveAspectRatio="xMidYMid meet"/></g>';
+    } else if (useMini) {
       const mirror = Math.cos(ang * Math.PI / 180) > 0.25 ? -1 : 1;
       s += '<g transform="scale(' + mirror + ',1)"><image class="car-mini" href="' + assetUrl('faction', f.id, 'mini') + '" x="-28" y="-50" width="56" height="56" preserveAspectRatio="xMidYMid meet"/></g>';
     } else {
@@ -1034,18 +1043,20 @@
     if (c.pit) bubbles.push(['⚙', '#c8a04e']);
     bubbles.forEach((b, i) => {
       const bx = -24 + (i * 12);
-      s += '<g transform="translate(' + bx + ',' + (useMini ? -56 : -20) + ')"><circle r="6.5" fill="' + NIGHT + '" opacity=".9"/><circle r="5.5" fill="' + b[1] + '" stroke="' + INK + '" stroke-width="1.6"/><text x="0" y="2" text-anchor="middle" font-size="8" fill="' + INK + '">' + b[0] + '</text></g>';
+      s += '<g transform="translate(' + bx + ',' + (useToken ? -34 : useMini ? -56 : -20) + ')"><circle r="6.5" fill="' + NIGHT + '" opacity=".9"/><circle r="5.5" fill="' + b[1] + '" stroke="' + INK + '" stroke-width="1.6"/><text x="0" y="2" text-anchor="middle" font-size="8" fill="' + INK + '">' + b[0] + '</text></g>';
     });
 
-    const ringR = useMini ? 32 : 22;
+    const ringR = useToken ? 28 : useMini ? 32 : 22;
     if (isCur) s += '<circle cx="0" cy="-6" r="' + ringR + '" fill="none" stroke="#c8a04e" stroke-width="2.6" stroke-dasharray="5 3"/>';
     if (c.spawnProtect) s += '<circle cx="0" cy="-6" r="' + (ringR + 1) + '" fill="none" stroke="#d8d8d2" stroke-width="2.4" stroke-dasharray="4 3"/>';
     if (isTarget) {
-      s += useMini
+      s += useToken
+        ? '<circle cx="0" cy="-6" r="30" fill="none" stroke="#9e1f1a" stroke-width="3" stroke-dasharray="7 5"/>'
+        : useMini
         ? '<circle cx="0" cy="-6" r="34" fill="none" stroke="#9e1f1a" stroke-width="3" stroke-dasharray="7 5"/>'
         : '<polygon points="0,-30 3,-20 14,-20 5,-12 8,-2 0,-8 -8,-2 -5,-12 -14,-20 -3,-20" fill="#9e1f1a" stroke="' + INK + '" stroke-width="2"/>';
     }
-    if (c.finished) s += '<g transform="translate(0,' + (useMini ? -60 : -30) + ')"><line x1="0" y1="0" x2="0" y2="-12" stroke="' + INK + '" stroke-width="2"/><polygon points="0,-12 14,-8 0,-4" fill="#9e1f1a" stroke="' + INK + '" stroke-width="1.4"/></g>';
+    if (c.finished) s += '<g transform="translate(0,' + (useToken ? -40 : useMini ? -60 : -30) + ')"><line x1="0" y1="0" x2="0" y2="-12" stroke="' + INK + '" stroke-width="2"/><polygon points="0,-12 14,-8 0,-4" fill="#9e1f1a" stroke="' + INK + '" stroke-width="1.4"/></g>';
 
     return s;
   }
