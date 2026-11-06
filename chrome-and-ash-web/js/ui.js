@@ -1122,7 +1122,7 @@
     // гексы
     const TILE_EFFECT = {
       sand: { icon: '≈', text: '−1', color: '#ffb27a' },
-      debris: { icon: '✕', text: 'd4', color: '#ff8c7a' },
+      debris: { icon: '✕', text: 'd4 −1', color: '#ff8c7a' },
       event: { icon: '?', text: 'ПУСТОШЬ', color: '#ff7a1e' },
       pit: { icon: '⚙', text: 'РЕМОНТ', color: '#c8a04e' },
       ramp: { icon: '⌒', text: 'ПРЫЖОК', color: '#c8a04e' },
