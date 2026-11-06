@@ -108,7 +108,7 @@
     finalized: false,
     dirty: false,
     autosaveTimer: null,
-    logCollapsed: true,
+    logCollapsed: false,
     camMode: 'follow',   // 'follow' | 'overview'
     camZoom: 3.6,        // вертикальный масштаб окна слежения
     showHp: false,       // постоянные HP-цифры (по умолчанию только по наведению)
