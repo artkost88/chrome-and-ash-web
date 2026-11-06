@@ -29,7 +29,7 @@
     },
     snake: {
       id: 'snake', name: 'Змея', label: 'Змея',
-      minSize: 28, maxSize: 32, defaultSize: 28,
+      minSize: 28, maxSize: 32, defaultSize: 30,
       hazardBudget: [3, 5], pit: 'none', shortcut: true,
       kind: 'mosaic',
     },
@@ -132,13 +132,22 @@
     if (opt.shortcut) {
       const entry = opt.shortcut.entry;
       const exit = opt.shortcut.exit;
-      const innerId = n;
-      const [iq, ir] = opt.shortcut.node;
-      const p = axialToScreen(iq, ir, 34);
-      nodes.push({ id: innerId, q: iq, r: ir, x: p.x, y: p.y, type: 'straight', next: [exit], prev: [entry], inner: true, level: 0 });
-      nodes[entry].next = [nodes[entry].next[0], innerId];
-      nodes[exit].prev.push(innerId);
-      shortcut = { entry, exit, nodes: [innerId], type: 'straight' };
+      const coordsList = Array.isArray(opt.shortcut.node[0]) ? opt.shortcut.node : [opt.shortcut.node];
+      const ids = [];
+      coordsList.forEach(([iq, ir], i) => {
+        const id = n + i;
+        ids.push(id);
+        const p = axialToScreen(iq, ir, 34);
+        nodes.push({
+          id, q: iq, r: ir, x: p.x, y: p.y, type: 'straight',
+          next: [i === coordsList.length - 1 ? exit : n + i + 1],
+          prev: [i === 0 ? entry : n + i - 1],
+          inner: true, level: 0,
+        });
+      });
+      nodes[entry].next = [nodes[entry].next[0], ids[0]];
+      nodes[exit].prev.push(ids[ids.length - 1]);
+      shortcut = { entry, exit, nodes: ids, type: 'straight' };
     }
     return {
       schemaVersion: 1, id: opt.id + '-' + (seed >>> 0).toString(36),
@@ -162,11 +171,18 @@
 
   function stadiumCoords() {
     const coords = [];
-    const top = 12;
-    for (let q = 0; q < top; q++) coords.push([q, 0]);
-    coords.push([top, 0], [top, 1], [top - 1, 2]);
-    for (let q = top - 2; q >= 0; q--) coords.push([q, 2]);
-    coords.push([-1, 2], [-1, 1]);
+    // верхняя полоса с шиканой
+    coords.push([0, 0], [1, 0], [2, 0]);
+    coords.push([2, 1], [3, 1], [3, 0]);
+    for (let q = 4; q <= 9; q++) coords.push([q, 0]);
+    // правый разворот
+    coords.push([10, 0], [10, 1], [10, 2], [9, 3]);
+    // нижняя полоса с шиканой
+    coords.push([8, 3], [7, 3], [6, 3]);
+    coords.push([6, 4], [5, 4], [5, 3]);
+    for (let q = 4; q >= 0; q--) coords.push([q, 3]);
+    // левый разворот
+    coords.push([-1, 3], [-1, 2], [-1, 1]);
     return coords;
   }
 
@@ -181,12 +197,9 @@
 
   function buildSnakeSpec(seed, size) {
     const coords = stadiumCoords();
-    const top = 12;
-    const entry = 11;
-    const exit = 14; // (11,2)
     const spec = buildAxialSpec(seed + 100003, coords, {
       id: 'snake', name: 'Змея', hazardBudget: [3, 5],
-      pit: false, shortcut: { entry, exit, node: [11, 1] },
+      pit: false, shortcut: { entry: 11, exit: 15, node: [[9, 1], [9, 2]] },
     });
     return spec;
   }

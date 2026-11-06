@@ -151,7 +151,7 @@
   const TRACK_INFO = {
     club: { name: 'Клубное кольцо', size: 24, kind: 'ring', desc: 'Короткое кольцо для обучения: меньше опасностей, чистые обгоны.' },
     horseshoe: { name: 'Пыльная подкова', size: 36, kind: 'mosaic', desc: 'Шикана, тоннель, мост, шпилька и пит-лейн. Основной заезд.' },
-    snake: { name: 'Змея', size: 28, kind: 'mosaic', desc: 'Волнистая техничная трасса со срезом; меньше прямых, больше решений.' },
+    snake: { name: 'Змея', size: 30, kind: 'mosaic', desc: 'Волнистая техничная трасса со срезом; меньше прямых, больше решений.' },
   };
 
   const LS_ONBOARD = 'cna.onboarding.v1';
@@ -349,7 +349,7 @@
     const seed = opts.seed !== undefined ? (Number(opts.seed) >>> 0) : (Math.floor(Math.random() * 4294967295));
     const trackKind = opts.trackKind === 'ring' ? 'ring' : 'mosaic';
     const trackArchetype = opts.trackArchetype || (trackKind === 'ring' ? 'club' : 'horseshoe');
-    const trackSize = opts.trackSize || (trackArchetype === 'club' ? 24 : trackArchetype === 'snake' ? 28 : 36);
+    const trackSize = opts.trackSize || (trackArchetype === 'club' ? 24 : trackArchetype === 'snake' ? 30 : 36);
     const laps = opts.laps === 2 ? 2 : 1;
 
     const game = CnA.createGame({ mode: 'race', humanFaction: factionId, seed, laps, trackKind, trackSize, trackArchetype });
