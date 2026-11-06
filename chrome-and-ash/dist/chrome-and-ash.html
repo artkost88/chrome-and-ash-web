@@ -5086,21 +5086,21 @@ code { font-family: var(--font-mono); color: var(--brass); }
 
       let label = tile.short || '';
       let fs = 9.5;
-      if (n.type === 'start') { label = 'СТАРТ'; fs = 7.6; }
+      if (n.type === 'start') { label = 'СТАРТ'; fs = 7.2; }
       else if (n.type === 'pit') { label = 'ПИТ'; fs = 8; }
       else if (n.type === 'event') { label = '?'; fs = 16; }
       else if (n.type === 'fork') { label = 'Y'; fs = 13; }
       else if (n.type === 'turn') { label = '↷'; fs = 14; }
       else if (n.type === 'ramp') { label = '⌒'; fs = 16; }
-      else if (n.type === 'bridge') { label = 'МОСТ'; fs = 7.2; }
-      else if (n.type === 'tunnel') { label = 'ТОН'; fs = 7.5; }
-      else if (n.type === 'sand') { label = 'ПЕС'; fs = 7.5; }
-      else if (n.type === 'debris') { label = 'ОБЛ'; fs = 7.5; }
+      else if (n.type === 'bridge') { label = 'МОСТ'; fs = 6.8; }
+      else if (n.type === 'tunnel') { label = 'ТОННЕЛЬ'; fs = 5.6; }
+      else if (n.type === 'sand') { label = 'ПЕСОК'; fs = 6.6; }
+      else if (n.type === 'debris') { label = 'ОБЛОМКИ'; fs = 5.6; }
       else if (n.type === 'straight') { label = ''; }
       if (n.inner) { label = 'СРЕЗ'; fs = 6.8; }
 
       if (label) {
-        const labelY = n.road === false ? n.y - 2 : n.y - (hs * 0.55);
+        const labelY = n.road === false ? n.y - 2 : (n.type === 'start' ? n.y - hs * 0.40 : n.y - (hs * 0.55));
         const ink = SUNSET_INK[n.type] || tile.ink;
         parts.push('<text class="hex-label" x="' + n.x + '" y="' + labelY + '" font-size="' + fs + '" fill="' + ink + '">' + esc(label) + '</text>');
       }
@@ -5109,7 +5109,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
         parts.push('<text class="hex-label" x="' + n.x + '" y="' + (n.y + 12) + '" font-size="6.4" fill="#f5f0e8">КП</text>');
       }
       if (n.type === 'start') {
-        parts.push('<rect x="' + (n.x - 16) + '" y="' + (n.y - 27) + '" width="32" height="4" fill="url(#checker)"></rect>');
+        parts.push('<rect x="' + (n.x - 16) + '" y="' + (n.y - 32) + '" width="32" height="4" fill="url(#checker)"></rect>');
       }
       parts.push('</g>');
     });
