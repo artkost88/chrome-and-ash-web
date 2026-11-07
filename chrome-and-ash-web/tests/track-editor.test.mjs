@@ -1375,6 +1375,130 @@ test('B4-fix: undo restores selection and focus snapshots', () => {
   assert.equal(s.focusUid, c);
 });
 
+/* ==================================================================== */
+/* task-16: Kimi 3.1 P0/P1 fixes.                                       */
+/* ==================================================================== */
+
+function withObjectDecor(spec) {
+  const s = clone(spec);
+  s.decor = (s.decor || []).concat([{ q: 60, r: -60, type: 'building' }]);
+  return s;
+}
+
+test('B4-fix: object decor never bypasses structural validation', () => {
+  const wrapped = withObjectDecor((() => {
+    const s = gen('snake', 2);
+    s.shortcut.entry = 28;
+    s.shortcut.exit = 2;
+    return s;
+  })());
+  assert.equal(E.report(wrapped).ok, false);
+  assert.ok(E.report(wrapped).issues.some((i) => i.code === 'E_SHORTCUT_WRAP'));
+  expectRejectedEverywhere(wrapped, 'E_SHORTCUT_WRAP');
+
+  const both = withObjectDecor((() => {
+    const s = gen('snake', 2);
+    s.pit = { entry: 3, exit: 5, nodes: [s.shortcut.nodes[0], s.shortcut.nodes[1]] };
+    return s;
+  })());
+  assert.equal(E.report(both).ok, false);
+  assert.ok(E.report(both).issues.some((i) => i.code === 'E_BRANCH_CONFLICT'));
+  expectRejectedEverywhere(both, 'E_BRANCH_CONFLICT');
+
+  const unknown = withObjectDecor((() => {
+    const s = gen('snake', 2);
+    s.nodes.find((n) => n.id === 4).type = 'portal';
+    return s;
+  })());
+  assert.ok(E.report(unknown).issues.some((i) => i.code === 'E_TYPE'));
+  expectRejectedEverywhere(unknown, 'E_TYPE');
+
+  const good = withObjectDecor(gen('club', 1));
+  const canon = TD.canonicalizeRepresentation(good);
+  assert.equal(canon.ok, true, JSON.stringify(canon.issues));
+  assert.ok(canon.spec.decor.some((d) => typeof d === 'object' && d.type === 'building'));
+  const res = TD.fromSpec(good);
+  assert.equal(res.ok, true, JSON.stringify(res.issues));
+  assert.equal(res.readOnly, true);
+  assert.equal(res.reason, 'decor');
+  assert.ok(res.draft.legacyDecor.length >= 1);
+  const rep = E.report(good);
+  assert.equal(rep.ok, true);
+  assert.equal(rep.readOnly, true);
+});
+
+test('B4-fix: all branch road-node types and checkpoint cardinality are validated', () => {
+  const branchPortal = gen('snake', 2);
+  branchPortal.nodes.find((n) => n.id === branchPortal.shortcut.nodes[0]).type = 'portal';
+  expectRejectedEverywhere(branchPortal, 'E_TYPE');
+
+  const branchTunnel = gen('snake', 2);
+  branchTunnel.nodes.find((n) => n.id === branchTunnel.shortcut.nodes[0]).type = 'tunnel';
+  expectRejectedEverywhere(branchTunnel, 'E_TYPE');
+
+  const pitPortal = gen('horseshoe', 1);
+  pitPortal.nodes.find((n) => n.id === pitPortal.pit.nodes[0]).type = 'portal';
+  assert.ok(E.report(pitPortal).issues.some((i) => i.code === 'E_TYPE'));
+  assert.equal(E.report(pitPortal).ok, false);
+
+  const secondCp = gen('snake', 2);
+  secondCp.nodes.find((n) => n.id === 3).type = 'checkpoint';
+  assert.ok(E.report(secondCp).issues.some((i) => i.code === 'E_CHECKPOINT'));
+  expectRejectedEverywhere(secondCp, 'E_CHECKPOINT');
+
+  const branchCp = gen('snake', 2);
+  branchCp.nodes.find((n) => n.id === branchCp.shortcut.nodes[0]).type = 'checkpoint';
+  assert.ok(E.report(branchCp).issues.some((i) => i.code === 'E_CHECKPOINT'));
+  expectRejectedEverywhere(branchCp, 'E_CHECKPOINT');
+});
+
+test('B4-fix: read-only save/export preserve the original spec', () => {
+  const map = new Map();
+  const store = E.createStore({
+    getItem: (k) => map.get(k) ?? null,
+    setItem: (k, v) => map.set(k, v),
+    removeItem: (k) => map.delete(k),
+  });
+  const polar = gen('club', 1);
+  polar.layout = 'polar';
+  const rekeyedPolar = rekey(polar, (id) => (id + 13) % 49);
+  const res = TD.fromSpec(rekeyedPolar);
+  assert.equal(res.ok, true, JSON.stringify(res.issues));
+  assert.equal(res.readOnly, true);
+  assert.equal(res.reason, 'layout');
+  const env = E.envelope(rekeyedPolar, 'Polar', 'custom-polar');
+  const text = store.exportJson(env);
+  const parsed = JSON.parse(text);
+  assert.deepEqual(parsed.track.spec, rekeyedPolar);
+  assert.equal(store.save(env).ok, true);
+  assert.deepEqual(store.get('custom-polar').spec, rekeyedPolar);
+  const imported = store.importJson(text);
+  assert.equal(imported.ok, true);
+  assert.deepEqual(imported.track.spec, rekeyedPolar);
+
+  const objDecor = withObjectDecor(gen('club', 1));
+  const env2 = E.envelope(objDecor, 'Decor', 'custom-decor');
+  const text2 = store.exportJson(env2);
+  const parsed2 = JSON.parse(text2);
+  assert.deepEqual(parsed2.track.spec.decor.filter((d) => typeof d === 'object'), objDecor.decor.filter((d) => typeof d === 'object'));
+});
+
+test('B4-fix: hazard capacity is capped at 6 across all archetypes', () => {
+  assert.equal(TD.MAX_HAZARDS, 6);
+  for (const archetype of ['club', 'horseshoe', 'snake']) {
+    for (let seed = 1; seed <= 10; seed++) {
+      const spec = gen(archetype, seed);
+      assert.ok(TD.maxGeneratedHazards(spec) <= 6, archetype + '/' + seed + ' maxGenerated');
+      const r = E.generate({ archetype, seed, hazardMin: 6, hazardMax: 6, name: 'Cap' });
+      assert.equal(r.budget.maxHazards, 6);
+      assert.ok(r.budget.requestedMax <= 6);
+      assert.ok(r.budget.achievable <= 6);
+      assert.equal(r.budget.sliderMax, r.budget.achievable);
+      assert.ok(r.budget.actual <= r.budget.achievable);
+    }
+  }
+});
+
 test('B4: structural validation gates store save/import', () => {
   const map = new Map();
   const store = E.createStore({

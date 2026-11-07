@@ -32,8 +32,8 @@
     const archetype = archetypes[input.archetype] ? input.archetype : 'horseshoe';
     const arch = archetypes[archetype];
     const defaults = arch && Array.isArray(arch.hazardBudget) ? arch.hazardBudget : [2, 4];
-    let hazardMin = clampInt(input.hazardMin, 0, 6, defaults[0]);
-    let hazardMax = clampInt(input.hazardMax, 0, 6, defaults[1]);
+    let hazardMin = clampInt(input.hazardMin, 0, MAX_HAZARDS, defaults[0]);
+    let hazardMax = clampInt(input.hazardMax, 0, MAX_HAZARDS, defaults[1]);
     if (hazardMin > hazardMax) { const t = hazardMin; hazardMin = hazardMax; hazardMax = t; }
     const seedNum = Number(input.seed);
     const seed = Number.isFinite(seedNum) ? Math.max(0, Math.floor(seedNum)) >>> 0 : 1;
@@ -179,7 +179,7 @@
     if (!spec) return { ok: false, issues: [{ code: 'E_IMPORT', message: 'нет TrackSpec' }] };
     const prepared = prepareSpec(spec);
     if (!prepared.ok) return { ok: false, issues: prepared.issues };
-    const canonical = prepared.canonical ? clone(prepared.canonical) : clone(spec);
+    const canonical = prepared.readOnly ? clone(spec) : clone(prepared.canonical || spec);
     return {
       ok: true,
       readOnly: !!prepared.readOnly,
@@ -278,7 +278,9 @@
   const AXIAL_DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
   const MAIN_TYPES = ['start', 'straight', 'turn', 'checkpoint', 'sand', 'debris', 'event', 'ramp', 'tunnel', 'bridge', 'pit', 'fork'];
   const PAINT_TYPES = ['straight', 'turn', 'sand', 'debris', 'event', 'ramp', 'tunnel', 'bridge'];
+  const SHORTCUT_TYPES = ['straight', 'turn', 'sand', 'debris', 'event', 'ramp'];
   const NORMAL_GRID_TYPES = ['straight', 'turn'];
+  const MAX_HAZARDS = 6;
   const FEATURE_NAMES = ['start', 'checkpoint', 'grid', 'pit', 'shortcut'];
   const HISTORY_LIMIT = 50;
   const LEGACY_HORSESHOE_MAIN = [
@@ -376,6 +378,7 @@
     const pitNodes = out.pit && Array.isArray(out.pit.nodes) ? out.pit.nodes.slice() : [];
     const shortcutNodes = out.shortcut && Array.isArray(out.shortcut.nodes) ? out.shortcut.nodes.slice() : [];
     const decorIds = (out.decor || []).filter((d) => typeof d !== 'object');
+    const decorObjects = (out.decor || []).filter((d) => typeof d === 'object').map((d) => clone(d));
 
     const order = [];
     const orderSet = new Set();
@@ -417,7 +420,7 @@
         nodes: (out.shortcut.nodes || []).map(remap),
       });
     }
-    out.decor = decorIds.map(remap);
+    out.decor = decorIds.map(remap).concat(decorObjects);
     return { ok: true, spec: out, issues: [] };
   }
 
@@ -487,7 +490,13 @@
       ['entry', 'exit'].forEach((k) => { if (input.shortcut[k] != null) ref(input.shortcut[k], 'shortcut.' + k + ' ссылается на несуществующий тайл'); });
       (input.shortcut.nodes || []).forEach((id) => ref(id, 'shortcut.nodes ссылается на несуществующий тайл'));
     }
-    (input.decor || []).forEach((d) => { if (typeof d !== 'object') ref(d, 'decor ссылается на несуществующий тайл'); });
+    (input.decor || []).forEach((d) => {
+      if (typeof d === 'object') {
+        if (!d || !['building', 'ruin'].includes(d.type)) add('E_DECOR', 'объектный декор должен быть building/ruin');
+        return;
+      }
+      ref(d, 'decor ссылается на несуществующий тайл');
+    });
     nodes.forEach((n) => {
       (n.next || []).forEach((to) => ref(to, 'next ссылается на несуществующий тайл', n.id));
       (n.prev || []).forEach((to) => ref(to, 'prev ссылается на несуществующий тайл', n.id));
@@ -516,6 +525,16 @@
     main.forEach((id) => {
       const n = byId.get(id);
       if (n && !MAIN_TYPES.includes(n.type)) add('E_TYPE', 'недопустимый тип тайла: ' + n.type, id);
+    });
+    pitNodes.concat(shortcutNodes).forEach((id) => {
+      const node = byId.get(id);
+      if (node && !MAIN_TYPES.includes(node.type)) add('E_TYPE', 'недопустимый тип тайла ветки: ' + node.type, id);
+    });
+    shortcutNodes.forEach((id) => {
+      const node = byId.get(id);
+      if (node && !SHORTCUT_TYPES.includes(node.type)) {
+        add('E_TYPE', 'недопустимый тип тайла среза: ' + node.type, id);
+      }
     });
 
     const starts = nodes.filter((n) => n.type === 'start');
@@ -694,8 +713,14 @@
       }
     });
 
+    const cpNodes = nodes.filter((n) => n.type === 'checkpoint');
     const cps = (input.checkpoints || []).filter((id) => id !== input.startNode);
+    if (cpNodes.length !== 1) add('E_CHECKPOINT', 'должен быть ровно один узел КП, найдено: ' + cpNodes.length);
     if (cps.length !== 1) add('E_CHECKPOINT', 'должен быть ровно один не-стартовый КП');
+    if (cpNodes.length === 1) {
+      if (!mainSet.has(cpNodes[0].id)) add('E_CHECKPOINT', 'узел КП должен быть на main', cpNodes[0].id);
+      if (cps.length === 1 && cps[0] !== cpNodes[0].id) add('E_CHECKPOINT', 'checkpoints не совпадает с узлом КП', cpNodes[0].id);
+    }
     cps.forEach((id) => {
       const idx = mainIndex.get(id);
       const node = byId.get(id);
@@ -741,6 +766,7 @@
   /* --- B1: read-only detection / validate-first pipeline ------------- */
 
   function detectReadOnly(canonical) {
+    if (Array.isArray(canonical.decor) && canonical.decor.some((d) => typeof d === 'object')) return 'decor';
     if (canonical.layout && canonical.layout !== 'axial') return 'layout';
     const byId = new Map((canonical.nodes || []).map((n) => [n.id, n]));
     const main = canonical.main || [];
@@ -771,9 +797,6 @@
     const stageA = CnA.validateTrackSpec(spec);
     if (!stageA.ok) return { ok: false, readOnly: false, issues: stageA.issues, warnings: [] };
 
-    if (Array.isArray(spec.decor) && spec.decor.some((d) => typeof d === 'object')) {
-      return { ok: true, readOnly: true, reason: 'decor', issues: [], warnings: [], originalSpec: clone(spec), canonical: null };
-    }
     const canon = canonicalizeRepresentation(spec);
     if (!canon.ok) return { ok: false, readOnly: false, issues: canon.issues, warnings: [] };
     const mig = migrateKnownHorseshoe(canon.spec);
@@ -1970,11 +1993,11 @@
     };
     protectAround(spec.startNode, 3);
     (spec.checkpoints || []).forEach((id) => protectAround(id, 2));
-    return maxHazardsCycle(main.length, (i) => {
+    return Math.min(MAX_HAZARDS, maxHazardsCycle(main.length, (i) => {
       const node = byId.get(main[i]);
       if (!node || protectedIds.has(main[i])) return false;
       return node.type === 'straight' || node.type === 'turn' || isHazardType(node.type);
-    }, 1);
+    }, 1));
   }
 
   function hazardBudgetReport(spec, requestedMin, requestedMax) {
@@ -1982,13 +2005,14 @@
     const max = Math.max(min, Math.floor(Number(requestedMax) || min));
     const stats = statsFor(spec);
     const actual = stats ? stats.hazards : 0;
-    const achievable = Math.min(6, Math.max(actual, maxGeneratedHazards(spec)));
+    const achievable = Math.min(MAX_HAZARDS, Math.max(actual, maxGeneratedHazards(spec)));
     return {
       requestedMin: min,
-      requestedMax: Math.min(6, max),
+      requestedMax: Math.min(MAX_HAZARDS, max),
       actual,
       achievable,
       sliderMax: achievable,
+      maxHazards: MAX_HAZARDS,
       ok: actual >= min,
     };
   }
@@ -2059,7 +2083,9 @@
     AXIAL_DIRS,
     LEGACY_HORSESHOE_MAIN,
     PAINT_TYPES,
+    SHORTCUT_TYPES,
     MAIN_TYPES,
+    MAX_HAZARDS,
     FEATURE_NAMES,
     canonicalizeRepresentation,
     migrateKnownHorseshoe,
