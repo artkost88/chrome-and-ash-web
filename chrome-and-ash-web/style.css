@@ -719,11 +719,12 @@ code { font-family: var(--font-mono); color: var(--brass); }
    КОНСТРУКТОР ТРАСС
    ================================================================ */
 .constructor-screen {
-  height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column;
+  height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; flex-direction: column;
   background:
     radial-gradient(900px 500px at 50% 0%, rgba(200,160,78,.08), transparent 70%),
     var(--night);
 }
+.constructor-screen.active { display: flex; }
 .constructor-top {
   display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
   padding: 10px clamp(14px, 2vw, 28px); border-bottom: 1px solid var(--line);
@@ -880,7 +881,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
   .constructor-actions .chip-btn, .constructor-actions .big-btn.mini { padding: 5px 7px; font-size: 10px; }
 }
 @media (max-width: 900px) {
-  .constructor-screen { height: auto; min-height: 100vh; overflow: visible; display: block; }
+  .constructor-screen, .constructor-screen.active { height: auto; min-height: 100vh; overflow: visible; display: block; }
   .constructor-main { grid-template-columns: 1fr; overflow: visible; flex: none; }
   .constructor-controls, .constructor-side { overflow: visible; }
   .constructor-preview { min-height: 46vh; flex: none; }
