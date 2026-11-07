@@ -323,6 +323,238 @@ test('B1: report exposes read-only specs and never mutates input', () => {
   assert.deepEqual(polar, input);
 });
 
+/* ==================================================================== */
+/* Stage B — B2: select/paint/insert/remove/move + atomic rollback.     */
+/* ==================================================================== */
+
+function sessionFor(spec) {
+  const r = TD.createSession(spec);
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.ok(r.session);
+  return r.session;
+}
+
+function draftNode(draft, uid) { return draft.nodes.find((n) => n.uid === uid); }
+function draftNodeAt(draft, q, r) { return draft.nodes.find((n) => n.q === q && n.r === r); }
+function isAdj(a, b) {
+  const dirs = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+  return dirs.some(([dq, dr]) => b.q - a.q === dq && b.r - a.r === dr);
+}
+function freeCommonCell(draft, aUid, bUid) {
+  const a = draftNode(draft, aUid), b = draftNode(draft, bUid);
+  const dirs = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+  const candidates = [];
+  for (const [dq, dr] of dirs) candidates.push({ q: a.q + dq, r: a.r + dr });
+  return candidates.filter((c) =>
+    isAdj(c, b) && !draft.nodes.some((n) => n.q === c.q && n.r === c.r));
+}
+function featureUids(draft) {
+  return new Set([draft.startUid, draft.checkpointUid, ...draft.grid,
+    draft.pit && draft.pit.tile, draft.pit && draft.pit.entry, draft.pit && draft.pit.exit,
+    draft.shortcut && draft.shortcut.entry, draft.shortcut && draft.shortcut.exit]);
+}
+function paintable(session) {
+  const feature = featureUids(session.draft);
+  return session.draft.main.filter((uid) => {
+    if (feature.has(uid)) return false;
+    const node = draftNode(session.draft, uid);
+    return node && ['straight', 'turn'].includes(node.type);
+  });
+}
+
+test('B2: paint updates the draft and undo restores it', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const uid = paintable(s)[0];
+  const before = clone(s.draft);
+  const r = s.apply({ op: 'paint', uid, type: 'sand' });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(draftNode(s.draft, uid).type, 'sand');
+  assert.equal(s.selectionUid, uid);
+  assert.equal(s.revision, 1);
+  assert.equal(TD.toSpec(s.draft).nodes.find((n) => n.id === s.draft.main.indexOf(uid)).type, 'sand');
+  s.undo();
+  assert.deepEqual(s.draft, before);
+});
+
+test('B2: paint rejects the third consecutive hazard atomically', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const clean = new Set(paintable(s));
+  let start = -1;
+  for (let i = 0; i < s.draft.main.length; i++) {
+    if (clean.has(s.draft.main[i]) && clean.has(s.draft.main[(i + 1) % s.draft.main.length]) &&
+      clean.has(s.draft.main[(i + 2) % s.draft.main.length])) { start = i; break; }
+  }
+  assert.ok(start >= 0, 'need three consecutive paintable tiles');
+  const [a, b, c] = [0, 1, 2].map((k) => s.draft.main[(start + k) % s.draft.main.length]);
+  assert.equal(s.apply({ op: 'paint', uid: a, type: 'sand' }).ok, true);
+  assert.equal(s.apply({ op: 'paint', uid: b, type: 'sand' }).ok, true);
+  const before = clone(s.draft);
+  const past = s.past.length;
+  const r = s.apply({ op: 'paint', uid: c, type: 'sand' });
+  assert.equal(r.ok, false);
+  assert.ok(r.issues.some((i) => i.code === 'E_HAZARD_RUN'));
+  assert.deepEqual(s.draft, before);
+  assert.equal(s.past.length, past);
+});
+
+test('B2: paint keeps at least one hazard on a shortcut', () => {
+  const s = sessionFor(gen('snake', 3));
+  const ids = s.draft.shortcut.nodes.slice();
+  assert.ok(ids.length >= 1);
+  for (let i = 0; i < ids.length - 1; i++) {
+    const r = s.apply({ op: 'paint', uid: ids[i], type: 'straight' });
+    assert.equal(r.ok, true, JSON.stringify(r.issues));
+  }
+  const before = clone(s.draft);
+  const r = s.apply({ op: 'paint', uid: ids[ids.length - 1], type: 'straight' });
+  assert.equal(r.ok, false);
+  assert.ok(r.issues.some((i) => i.code === 'E_SHORTCUT_RISK'));
+  assert.deepEqual(s.draft, before);
+});
+
+test('B2: paint protects feature tiles, branches and type locks', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const freeUid = paintable(s)[0];
+  assert.ok(s.apply({ op: 'paint', uid: s.draft.startUid, type: 'sand' }).issues
+    .some((i) => i.code === 'E_PAINT_FEATURE'));
+  assert.ok(s.apply({ op: 'paint', uid: freeUid, type: 'start' }).issues
+    .some((i) => i.code === 'E_PAINT_FEATURE'));
+  const branch = sessionFor(gen('horseshoe', 1));
+  const pitNode = branch.draft.pit.nodes[0];
+  assert.ok(branch.apply({ op: 'paint', uid: pitNode, type: 'straight' }).issues
+    .some((i) => i.code === 'E_TILE_ROLE'));
+  const snake = sessionFor(gen('snake', 3));
+  assert.ok(snake.apply({ op: 'paint', uid: snake.draft.shortcut.nodes[0], type: 'tunnel' }).issues
+    .some((i) => i.code === 'E_TILE_ROLE'));
+  const locked = sessionFor(gen('club', 1, [0, 0]));
+  const uid = paintable(locked)[0];
+  assert.equal(locked.apply({ op: 'setLock', uid, flags: { type: true } }).ok, true);
+  assert.ok(locked.apply({ op: 'paint', uid, type: 'sand' }).issues
+    .some((i) => i.code === 'E_LOCKED_TYPE'));
+});
+
+test('B2: insertBetween adds a dense node and rolls back', () => {
+  const s = sessionFor(gen('snake', 2));
+  const before = clone(s.draft);
+  const startLen = s.draft.main.length;
+  let inserted = null;
+  for (let i = 0; i < s.draft.main.length && !inserted; i++) {
+    const from = s.draft.main[i];
+    const to = s.draft.main[(i + 1) % s.draft.main.length];
+    const r = s.apply({ op: 'insertBetween', from, to });
+    if (r.ok) inserted = r;
+  }
+  assert.ok(inserted, 'at least one main edge must accept a node');
+  assert.equal(s.draft.main.length, startLen + 1);
+  assert.ok(s.draft.nodes.some((n) => n.uid === inserted.selectionUid));
+  const out = TD.toSpec(s.draft);
+  assert.equal(out.size, startLen + 1);
+  assert.equal(CnA.validateTrackSpec(out).ok, true, JSON.stringify(CnA.validateTrackSpec(out).issues));
+  s.undo();
+  assert.deepEqual(s.draft, before);
+});
+
+test('B2: insertBetween rejects non-edges, max length and full cells', () => {
+  const s = sessionFor(gen('snake', 2));
+  assert.ok(s.apply({ op: 'insertBetween', from: s.draft.main[0], to: s.draft.main[2] }).issues
+    .some((i) => i.code === 'E_INSERT_EDGE'));
+  const full = sessionFor(gen('horseshoe', 1));
+  assert.equal(full.draft.main.length, 36);
+  assert.ok(full.apply({ op: 'insertBetween', from: full.draft.main[0], to: full.draft.main[1] }).issues
+    .some((i) => i.code === 'E_LENGTH_MAX'));
+});
+
+test('B2: remove deletes a legal bend and rejects protected geometry', () => {
+  const s = sessionFor(gen('snake', 2));
+  const feature = featureUids(s.draft);
+  const n = s.draft.main.length;
+  let bend = null, straight = null;
+  for (let i = 2; i < n - 1; i++) {
+    const uid = s.draft.main[i];
+    if (feature.has(uid)) continue;
+    const prev = draftNode(s.draft, s.draft.main[i - 1]);
+    const next = draftNode(s.draft, s.draft.main[i + 1]);
+    if (isAdj(prev, next) && !bend) bend = uid;
+    if (!isAdj(prev, next) && !straight) straight = uid;
+  }
+  assert.ok(bend, 'generated snake must have a bend');
+  const before = clone(s.draft);
+  const r = s.apply({ op: 'remove', uid: bend });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(s.draft.main.length, n - 1);
+  s.undo();
+  assert.deepEqual(s.draft, before);
+  assert.ok(straight, 'generated snake must have a straight run');
+  assert.ok(s.apply({ op: 'remove', uid: straight }).issues.some((i) => i.code === 'E_REMOVE_GEOMETRY'));
+  assert.ok(s.apply({ op: 'remove', uid: s.draft.startUid }).issues.some((i) => i.code === 'E_REMOVE_FEATURE'));
+  assert.ok(s.apply({ op: 'remove', uid: s.draft.grid[0] }).issues.some((i) => i.code === 'E_REMOVE_FEATURE'));
+  assert.ok(s.apply({ op: 'remove', uid: s.draft.checkpointUid }).issues.some((i) => i.code === 'E_REMOVE_FEATURE'));
+});
+
+test('B2: remove respects the minimum lap length', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const uid = paintable(s)[0];
+  assert.ok(s.apply({ op: 'remove', uid }).issues.some((i) => i.code === 'E_LENGTH_MIN'));
+});
+
+test('B2: move keeps all road neighbours adjacent and rolls back', () => {
+  const s = sessionFor(gen('snake', 2));
+  const n = s.draft.main.length;
+  const feature = featureUids(s.draft);
+  let uid = null, target = null;
+  for (let i = 1; i < n - 1 && !uid; i++) {
+    const u = s.draft.main[i];
+    if (feature.has(u)) continue;
+    const prev = s.draft.main[i - 1];
+    const next = s.draft.main[i + 1];
+    const cells = freeCommonCell(s.draft, prev, next);
+    if (cells.length) { uid = u; target = cells[0]; }
+  }
+  assert.ok(uid && target, 'need a bend with a free legal target');
+  const before = clone(s.draft);
+  const r = s.apply({ op: 'move', uid, q: target.q, r: target.r });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(draftNode(s.draft, uid).q, target.q);
+  assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
+  s.undo();
+  assert.deepEqual(s.draft, before);
+
+  const occupied = draftNode(s.draft, s.draft.main[3]);
+  assert.ok(s.apply({ op: 'move', uid, q: occupied.q, r: occupied.r }).issues
+    .some((i) => i.code === 'E_MOVE_OCCUPIED'));
+  assert.ok(s.apply({ op: 'move', uid, q: 99, r: 99 }).issues
+    .some((i) => i.code === 'E_MOVE_ADJACENCY'));
+  assert.ok(s.apply({ op: 'move', uid: s.draft.startUid, q: 99, r: 99 }).ok === false);
+});
+
+test('B2: move honours the position lock', () => {
+  const s = sessionFor(gen('snake', 2));
+  const uid = s.draft.main[5];
+  assert.equal(s.apply({ op: 'setLock', uid, flags: { pos: true } }).ok, true);
+  assert.ok(s.apply({ op: 'move', uid, q: 99, r: 99 }).issues.some((i) => i.code === 'E_LOCKED_POS'));
+});
+
+test('B2: select validates the node and does not create history', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const past = s.past.length;
+  assert.equal(s.apply({ op: 'select', uid: s.draft.main[3] }).ok, true);
+  assert.equal(s.selectionUid, s.draft.main[3]);
+  assert.equal(s.past.length, past);
+  assert.ok(s.apply({ op: 'select', uid: 'nope' }).issues.some((i) => i.code === 'E_NO_NODE'));
+});
+
+test('B2: validateDraft reports axial and duplicate problems', () => {
+  const res = TD.fromSpec(gen('club', 1, [0, 0]));
+  const draft = clone(res.draft);
+  draft.nodes[5].q = 0.5;
+  assert.ok(TD.validateDraft(draft).issues.some((i) => i.code === 'E_AXIAL'));
+  const dup = clone(res.draft);
+  const other = draftNode(dup, dup.main[6]);
+  const node = draftNode(dup, dup.main[7]);
+  other.q = node.q; other.r = node.r;
+  assert.ok(TD.validateDraft(dup).issues.some((i) => i.code === 'E_DUPLICATE_COORD'));
+});
+
 test('storage corruption and malformed generated specs do not throw', () => {
   const store = E.createStore({
     getItem: () => '{not-json',

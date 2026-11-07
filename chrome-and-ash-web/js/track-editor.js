@@ -785,6 +785,17 @@
     }
     const locks = { nodes: {}, features: {} };
     FEATURE_NAMES.forEach((f) => { locks.features[f] = false; });
+    const source = {
+      kind: opts.kind || 'generated',
+      trackId: opts.trackId || null,
+      archetype: spec.archetype,
+      seed: spec.seed,
+      specId: spec.id,
+      sourceSpec: clone(spec),
+      originalSpec: opts.originalSpec ? clone(opts.originalSpec) : clone(spec),
+      migrated: opts.migrated ? ['horseshoe-bump-v1'] : [],
+    };
+    if (Object.prototype.hasOwnProperty.call(spec, 'label')) source.label = spec.label;
     return {
       draftVersion: 1,
       name: cleanName(spec.name),
@@ -801,17 +812,7 @@
       legacyDecor: Array.isArray(spec.decor) ? spec.decor.filter((d) => typeof d === 'object') : [],
       locks,
       uidSeq: (spec.nodes || []).length,
-      source: {
-        kind: opts.kind || 'generated',
-        trackId: opts.trackId || null,
-        archetype: spec.archetype,
-        seed: spec.seed,
-        specId: spec.id,
-        label: Object.prototype.hasOwnProperty.call(spec, 'label') ? spec.label : undefined,
-        sourceSpec: clone(spec),
-        originalSpec: opts.originalSpec ? clone(opts.originalSpec) : clone(spec),
-        migrated: opts.migrated ? ['horseshoe-bump-v1'] : [],
-      },
+      source,
     };
   }
 
@@ -943,6 +944,549 @@
     return out;
   }
 
+  /* --- B2/B4: draft invariants, session and operations ---------------- */
+
+  function validateDraft(draft) {
+    const issues = [];
+    const add = (code, message, uid) => issues.push(issue(code, message, uid));
+    if (!draft || draft.draftVersion !== 1) {
+      add('E_SCHEMA', 'нет TrackDraft draftVersion 1');
+      return { ok: false, issues, warnings: [] };
+    }
+    const nodes = draft.nodes || [];
+    const byUid = new Map();
+    nodes.forEach((n) => {
+      if (byUid.has(n.uid)) add('E_DUP_ID', 'повторяющийся uid узла ' + n.uid, n.uid);
+      else byUid.set(n.uid, n);
+    });
+    if (issues.length) return { ok: false, issues, warnings: [] };
+    const main = draft.main || [];
+    const n = main.length;
+    const pitBranch = !!(draft.pit && draft.pit.kind === 'branch');
+    const pitNodes = pitBranch ? (draft.pit.nodes || []) : [];
+    const shortcut = draft.shortcut || null;
+    const shortcutNodes = shortcut ? (shortcut.nodes || []) : [];
+    const decor = draft.decor || [];
+    const ref = (uid, message) => { if (uid == null || !byUid.has(uid)) add('E_REF', message, uid); };
+    main.forEach((uid) => ref(uid, 'main ссылается на несуществующий uid'));
+    ref(draft.startUid, 'startUid отсутствует');
+    ref(draft.checkpointUid, 'checkpointUid отсутствует');
+    (draft.grid || []).forEach((uid) => ref(uid, 'grid ссылается на несуществующий uid'));
+    pitNodes.forEach((uid) => ref(uid, 'пит-ветка ссылается на несуществующий uid'));
+    if (pitBranch) { ref(draft.pit.entry, 'pit.entry отсутствует'); ref(draft.pit.exit, 'pit.exit отсутствует'); }
+    if (draft.pit && draft.pit.kind === 'tile') ref(draft.pit.tile, 'pit.tile отсутствует');
+    if (shortcut) {
+      ref(shortcut.entry, 'shortcut.entry отсутствует');
+      ref(shortcut.exit, 'shortcut.exit отсутствует');
+      shortcutNodes.forEach((uid) => ref(uid, 'срез ссылается на несуществующий uid'));
+    }
+    decor.forEach((uid) => ref(uid, 'decor ссылается на несуществующий uid'));
+    if (issues.length) return { ok: false, issues, warnings: [] };
+
+    if (n < 24 || n > 36) add('E_LENGTH', 'длина круга вне 24..36');
+    if (main[0] !== draft.startUid) add('E_START_INDEX', 'startUid должен быть main[0]');
+    const starts = nodes.filter((x) => x.type === 'start');
+    if (starts.length !== 1) add('E_START_COUNT', 'стартовых тайлов: ' + starts.length);
+    if ((byUid.get(draft.startUid) || {}).type !== 'start') add('E_START_COUNT', 'startUid должен иметь type start');
+    const cps = nodes.filter((x) => x.type === 'checkpoint');
+    if (cps.length !== 1) add('E_CHECKPOINT', 'КП должен быть ровно один');
+    if (cps.length === 1 && cps[0].uid !== draft.checkpointUid) add('E_CHECKPOINT', 'checkpointUid не совпадает с узлом КП');
+    if (pitBranch && shortcut) add('E_BRANCH_CONFLICT', 'пит-ветка и срез не могут существовать одновременно');
+
+    const grid = draft.grid || [];
+    if (grid.length !== 4 || new Set(grid).size !== 2) add('E_GRID', 'grid должен занимать 2 тайла');
+    if (n >= 2) {
+      const derived = [main[n - 1], main[n - 1], main[n - 2], main[n - 2]];
+      if (grid.length !== 4 || grid.some((uid, i) => uid !== derived[i])) add('E_GRID', 'grid должен быть производным от main');
+    }
+
+    // Роли веток.
+    const mainSet = new Set(main);
+    pitNodes.forEach((uid) => {
+      const node = byUid.get(uid);
+      if (!node) return;
+      if (mainSet.has(uid)) add('E_BRANCH', 'узел пит-ветки не может быть на main', uid);
+      if (node.type !== 'pit') add('E_PIT', 'тайл пит-ветки должен быть типа pit', uid);
+    });
+    if (pitBranch) {
+      if (!mainSet.has(draft.pit.entry)) add('E_PIT', 'pit.entry не на main', draft.pit.entry);
+      if (!mainSet.has(draft.pit.exit)) add('E_PIT', 'pit.exit не на main', draft.pit.exit);
+    }
+    if (draft.pit && draft.pit.kind === 'tile') {
+      if (!mainSet.has(draft.pit.tile)) add('E_PIT', 'pit.tile не на main', draft.pit.tile);
+      else {
+        const node = byUid.get(draft.pit.tile);
+        if (!node || node.type !== 'pit') add('E_PIT', 'pit.tile должен иметь type pit', draft.pit.tile);
+      }
+    }
+    shortcutNodes.forEach((uid) => {
+      if (mainSet.has(uid)) add('E_BRANCH', 'узел среза не может быть на main', uid);
+    });
+    if (shortcut) {
+      if (!mainSet.has(shortcut.entry)) add('E_SHORTCUT', 'shortcut.entry не на main', shortcut.entry);
+      if (!mainSet.has(shortcut.exit)) add('E_SHORTCUT', 'shortcut.exit не на main', shortcut.exit);
+      if (!shortcutNodes.some((uid) => { const node = byUid.get(uid); return node && isHazardType(node.type); })) {
+        add('E_SHORTCUT_RISK', 'на срезе должна остаться хотя бы одна опасность');
+      }
+    }
+
+    // Координаты.
+    const roadUids = main.concat(pitNodes, shortcutNodes);
+    const roadCoords = new Map();
+    roadUids.forEach((uid) => {
+      const node = byUid.get(uid);
+      if (!node) return;
+      if (!isInt(node.q) || !isInt(node.r)) add('E_AXIAL', 'дорога вне осевой сетки', uid);
+      else {
+        const key = node.q + ',' + node.r;
+        if (roadCoords.has(key)) add('E_DUPLICATE_COORD', 'две дороги в одной клетке', uid);
+        else roadCoords.set(key, uid);
+      }
+    });
+    const decorSet = new Set();
+    decor.forEach((uid) => {
+      const node = byUid.get(uid);
+      if (!node) return;
+      if (!['building', 'ruin'].includes(node.type)) add('E_DECOR', 'декор должен быть building/ruin', uid);
+      if (roadCoords.has(node.q + ',' + node.r) || mainSet.has(uid)) add('E_DECOR', 'декор на дороге', uid);
+      if (decorSet.has(uid)) add('E_DUP_ID', 'повторяющийся декор', uid);
+      decorSet.add(uid);
+    });
+    decor.forEach((uid) => {
+      const node = byUid.get(uid);
+      if (!node) return;
+      const key = node.q + ',' + node.r;
+      roadUids.forEach((rid) => {
+        const rn = byUid.get(rid);
+        if (rn && key === rn.q + ',' + rn.r) add('E_DUPLICATE_COORD', 'декор на дороге', uid);
+      });
+    });
+
+    // Осевая смежность.
+    for (let i = 0; i < n; i++) {
+      if (!axialAdjacent(byUid.get(main[i]), byUid.get(main[(i + 1) % n]))) add('E_AXIAL', 'соседние тайлы круга не соприкасаются', main[i]);
+    }
+    const checkBranch = (entry, list, exit) => {
+      let prev = entry;
+      for (const uid of list) {
+        if (!axialAdjacent(byUid.get(prev), byUid.get(uid))) add('E_AXIAL', 'ветка разорвана', uid);
+        prev = uid;
+      }
+      if (list.length && !axialAdjacent(byUid.get(prev), byUid.get(exit))) add('E_AXIAL', 'ветка не доходит до exit', prev);
+    };
+    if (pitBranch) checkBranch(draft.pit.entry, pitNodes, draft.pit.exit);
+    if (shortcut) checkBranch(shortcut.entry, shortcutNodes, shortcut.exit);
+
+    // Полная проверка через спеку.
+    let spec = null;
+    try { spec = toSpec(draft); } catch (e) {
+      add('E_DRAFT', 'не удалось собрать TrackSpec: ' + String(e && e.message || e));
+    }
+    if (spec) {
+      const structural = validateStructural(spec);
+      issues.push(...structural.issues);
+      const stageA = CnA.validateTrackSpec(spec);
+      if (!stageA.ok) issues.push(...stageA.issues);
+    }
+    return {
+      ok: !hasError(issues),
+      issues,
+      warnings: issues.filter((i) => String(i.code).startsWith('W_')),
+    };
+  }
+
+  function mainIndexOf(draft, uid) { return (draft.main || []).indexOf(uid); }
+
+  function connectedUids(draft, uid) {
+    const out = [];
+    const n = draft.main.length;
+    const mi = mainIndexOf(draft, uid);
+    const pitBranch = draft.pit && draft.pit.kind === 'branch';
+    const pitNodes = pitBranch ? draft.pit.nodes : [];
+    const shortcutNodes = draft.shortcut ? draft.shortcut.nodes : [];
+    if (mi >= 0) {
+      out.push(draft.main[(mi - 1 + n) % n], draft.main[(mi + 1) % n]);
+      if (pitBranch && pitNodes.length) {
+        if (draft.pit.entry === uid) out.push(pitNodes[0]);
+        if (draft.pit.exit === uid) out.push(pitNodes[pitNodes.length - 1]);
+      }
+      if (draft.shortcut && shortcutNodes.length) {
+        if (draft.shortcut.entry === uid) out.push(shortcutNodes[0]);
+        if (draft.shortcut.exit === uid) out.push(shortcutNodes[shortcutNodes.length - 1]);
+      }
+    } else {
+      const chain = (entry, list, exit) => {
+        const idx = list.indexOf(uid);
+        if (idx < 0) return false;
+        out.push(idx === 0 ? entry : list[idx - 1]);
+        out.push(idx === list.length - 1 ? exit : list[idx + 1]);
+        return true;
+      };
+      if (pitBranch && chain(draft.pit.entry, pitNodes, draft.pit.exit)) { /* ok */ }
+      else if (draft.shortcut && chain(draft.shortcut.entry, shortcutNodes, draft.shortcut.exit)) { /* ok */ }
+    }
+    return [...new Set(out.filter(Boolean))];
+  }
+
+  function TrackDraftSession(res, opts) {
+    opts = opts || {};
+    this.draft = res.draft;
+    this.readOnly = !!res.readOnly;
+    this.reason = res.reason || null;
+    this.originalSpec = res.originalSpec || null;
+    this.warnings = (res.warnings || []).slice();
+    this.issues = [];
+    this.past = [];
+    this.future = [];
+    this.revision = 0;
+    this.uidSeq = this.draft ? (this.draft.uidSeq || this.draft.nodes.length) : 0;
+    this.selectionUid = null;
+    this.focusUid = null;
+    this.baselineFingerprint = this.draft ? JSON.stringify(toSpec(this.draft)) : null;
+    this.unsavedNew = !this.draft || this.draft.source.kind !== 'saved';
+    const self = this;
+    Object.defineProperty(this, 'dirty', {
+      enumerable: true,
+      get() { return !!self.draft && JSON.stringify(toSpec(self.draft)) !== self.baselineFingerprint; },
+    });
+  }
+
+  TrackDraftSession.prototype.nextUid = function () {
+    const uid = 'd' + this.uidSeq;
+    this.uidSeq += 1;
+    return uid;
+  };
+
+  TrackDraftSession.prototype.snapshot = function () {
+    return {
+      draft: clone(this.draft),
+      selectionUid: this.selectionUid,
+      focusUid: this.focusUid,
+      revision: this.revision,
+    };
+  };
+
+  TrackDraftSession.prototype.pushHistory = function () {
+    this.past.push(this.snapshot());
+    if (this.past.length > HISTORY_LIMIT) this.past.shift();
+    this.future = [];
+  };
+
+  TrackDraftSession.prototype.restore = function (snap) {
+    this.draft = snap.draft;
+    this.selectionUid = snap.selectionUid;
+    this.focusUid = snap.focusUid;
+    this.revision = snap.revision;
+    this.uidSeq = Math.max(this.uidSeq, this.draft.nodes.length);
+  };
+
+  TrackDraftSession.prototype.undo = function () {
+    if (this.readOnly) return { ok: false, issues: [issue('E_READONLY', 'Трасса только для чтения.')] };
+    if (!this.past.length) return { ok: false, issues: [issue('E_UNDO_EMPTY', 'Нечего отменять.')] };
+    this.future.push(this.snapshot());
+    this.restore(this.past.pop());
+    return { ok: true, issues: [] };
+  };
+
+  TrackDraftSession.prototype.redo = function () {
+    if (this.readOnly) return { ok: false, issues: [issue('E_READONLY', 'Трасса только для чтения.')] };
+    if (!this.future.length) return { ok: false, issues: [issue('E_REDO_EMPTY', 'Нечего повторять.')] };
+    this.past.push(this.snapshot());
+    this.restore(this.future.pop());
+    return { ok: true, issues: [] };
+  };
+
+  TrackDraftSession.prototype.commit = function (candidate, opts) {
+    const check = validateDraft(candidate);
+    if (hasError(check.issues)) return { ok: false, issues: check.issues };
+    this.pushHistory();
+    this.draft = candidate;
+    this.revision += 1;
+    if (opts && opts.selectionUid !== undefined) {
+      this.selectionUid = opts.selectionUid;
+      this.focusUid = opts.selectionUid;
+    }
+    const warnings = (opts && opts.warnings ? opts.warnings : []).concat(check.warnings || []);
+    return { ok: true, issues: [], warnings, selectionUid: this.selectionUid };
+  };
+
+  TrackDraftSession.prototype.select = function (uid) {
+    if (uid != null && !this.draft.nodes.some((n) => n.uid === uid)) {
+      return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    }
+    this.selectionUid = uid || null;
+    this.focusUid = uid || null;
+    return { ok: true, issues: [], selectionUid: this.selectionUid };
+  };
+
+  TrackDraftSession.prototype.apply = function (op) {
+    op = op || {};
+    if (op.op === 'select') return this.select(op.uid);
+    if (this.readOnly) return { ok: false, issues: [issue('E_READONLY', 'Трасса только для чтения.')] };
+    switch (op.op) {
+      case 'paint': return this.paint(op.uid, op.type);
+      case 'insertBetween': return this.insertBetween(op.from, op.to);
+      case 'remove': return this.remove(op.uid);
+      case 'move': return this.move(op.uid, op.q, op.r);
+      case 'setStart': return this.setStart(op.uid);
+      case 'setCheckpoint': return this.setCheckpoint(op.uid);
+      case 'setPitTile': return this.setPitTile(op.uid, op);
+      case 'setPitBranch': return this.setPitBranch(op.entry, op.exit, op);
+      case 'setShortcut': return this.setShortcut(op.entry, op.exit, op);
+      case 'clearPit': return this.clearPit(op);
+      case 'clearShortcut': return this.clearShortcut(op);
+      case 'setLock': return this.setLock(op.uid, op.flags);
+      case 'setFeatureLock': return this.setFeatureLock(op.feature, op.locked);
+      default: return { ok: false, issues: [issue('E_OP', 'Неизвестная операция: ' + op.op)] };
+    }
+  };
+
+  TrackDraftSession.prototype.paint = function (uid, type) {
+    const node = this.draft.nodes.find((n) => n.uid === uid);
+    if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    if (uid === this.draft.startUid || uid === this.draft.checkpointUid ||
+      (this.draft.pit && this.draft.pit.kind === 'tile' && this.draft.pit.tile === uid)) {
+      return { ok: false, issues: [issue('E_PAINT_FEATURE', 'Старт, КП и пит меняются инструментами.')] };
+    }
+    if ((this.draft.pit && this.draft.pit.kind === 'branch' && this.draft.pit.nodes.includes(uid)) ||
+      (this.draft.decor || []).includes(uid)) {
+      return { ok: false, issues: [issue('E_TILE_ROLE', 'Этот тип доступен только основной петле.')] };
+    }
+    if (!PAINT_TYPES.includes(type)) {
+      return { ok: false, issues: [issue(['start', 'checkpoint', 'pit'].includes(type) ? 'E_PAINT_FEATURE' : 'E_TILE_ROLE',
+        'Этот тип недоступен кисти.')] };
+    }
+    const lock = this.draft.locks && this.draft.locks.nodes[uid];
+    if (lock && lock.type) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    const onShortcut = !!(this.draft.shortcut && this.draft.shortcut.nodes.includes(uid));
+    if (onShortcut && (type === 'tunnel' || type === 'bridge')) {
+      return { ok: false, issues: [issue('E_TILE_ROLE', 'Этот тип доступен только основной петле.')] };
+    }
+    const protectedIds = new Set([this.draft.startUid, this.draft.checkpointUid, ...(this.draft.grid || [])]);
+    if ((isHazardType(type) || type === 'ramp') && protectedIds.has(uid)) {
+      return { ok: false, issues: [issue(isHazardType(type) ? 'E_HAZARD_ZONE' : 'E_RAMP_ZONE',
+        isHazardType(type) ? 'Опасность нельзя ставить на старт, решётку или КП.' : 'Трамплин нельзя ставить на старт, решётку или КП.')] };
+    }
+    if (onShortcut && isHazardType(node.type) && !isHazardType(type)) {
+      const others = this.draft.shortcut.nodes.some((x) => {
+        if (x === uid) return false;
+        const other = this.draft.nodes.find((nd) => nd.uid === x);
+        return other && isHazardType(other.type);
+      });
+      if (!others) return { ok: false, issues: [issue('E_SHORTCUT_RISK', 'На срезе должна остаться хотя бы одна опасность.')] };
+    }
+    const mi = mainIndexOf(this.draft, uid);
+    if (mi >= 0 && isHazardType(type)) {
+      const types = this.draft.main.map((u) => {
+        if (u === uid) return type;
+        const nd = this.draft.nodes.find((x) => x.uid === u);
+        return nd ? nd.type : 'straight';
+      });
+      let run = 0;
+      for (let i = 0; i < types.length * 2; i++) {
+        run = isHazardType(types[i % types.length]) ? run + 1 : 0;
+        if (run > 2) return { ok: false, issues: [issue('E_HAZARD_RUN', 'Нельзя ставить третью опасность подряд.')] };
+      }
+    }
+    if (node.type === type) return { ok: true, issues: [], noop: true, selectionUid: uid };
+    const candidate = clone(this.draft);
+    candidate.nodes.find((x) => x.uid === uid).type = type;
+    return this.commit(candidate, { selectionUid: uid });
+  };
+
+  TrackDraftSession.prototype.insertBetween = function (from, to) {
+    const d = this.draft;
+    if (!d.nodes.some((x) => x.uid === from) || !d.nodes.some((x) => x.uid === to)) {
+      return { ok: false, issues: [issue('E_INSERT_EDGE', 'Между этими тайлами нет ребра.')] };
+    }
+    if (from === to) return { ok: false, issues: [issue('E_INSERT_EDGE', 'Между этими тайлами нет ребра.')] };
+    const n = d.main.length;
+    const mi = mainIndexOf(d, from);
+    const mj = mainIndexOf(d, to);
+    let kind = null;
+    let insertAt = -1;
+    if (mi >= 0 && mj >= 0 && (mi + 1) % n === mj) {
+      kind = 'main';
+      insertAt = mi + 1;
+      if (n >= 36) return { ok: false, issues: [issue('E_LENGTH_MAX', 'Круг уже максимальной длины (36).')] };
+    } else if (d.pit && d.pit.kind === 'branch') {
+      const seq = [d.pit.entry].concat(d.pit.nodes);
+      const k = seq.indexOf(from);
+      if (k >= 0 && seq[k + 1] === to) { kind = 'pit'; insertAt = k; }
+    }
+    if (!kind && d.shortcut) {
+      const seq = [d.shortcut.entry].concat(d.shortcut.nodes);
+      const k = seq.indexOf(from);
+      if (k >= 0 && seq[k + 1] === to) { kind = 'shortcut'; insertAt = k; }
+    }
+    if (!kind) return { ok: false, issues: [issue('E_INSERT_EDGE', 'Между этими тайлами нет ребра.')] };
+    if (kind === 'shortcut') {
+      const a = mainIndexOf(d, d.shortcut.entry);
+      const b = mainIndexOf(d, d.shortcut.exit);
+      const branchLen = d.shortcut.nodes.length + 1;
+      if ((b - a) - (branchLen + 1) < 1) {
+        return { ok: false, issues: [issue('E_SHORTCUT_SAVING', 'Срез должен экономить 1–2 тайла.')] };
+      }
+    }
+    const fnode = d.nodes.find((x) => x.uid === from);
+    const tnode = d.nodes.find((x) => x.uid === to);
+    const occupied = new Set(d.nodes.map((x) => x.q + ',' + x.r));
+    const cell = freeCommonCell(fnode, tnode, occupied);
+    if (!cell) return { ok: false, issues: [issue('E_INSERT_NO_CELL', 'Нет свободной соседней клетки для нового тайла.')] };
+    const candidate = clone(d);
+    const uid = this.nextUid();
+    candidate.nodes.push({ uid, q: cell.q, r: cell.r, type: kind === 'pit' ? 'pit' : 'straight' });
+    if (kind === 'main') candidate.main.splice(insertAt, 0, uid);
+    else if (kind === 'pit') candidate.pit.nodes.splice(insertAt, 0, uid);
+    else candidate.shortcut.nodes.splice(insertAt, 0, uid);
+    return this.commit(candidate, { selectionUid: uid });
+  };
+
+  function freeCommonCell(fromNode, toNode, occupied) {
+    if (!fromNode || !toNode) return null;
+    const cells = axialNeighbors(fromNode.q, fromNode.r)
+      .filter((c) => axialAdjacent(c, toNode))
+      .filter((c) => !occupied.has(c.q + ',' + c.r))
+      .filter((c) => !(c.q === fromNode.q && c.r === fromNode.r) && !(c.q === toNode.q && c.r === toNode.r));
+    return cells[0] || null;
+  }
+
+  TrackDraftSession.prototype.remove = function (uid) {
+    const d = this.draft;
+    const node = d.nodes.find((x) => x.uid === uid);
+    if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    const feature = new Set([d.startUid, d.checkpointUid, ...(d.grid || []),
+      d.pit && d.pit.tile, d.pit && d.pit.entry, d.pit && d.pit.exit,
+      d.shortcut && d.shortcut.entry, d.shortcut && d.shortcut.exit]);
+    if (feature.has(uid)) return { ok: false, issues: [issue('E_REMOVE_FEATURE', 'Старт, КП, решётка и концы веток не удаляются — используйте инструмент.')] };
+    const lock = d.locks && d.locks.nodes[uid];
+    if (lock && lock.remove) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
+    const candidate = clone(d);
+    const inDecor = (candidate.decor || []).includes(uid);
+    const mi = mainIndexOf(d, uid);
+    if (inDecor) {
+      candidate.nodes = candidate.nodes.filter((x) => x.uid !== uid);
+      candidate.decor = candidate.decor.filter((x) => x !== uid);
+      return this.commit(candidate, {});
+    }
+    if (mi >= 0) {
+      if (d.main.length <= 24) return { ok: false, issues: [issue('E_LENGTH_MIN', 'Круг уже минимальной длины (24).')] };
+      const prev = d.nodes.find((x) => x.uid === d.main[(mi - 1 + d.main.length) % d.main.length]);
+      const next = d.nodes.find((x) => x.uid === d.main[(mi + 1) % d.main.length]);
+      if (!axialAdjacent(prev, next)) {
+        return { ok: false, issues: [issue('E_REMOVE_GEOMETRY', 'После удаления соседние тайлы не соприкасаются — сначала сдвиньте соседа.')] };
+      }
+      candidate.main.splice(mi, 1);
+    } else {
+      const chains = [];
+      if (d.pit && d.pit.kind === 'branch') chains.push({ list: d.pit.nodes, entry: d.pit.entry, exit: d.pit.exit });
+      if (d.shortcut) chains.push({ list: d.shortcut.nodes, entry: d.shortcut.entry, exit: d.shortcut.exit });
+      let done = false;
+      for (const ch of chains) {
+        const idx = ch.list.indexOf(uid);
+        if (idx < 0) continue;
+        const prev = idx === 0 ? ch.entry : ch.list[idx - 1];
+        const next = idx === ch.list.length - 1 ? ch.exit : ch.list[idx + 1];
+        const pn = d.nodes.find((x) => x.uid === prev);
+        const nn = d.nodes.find((x) => x.uid === next);
+        if (!axialAdjacent(pn, nn)) {
+          return { ok: false, issues: [issue('E_REMOVE_GEOMETRY', 'После удаления соседние тайлы не соприкасаются — сначала сдвиньте соседа.')] };
+        }
+        ch.list.splice(idx, 1);
+        done = true;
+        break;
+      }
+      if (!done) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    }
+    candidate.nodes = candidate.nodes.filter((x) => x.uid !== uid);
+    return this.commit(candidate, {});
+  };
+
+  TrackDraftSession.prototype.move = function (uid, q, r) {
+    const d = this.draft;
+    const node = d.nodes.find((x) => x.uid === uid);
+    if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    const lock = d.locks && d.locks.nodes[uid];
+    if (lock && lock.pos) return { ok: false, issues: [issue('E_LOCKED_POS', 'Позиция тайла закреплена.')] };
+    if (!isInt(q) || !isInt(r)) return { ok: false, issues: [issue('E_COORD', 'Неверная координата клетки.')] };
+    if (node.q === q && node.r === r) return { ok: true, issues: [], noop: true };
+    const at = d.nodes.find((x) => x.uid !== uid && x.q === q && x.r === r);
+    let displaced = null;
+    if (at) {
+      if ((d.decor || []).includes(at.uid)) displaced = at;
+      else return { ok: false, issues: [issue('E_MOVE_OCCUPIED', 'Клетка уже занята тайлом.')] };
+    }
+    const target = { q, r };
+    for (const neighborUid of connectedUids(d, uid)) {
+      const neighbor = d.nodes.find((x) => x.uid === neighborUid);
+      if (neighbor && !axialAdjacent(target, neighbor)) {
+        return { ok: false, issues: [issue('E_MOVE_ADJACENCY', 'Тайл должен остаться соседним со всеми соседями по дороге.')] };
+      }
+    }
+    const candidate = clone(d);
+    const cnode = candidate.nodes.find((x) => x.uid === uid);
+    if (displaced) {
+      candidate.nodes = candidate.nodes.filter((x) => x.uid !== displaced.uid);
+      candidate.decor = (candidate.decor || []).filter((x) => x !== displaced.uid);
+    }
+    cnode.q = q; cnode.r = r;
+    return this.commit(candidate, {
+      selectionUid: uid,
+      warnings: displaced ? [issue('W_DECOR_CLEARED', 'Декор в клетке вытеснен дорогой.')] : [],
+    });
+  };
+
+  TrackDraftSession.prototype.setLock = function (uid, flags) {
+    const d = this.draft;
+    if (!d.nodes.some((x) => x.uid === uid)) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    const candidate = clone(d);
+    candidate.locks = candidate.locks || { nodes: {}, features: {} };
+    candidate.locks.nodes[uid] = Object.assign({}, candidate.locks.nodes[uid], flags || {});
+    return this.commit(candidate, {});
+  };
+
+  TrackDraftSession.prototype.setFeatureLock = function (feature, locked) {
+    const candidate = clone(this.draft);
+    candidate.locks = candidate.locks || { nodes: {}, features: {} };
+    candidate.locks.features = candidate.locks.features || {};
+    candidate.locks.features[feature] = !!locked;
+    return this.commit(candidate, {});
+  };
+
+  TrackDraftSession.prototype.toSpec = function () { return toSpec(this.draft); };
+
+  TrackDraftSession.prototype.report = function () {
+    if (this.readOnly) {
+      return { ok: true, readOnly: true, issues: [], warnings: this.warnings || [], dirty: false };
+    }
+    const check = validateDraft(this.draft);
+    let stats = null;
+    if (check.ok) stats = statsFor(toSpec(this.draft));
+    return {
+      ok: check.ok,
+      readOnly: false,
+      issues: check.issues.filter((i) => String(i.code).startsWith('E_')),
+      warnings: check.warnings || [],
+      stats,
+      dirty: this.dirty,
+    };
+  };
+
+  function createSession(spec, opts) {
+    const res = fromSpec(spec, opts);
+    if (!res.ok) return res;
+    if (!res.draft && res.readOnly) {
+      return { ok: true, readOnly: true, reason: res.reason, issues: [], session: null };
+    }
+    return {
+      ok: true,
+      readOnly: !!res.readOnly,
+      reason: res.reason || null,
+      warnings: res.warnings || [],
+      session: new TrackDraftSession(res, opts),
+    };
+  }
+
   CnA.TrackEditor = {
     ARCHETYPES: CnA.TRACK_ARCHETYPES,
     STORE_KEY,
@@ -969,11 +1513,14 @@
     canonicalizeRepresentation,
     migrateKnownHorseshoe,
     validateStructural,
+    validateDraft,
     prepareSpec,
     fromSpec,
     toSpec,
     draftFromCanonical,
     detectReadOnly,
+    createSession,
+    TrackDraftSession,
     axialAdjacent,
     axialNeighbors,
     hexXY,
