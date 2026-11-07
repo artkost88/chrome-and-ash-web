@@ -1388,8 +1388,12 @@
       candidate.main.splice(mi, 1);
     } else {
       const chains = [];
-      if (d.pit && d.pit.kind === 'branch') chains.push({ list: d.pit.nodes, entry: d.pit.entry, exit: d.pit.exit });
-      if (d.shortcut) chains.push({ list: d.shortcut.nodes, entry: d.shortcut.entry, exit: d.shortcut.exit });
+      if (candidate.pit && candidate.pit.kind === 'branch') {
+        chains.push({ list: candidate.pit.nodes, entry: candidate.pit.entry, exit: candidate.pit.exit });
+      }
+      if (candidate.shortcut) {
+        chains.push({ list: candidate.shortcut.nodes, entry: candidate.shortcut.entry, exit: candidate.shortcut.exit });
+      }
       let done = false;
       for (const ch of chains) {
         const idx = ch.list.indexOf(uid);

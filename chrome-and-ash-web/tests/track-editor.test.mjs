@@ -928,6 +928,26 @@ test('B4: remove lock blocks deletion and is undoable', () => {
   assert.equal(s.apply({ op: 'remove', uid: bend }).ok, true);
 });
 
+test('B4: branch-node removal is atomic and keeps branch metadata consistent', () => {
+  const s = sessionFor(gen('horseshoe', 1));
+  const branch = s.draft.pit.nodes.slice();
+  assert.ok(branch.length >= 3);
+  const before = clone(s.draft);
+  const last = branch[branch.length - 1];
+  const ok = s.apply({ op: 'remove', uid: last });
+  assert.equal(ok.ok, true, JSON.stringify(ok.issues));
+  assert.equal(s.draft.pit.nodes.length, branch.length - 1);
+  assert.ok(!s.draft.pit.nodes.includes(last));
+  assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
+  s.undo();
+  assert.deepEqual(s.draft, before);
+  const middle = branch[branch.length - 2];
+  const rejected = s.apply({ op: 'remove', uid: middle });
+  assert.equal(rejected.ok, false);
+  assert.ok(rejected.issues.some((i) => i.code === 'E_REMOVE_GEOMETRY'));
+  assert.deepEqual(s.draft, before);
+});
+
 test('B4: structural validation gates store save/import', () => {
   const map = new Map();
   const store = E.createStore({
