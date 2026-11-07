@@ -56,12 +56,29 @@
 
 1. `deepClone` входа; исходник не мутируется.
 2. `CnA.validateTrackSpec(original)` — **валидируем оригинал** (dangling/duplicate refs, степени, ветки, start/CP/grid/pit/shortcut). Ошибка → отказ; `report(broken).ok === false` сохраняется.
-3. `migrateKnownHorseshoe(original)` — только точное топологическое/координатное совпадение (см. §4), типы/hazard/name/seed/бюджет игнорируются.
-4. `canonicalizeRepresentation(spec)` — renumber/reorder/rotate, не более; ссылки не теряются.
-5. `CnA.validateTrackSpec(canonical)` — повторно; успех → draft.
-6. `toSpec(draft)` — **единственное место**, где выводятся `next/prev` и производные поля.
+3. `canonicalizeRepresentation(spec)` — renumber/reorder/rotate, не более; ссылки не теряются.
+4. `migrateKnownHorseshoe(canonical)` — **rotation/order-invariant**: циклический поиск координатной последовательности `LEGACY_HORSESHOE_MAIN` (см. §4), типы/hazard/name/seed/бюджет игнорируются.
+5. `validateStructural(canonical)` — **строгая структурная проверка редактора** (см. §3.2), не полагается на Stage A для wrap/branch/type/grid-entry.
+6. `CnA.validateTrackSpec(canonical)` — повторно; успех → draft.
+7. `toSpec(draft)` — **единственное место**, где выводятся `next/prev` и производные поля.
 
-### 3.2. `toSpec(draft)` — поле за полем
+### 3.2. `validateStructural(spec)` — обязательный шаг
+
+Вызывается **после canonicalization** в `report`, `normalizeEnvelope`, `import`, `load` и `pre-save` (не только в edit-ops). Возвращает `{ok, issues:[{code,message,nodeId?}]}`; любая ошибка блокирует сохранение/загрузку/импорт.
+
+| Проверка | Код |
+|---|---|
+| shortcut/pit wraps start (`entry>=exit`, e.g. `entry=28→exit=2`) | `E_SHORTCUT_WRAP` / `E_PIT_WRAP` |
+| оба branch-объекта одновременно | `E_BRANCH_CONFLICT` |
+| неизвестный/недопустимый main type (`portal`) | `E_TYPE`; legacy `fork`-тип → read-only (§3.4) |
+| grid на pit entry / структурный branch-fork; exit разрешён только на normal-type `main[n−1]`/`main[n−2]` | `E_GRID_ENTRY` / `E_GRID` |
+| dangling refs | `E_REF` |
+| duplicate node ids / coords | `E_DUP_ID` / `E_DUPLICATE_COORD` |
+| bad degrees, branch connectivity | `E_DEGREE` / `E_BRANCH` |
+
+Тесты (все четыре конструкции): wrapped `28→2` → `E_SHORTCUT_WRAP`; pit+shortcut → `E_BRANCH_CONFLICT`; main type `portal` → `E_TYPE`; grid на pit-entry/fork → `E_GRID_ENTRY`; плюс dangling/dup/degree → соответствующие коды. `validateStructural` не мутирует спеку.
+
+### 3.3. `toSpec(draft)` — поле за полем
 
 | Поле | Значение |
 |---|---|
@@ -79,18 +96,18 @@
 
 Golden: `toSpec(fromSpec(generated))` deep-equal для `club`/`snake`; для `horseshoe` — deep-equal мигрированному эталону.
 
-### 3.3. Таблица решений
+### 3.4. Таблица решений
 
 | Вход | Решение |
 |---|---|
-| Валидный v1, неканонический порядок/ids/start не в `main[0]` | canonicalize → validate; если после поворота КП/ветка невалидны — read-only/reject по коду |
-| Валидная «подкова» с известным bump | migrate → canonicalize → validate; baseline=migrated, `W_MIGRATED` один раз |
+| Валидный v1, неканонический порядок/ids/start не в `main[0]` | canonicalize → validateStructural → validate; если после поворота КП/ветка невалидны — read-only/reject по коду |
+| Валидная «подкова» с известным bump (в т.ч. неканонический start/порядок) | canonicalize → rotation-invariant matcher → migrate → validateStructural → validate; baseline=migrated, `W_MIGRATED` один раз |
 | Валидный v1, но неизвестное несоседнее ребро / объектный decor / `fork` / иной layout | **read-only**: `originalSpec` сохраняется; export/test разрешены; save выключен; save-copy только |
-| Dangling refs, duplicate ids/coords, bad degrees/branch connectivity, оба branch-объекта, unknown road type, invalid start/CP/grid/pit/shortcut | **reject**: `E_REF/E_DUP_ID/E_DEGREE/E_BRANCH_CONFLICT/E_TYPE/E_IMPORT_*`; ничего не сохраняется |
+| Dangling refs, duplicate ids/coords, bad degrees/branch connectivity, оба branch-объекта, unknown road type, invalid start/CP/grid/pit/shortcut | **reject** через `validateStructural`: `E_REF/E_DUP_ID/E_DEGREE/E_BRANCH_CONFLICT/E_TYPE/E_GRID_ENTRY/E_IMPORT_*`; ничего не сохраняется |
 
-### 3.4. Контракт операции
+### 3.5. Контракт операции
 
-`CnA.TrackDraftSession.apply(op) → {ok, issues, selectionUid, requiresConfirm?}`: preflight без мутации → кандидат → `validateDraft` + `validateTrackSpec` → любая `E_*` откатывает операцию целиком (исходник/history не меняются); `W_*` не блокируют; успех — один снапшот. Кисть-протяжка — одна транзакция. `{force:true}` снимает **только** подтверждение замены/сброса, но не валидацию, не локи и не структурные инварианты.
+`CnA.TrackDraftSession.apply(op) → {ok, issues, selectionUid, requiresConfirm?}`: preflight без мутации → кандидат → `validateDraft` + `validateStructural` + `validateTrackSpec` → любая `E_*` откатывает операцию целиком (исходник/history не меняются); `W_*` не блокируют; успех — один снапшот. Кисть-протяжка — одна транзакция. `{force:true}` снимает **только** подтверждение замены/сброса, но не валидацию, не локи и не структурные инварианты.
 
 | Операция | Предусловия | Коды и сообщения отказа |
 |---|---|---|
@@ -101,14 +118,14 @@ Golden: `toSpec(fromSpec(generated))` deep-equal для `club`/`snake`; для `
 | `setStart(uid)` | main, не branch/декор; не hazard/ramp; не КП и не pit-тайл; не branch-entry/exit; новые grid-тайлы чистые; КП остаётся 25–65 %; **ветки не замыкаются через старт**; `type`-lock нового и старого старта | `E_START_ROLE`, `E_START_CP`, `E_START_ZONE`, `E_START_CP_RANGE`, `E_SHORTCUT_WRAP`, `E_PIT_WRAP`, `E_GRID`, `E_LOCKED_TYPE/FEATURE` |
 | `setCheckpoint(uid)` | main, не start/grid/branch-entry/exit; индекс 25–65 %; не hazard/ramp; `type`-lock нового/старого КП | `E_CHECKPOINT_ROLE/RANGE/ZONE/GRID`, `E_LOCKED_TYPE/FEATURE` |
 | `setPitTile(uid)` | main, не start/CP/grid/branch-endpoint; заменяет старый пит после confirm; `type`-lock | `E_PIT_ROLE`, `E_PIT_CONFLICT`, `E_LOCKED_TYPE/FEATURE` |
-| `setPitBranch(entry,exit)` | оба main, разные, не start/CP/grid/чужие концы; **entry<exit**; forward `exit−entry` = 2–5; авто-маршрут ≥2 узлов и длиннее main-сегмента; не обходит КП; нет hazard | `E_PIT_WRAP`, `E_PIT_DISTANCE`, `E_PIT_LENGTH`, `E_PIT_CP_BYPASS`, `E_PIT_NO_PATH`, `E_PIT_CONFLICT`, `E_LOCKED_FEATURE` |
+| `setPitBranch(entry,exit)` | оба main, разные; entry не start/CP/grid/чужой конец; exit не start/CP/чужой конец, **exit на grid разрешён, если это normal-type `main[n−1]`/`main[n−2]`**; entry/fork на grid запрещены; **entry<exit**; forward `exit−entry` = 2–5; авто-маршрут ≥2 узлов и длиннее main-сегмента; не обходит КП; нет hazard | `E_PIT_WRAP`, `E_PIT_DISTANCE`, `E_PIT_LENGTH`, `E_PIT_CP_BYPASS`, `E_PIT_NO_PATH`, `E_PIT_CONFLICT`, `E_GRID_ENTRY`, `E_LOCKED_FEATURE` |
 | `setShortcut(entry,exit)` | оба main, разные, не start/CP/grid/чужие концы; **entry<exit**; entry>3, exit<len−3; forward `exit−entry−(nodes+1)` = 1–2; ≥1 узел и ≥1 hazard; нет пит-ветки | `E_SHORTCUT_WRAP`, `E_SHORTCUT_SAVING`, `E_SHORTCUT_NEAR_START`, `E_SHORTCUT_RISK`, `E_SHORTCUT_NO_PATH`, `E_SHORTCUT_CONFLICT`, `E_LOCKED_FEATURE` |
 | `clearPit/clearShortcut()` | feature-lock снят; узлы ветки удаляются, pit-тайл → `straight`; `type`-lock пит-тайла | `E_LOCKED_FEATURE/TYPE` |
 | `setLock(uid,flags)` | всегда; undo-шаг, но не dirty и не экспортируется | — |
 | `undo()` / `redo()` | стек не пуст | `E_UNDO_EMPTY` «Нечего отменять.»; `E_REDO_EMPTY` «Нечего повторять.» |
 | `reset()` | подтверждение; возвращает draft из `source.sourceSpec` (сгенерированный) или baseline сохранённой трассы, чистит history | — |
 
-**P0-1 (замыкание старта).** Канонические индексы main: `entry<exit` обязательно; дистанции — только forward `exit−entry` (без modulo). `entry=n−1→exit=4` и `28→2` отклоняются `E_SHORTCUT_WRAP`/`E_PIT_WRAP` «Ветка замыкается через старт/финиш.» `setStart` пересобирает кандидат и перепроверяет оба кода на **всех** поворотах; если поворот делает ветку обёрточной — старт не переносится. **CP-bypass:** срез может обходить КП (так у v1-«змеи») — разрешено с `W_SHORTCUT_CP_BYPASS` «Срез обходит КП: круг не засчитается без возврата»; пит обходить КП **запрещено** (`E_PIT_CP_BYPASS`), т.к. пит не срез. Тесты: `n−1→4`, `28→2`, все стартовые ротации.
+**P0-1 (замыкание старта).** Канонические индексы main: `entry<exit` обязательно; дистанции — только forward `exit−entry` (без modulo). `entry=n−1→exit=4` и `28→2` отклоняются `E_SHORTCUT_WRAP`/`E_PIT_WRAP` «Ветка замыкается через старт/финиш.» `setStart` пересобирает кандидат и перепроверяет оба кода на **всех** поворотах; если поворот делает ветку обёрточной — старт не переносится. **CP-bypass:** движок не требует КП для финиша (`finishCar`/пересечение старта), поэтому срез может обходить КП; точный warning — `W_SHORTCUT_CP_BYPASS` «КП пропущен; движок не требует КП для финиша». Пит обходить КП **запрещено** (`E_PIT_CP_BYPASS`) как правило дизайна (пит не срез), без ссылки на несуществующий штраф за круг. **Pit grid exit:** после `clearPit()` v1-подковы `setPitBranch(entry=main[33], exit=main[35])` должен успешно восстановить пит: exit — grid-тайл normal-type (`main[n−1]`), entry — нет; entry/fork на grid отклоняются `E_GRID_ENTRY`. Тесты: `n−1→4`, `28→2`, все стартовые ротации, clear/re-add пит 33→35.
 
 **P1 (locks/pit UI).** Type-changing операции (`paint`, `setStart`, `setCheckpoint`, `setPitTile`, `clearPit`) проверяют `type`-lock и нового, и старого feature-узла; move/remove — `pos`/`remove`; создать/заменить ветку — `feature`. Пит-тайл и пит-ветка — **две отдельные кнопки палитры** `ПИТ-ТАЙЛ` (один клик по main) и `ПИТ-ВЕТКА` (entry→exit); статус-строка ведёт шаг, `Esc` отменяет, старый пит заменяется после confirm.
 
@@ -120,7 +137,7 @@ Golden: `toSpec(fromSpec(generated))` deep-equal для `club`/`snake`; для `
 
 ## 4. Геометрия, инварианты, валидаторы
 
-`validateTrackSpec` остаётся авторитетом для runtime; `validateDraft` — строже и вызывается вместе с ним на каждом коммите. Если `toSpec` не проходит `validateTrackSpec`, операция невозможна.
+`CnA.validateTrackSpec` остаётся авторитетом для runtime; `validateStructural` (§3.2) — строгий контракт редактора, вызываемый на report/import/load/save и на каждом коммите; `validateDraft` дополнительно проверяет draft-инварианты. Если `toSpec` не проходит любой из них, операция/сохранение невозможны.
 
 | Инвариант | Правило | Где |
 |---|---|---|
@@ -129,17 +146,17 @@ Golden: `toSpec(fromSpec(generated))` deep-equal для `club`/`snake`; для `
 | Нет пересечений | сегменты не пересекаются, кроме общих концов; на гекс-сетке следует из смежности, проверка defensive | `E_CROSSING` |
 | Замкнутый цикл | `main[i].next` содержит `main[i+1]`, последний → первый; длина 24–36; `spec.size === main.length` | `E_LOOP`, `E_LENGTH`, `E_SIZE` |
 | Старт | ровно один `type:'start'`, на main, `main[0]===startNode`; старый старт погашен | `E_START_COUNT`, `E_START_INDEX` |
-| Сетка 2×2 | ровно `[main[n−1],main[n−1],main[n−2],main[n−2]]`; оба уникальных — main road **normal type** (`straight`/`turn`); запрещены hazard/ramp/pit-тайл/decor/CP/fork; **branch exit разрешён**, entry/fork запрещены; пересчёт на setStart/insert/remove/setPitBranch | `E_GRID` |
+| Сетка 2×2 | ровно `[main[n−1],main[n−1],main[n−2],main[n−2]]`; оба уникальных — main road **normal type** (`straight`/`turn`); запрещены hazard/ramp/pit-тайл/decor/CP/fork; **branch exit разрешён только на normal-type `main[n−1]`/`main[n−2]`**, entry/fork запрещены (`E_GRID_ENTRY`); пересчёт на setStart/insert/remove/setPitBranch | `E_GRID`, `E_GRID_ENTRY` |
 | КП | ровно один не-стартовый, main, 25–65 %, `type:'checkpoint'`, не hazard/ramp/grid; `checkpoints=[start,cp]` | `E_CHECKPOINT` |
 | Степени | main 1-вход/1-выход, кроме entry (2 выхода) и exit (2 входа); ветка 1/1; декора 0/0; `prev` — точная инверсия `next`, без дублей | `E_DEGREE` |
 | Достижимость | все дорожные узлы достижимы из старта; каждая ветка от entry доходит до объявленного exit; нет висячих ссылок и циклов ветки | `E_REACHABILITY`, `E_BRANCH` |
 | Опасности | ≤2 подряд с учётом замыкания; не на start/grid/CP/пите; ramp не на start/grid/CP; срез имеет ≥1 hazard | `E_HAZARD_RUN`, `E_HAZARD_ZONE`, `E_RAMP_ZONE`, `E_SHORTCUT` |
 | Пит | tile XOR branch; branch: entry<exit, forward 2–5, узлов ≥2, длиннее main-сегмента, **не обходит КП** | `E_PIT`, `E_PIT_WRAP`, `E_PIT_CP_BYPASS` |
-| Срез | entry<exit, forward-экономия 1–2, entry>3, exit<len−3, узлов ≥1, hazard ≥1; CP-bypass — только warning | `E_SHORTCUT`, `E_SHORTCUT_WRAP`, `W_SHORTCUT_CP_BYPASS` |
+| Срез | entry<exit, forward-экономия 1–2, entry>3, exit<len−3, узлов ≥1, hazard ≥1; CP-bypass — warning «КП пропущен; движок не требует КП для финиша» | `E_SHORTCUT`, `E_SHORTCUT_WRAP`, `W_SHORTCUT_CP_BYPASS` |
 | Декор | без рёбер, `road:false`, только `building`/`ruin`, не в main/пите/срезе | `E_DECOR` |
 | Хвост v1 | `nodes[i].id===i`, канонический порядок, все ссылки разрешены | `E_IDS`, `E_REF` |
 
-**Миграция (P0-4).** Конвейер: `fromSpec → migrateKnownHorseshoe → canonicalizeRepresentation → validate` (порядок §3.1). Матчер «подковы» — **только топология/координаты** main: 36 узлов, `layout:'axial'`, `main[4]=[8,−1]`, `main[5]=[9,−1]`, `main[6]=[10,0]`, остальная последовательность равна `LEGACY_HORSESHOE_MAIN`; типы, hazard, имя, seed, бюджет игнорируются. Совпадение → `main[4]=[8,0]`, `main[5]=[9,0]`, `source.migrated=['horseshoe-bump-v1']`, `W_MIGRATED_GEOMETRY` один раз; `baseline` = мигрированная спека (`dirty:false`), `reset` возвращает её, `unsavedNew` отдельно охраняет выход. `club`/`snake` — строгая identity (`toSpec(fromSpec(x))` deep-equal x). Несовпадение с известным шаблоном при несоседнем ребре → **read-only** с сохранённым `originalSpec`; правки запрещены, export/test разрешены, save выключен, save-copy только. `track-gen.js` не меняется. Тесты: 100 сидов × бюджеты `[0,0]`, `[2,2]`, `[5,5]`, `[6,6]` (для `[6,6]` допустим явный `W_HAZARD_BUDGET`, но не исключение); миграция один раз; reset в мигрированный baseline.
+**Миграция (P0-4, ред. 3).** Конвейер: `fromSpec → validateTrackSpec(original) → canonicalizeRepresentation → migrateKnownHorseshoe → validateStructural → validateTrackSpec` (порядок §3.1). Canonicalization выполняется **до** matcher; matcher **rotation/order-invariant**: циклически ищет 36-координатную последовательность `LEGACY_HORSESHOE_MAIN` (координаты `[8,−1]`,`[9,−1]`,`[10,0]` подряд в этом порядке), поэтому неканонический `startNode`/порядок тоже распознаётся. Найденный offset задаёт три узла: два средних → `[8,0]`/`[9,0]`, третий остаётся `[10,0]`; типы, hazard, имя, seed, бюджет игнорируются. Совпадение → `source.migrated=['horseshoe-bump-v1']`, `W_MIGRATED_GEOMETRY` один раз; `baseline` = мигрированная спека (`dirty:false`), `reset` возвращает её, `unsavedNew` отдельно охраняет выход. `club`/`snake` — строгая identity (`toSpec(fromSpec(x))` deep-equal x). Несовпадение при несоседнем ребре → **read-only** с сохранённым `originalSpec`; правки запрещены, export/test разрешены, save выключен, save-copy только. `track-gen.js` не меняется. Тесты: 100 сидов × бюджеты `[0,0]`, `[2,2]`, `[5,5]`, `[6,6]`; отдельно — та же подкова с неканоническим `startNode` и повёрнутым `main`; миграция один раз; reset в мигрированный baseline.
 
 **Бюджет hazard (P1).** `maxPaintHazards` — DP по циклу main с состояниями `run∈{0,1,2}` (защищённые зоны = 0), точный максимум при правиле ≤2 подряд. `maxGeneratedHazards` — тот же DP с `run≤1` по кандидатам straight/turn (генератор не ставит hazard рядом). DP проверяется brute-force для n=6..12 и случайных защищённых масок. `E.generate` возвращает `budget:{requestedMin,requestedMax,actual,achievable,ok}`; при `actual<requestedMin` — `W_HAZARD_BUDGET` «Запрошено минимум N, размещено M; максимум — K», `max` слайдера = achievable; молчаливого недобора нет.
 
@@ -180,7 +197,7 @@ main: 300px │ 1fr                                            │ 340px
 
 - `TrackSpec` остаётся `schemaVersion:1`; новых обязательных полей нет. `size`, `grid`, `startNode`, `checkpoints`, `pit`, `shortcut`, `next/prev`, `decor` пересчитываются из draft; `archetype` сохраняется как «происхождение» (для UI/`startCustomTrack`), `layout:'axial'`, `hexSize`, `levels:1`, `theme:'dust'`.
 - Ключ `cna.customTracks.v1`, `STORE_VERSION=1`, `MAX_TRACKS=40`, лимит импорта 100 КБ, форма `{kind:'cna-track',version:1,track:{id,name,createdAt,updatedAt,spec}}` — без изменений. Draft/UID/locks/history/selection **не** сохраняются и не экспортируются.
-- `CnA.TrackEditor.report`/`normalizeEnvelope` сначала валидируют оригинал, затем `canonicalizeRepresentation` (без починки/удаления ссылок), затем валидируют результат; импорт с bad refs отклоняется `E_IMPORT_REF`. Сломанная спека не «чинится» и остаётся `ok:false`.
+- **Единый pipeline:** `report`, `normalizeEnvelope`, `import`, `load`, `pre-save` вызывают `validateTrackSpec(original) → canonicalizeRepresentation → migrateKnownHorseshoe (cyclic) → validateStructural → validateTrackSpec`. `validateStructural` — обязательный шаг **после** canonicalization, не только для edit-ops; именно он (а не Stage A) отклоняет wrapped-ветки, оба branch-объекта, unknown main type, grid на pit-entry/fork, dangling/dup/degrees. Сломанная спека не «чинится» и остаётся `ok:false`.
 - **Read-only policy:** неизвестная/несовместимая геометрия сохраняет `originalSpec`; редактирование и `СОХРАНИТЬ` выключены, `ЭКСПОРТ` и `ТЕСТ-ДРАЙВ` идут по оригиналу, доступна только `СОХРАНИТЬ КОПИЕЙ` (новый конверт с исходной спекой, при повторном открытии снова read-only). `reset`/undo в read-only недоступны.
 - Миграция: `baseline` = мигрированная спека, `dirty:false`, `reset` возвращает её, `W_MIGRATED` один раз; `unsavedNew` охраняет выход отдельно. `originalSpec` нужен только для read-only/диагностики и не попадает в конверт.
 - `previewSvg` после патча: `esc(String(n.id))` в `data-node`; редактор дополнительно экранирует все атрибуты. Импорт не может внедрить HTML/JS через id/type/name/aria-label.
@@ -190,7 +207,7 @@ main: 300px │ 1fr                                            │ 340px
 
 ## 7. Тесты
 
-- **Unit (`node --test chrome-and-ash-web/tests`):** validate-first/canonicalize на 100×3 (dense id, refs, идемпотентность, immutable input, `report(broken).ok===false`, dangling не удаляются); `toSpec` golden field-by-field §3.2 для club/snake и мигрированной подковы; миграция 100 сидов × `[0,0]/[2,2]/[5,5]/[6,6]`, matcher игнорирует типы/hazard/name/seed/бюджет; start/grid/КП; **wrap `n−1→4`, `28→2`, все стартовые ротации**; grid `grid[0]=pit.exit`; locks type-changing; **budget DP vs brute-force n=6..12**; undo/redo/selection/focus; dirty/rollback; save/overwrite/copy; import collision; read-only policy; XSS-payload в id/type/name и `showToast`.
+- **Unit (`node --test chrome-and-ash-web/tests`):** validate-first/canonicalize на 100×3 (dense id, refs, идемпотентность, immutable input, `report(broken).ok===false`, dangling не удаляются); **`validateStructural` на report/import/load/save**: wrapped `28→2`, оба branch-объекта, main type `portal`, grid на pit-entry/fork, dangling/dup/degrees → точные коды; `toSpec` golden field-by-field §3.3 для club/snake и мигрированной подковы; миграция 100 сидов × `[0,0]/[2,2]/[5,5]/[6,6]` + **неканонический start/порядок подковы**; clearPit→setPitBranch(33→35) для v1-подковы; start/grid/КП; **wrap `n−1→4`, `28→2`, все стартовые ротации**; grid `grid[0]=pit.exit`; locks type-changing; **budget DP vs brute-force n=6..12**; undo/redo/selection/focus; dirty/rollback; save/overwrite/copy; import collision; read-only policy; XSS-payload в id/type/name и `showToast`; CP-bypass warning не обещает штраф за круг.
 - **Property/invariant:** 500 детерминированных случайных операций над draft — каждая принятая даёт `validateDraft`+`validateTrackSpec` ok, каждая отклонённая оставляет draft deep-equal; undo всех операций возвращает исходник; нет дублей/несоседних рёбер/висячих ссылок; все id dense; `nodes[i].id===i`.
 - **Browser E2E (`.deploy/qa-manual-editor.mjs`, CDP как `qa-e2e.mjs`):** generate → paint (3-я hazard отклонена) → insert/move/undo/redo → start/КП → pit/shortcut → save/reload → export/import → test-drive; invalid edits blocked; unsaved confirm; keyboard; XSS payload; 5 viewport-скриншотов без overflow; daily/PvP/free-race smoke.
 - **Regression:** существующие `track-editor.test.mjs`, `track.test.mjs`, `balance.test.mjs`, `chrome-and-ash-web/verify.mjs`; 300 сидов free race; сохранённые v1-трассы открываются.
@@ -243,9 +260,21 @@ main: 300px │ 1fr                                            │ 340px
 
 | P0 | Точное решение | Тест/критерий |
 |---|---|---|
-| P0-1 wrap/CP | `entry<exit` в канонических индексах; forward-дистанции `exit−entry` без modulo; `E_SHORTCUT_WRAP/E_PIT_WRAP`; `setStart` перепроверяет все повороты; срез может обходить КП (`W_SHORTCUT_CP_BYPASS`), пит — нет (`E_PIT_CP_BYPASS`) | `n−1→4`, `28→2`, все ротации |
-| P0-2 canonicalize | `validateTrackSpec(original)` → migrate → `canonicalizeRepresentation` (renumber/reorder/rotate only, без repair/drop) → validate; input immutable; broken `report` false; dangling → `E_REF` | broken/dangling/immutability |
-| P0-3 toSpec | field-by-field §3.2: x/y из q/r+hexSize; `checkpoint` только КП; `pitLane` только pit-тайл/ветка; `inner` только shortcut; `road:false` decor; `level:0`; `size`; dense `main/nodes/startNode=0/checkpoints=[0,cp]/grid`; remap pit/shortcut/decor; `label/shortcut.type` | golden deep-equal |
-| P0-4 migration | topology/coords-only matcher, ignores types/hazard/name/seed/budget; identity только club/snake; baseline=migrated, dirty:false, reset migrated, `W_MIGRATED` once; non-match read-only с `originalSpec`; 100×4 бюджета | миграция/read-only |
-| P0-5 grid | ровно `[last,last,prev,prev]`; оба main road normal type; hazard/ramp/pit/decor/CP/fork запрещены; branch exit разрешён, entry/fork запрещены; revalidate на setStart/insert/remove/setPitBranch | v1 horseshoe `grid[0]=pit.exit` |
+| P0-1 wrap/CP | `entry<exit` в канонических индексах; forward-дистанции `exit−entry` без modulo; `E_SHORTCUT_WRAP/E_PIT_WRAP`; `setStart` перепроверяет все повороты; срез может обходить КП (`W_SHORTCUT_CP_BYPASS` «КП пропущен; движок не требует КП для финиша»), пит — нет (`E_PIT_CP_BYPASS`) | `n−1→4`, `28→2`, все ротации |
+| P0-2 canonicalize | `validateTrackSpec(original)` → `canonicalizeRepresentation` (renumber/reorder/rotate only, без repair/drop) → migrate → validateStructural → validate; input immutable; broken `report` false; dangling → `E_REF` | broken/dangling/immutability |
+| P0-3 toSpec | field-by-field §3.3: x/y из q/r+hexSize; `checkpoint` только КП; `pitLane` только pit-тайл/ветка; `inner` только shortcut; `road:false` decor; `level:0`; `size`; dense `main/nodes/startNode=0/checkpoints=[0,cp]/grid`; remap pit/shortcut/decor; `label/shortcut.type` | golden deep-equal |
+| P0-4 migration | canonicalize → rotation-invariant cyclic matcher → migrate → validateStructural; ignores types/hazard/name/seed/budget; identity только club/snake; baseline=migrated, dirty:false, reset migrated, `W_MIGRATED` once; non-match read-only с `originalSpec`; 100×4 бюджета + неканонический start/order | миграция/read-only |
+| P0-5 grid | ровно `[last,last,prev,prev]`; оба main road normal type; hazard/ramp/pit/decor/CP/fork запрещены; **branch exit разрешён только на normal-type `main[n−1]`/`main[n−2]`**, entry/fork запрещены (`E_GRID_ENTRY`); revalidate на setStart/insert/remove/setPitBranch | v1 horseshoe `grid[0]=pit.exit` |
 | P0-6 decisions | canonicalize / migrate / read-only (export/test + save-copy) / reject; оба branch-объекта reject; dangling/dupes/degrees/branches/unknown type/invalid features reject; read-only не теряет оригинал | по одному тесту на класс |
+
+---
+
+## 11. Второе ревью (task-8): точные исправления
+
+| № | Исправление | Проверка |
+|---|---|---|
+| 1 | `setPitBranch`: **exit на grid разрешён**, если это normal-type `main[n−1]`/`main[n−2]`; entry/fork на grid запрещены (`E_GRID_ENTRY`). Clear/re-add v1-подковы: `clearPit()` → `setPitBranch(entry=main[33], exit=main[35])` успешен, exit — grid normal-type. | тест 33→35 |
+| 2 | Добавлен `validateStructural(spec)`: обязательный шаг **после canonicalization** в `report`/`normalizeEnvelope`/`import`/`load`/`pre-save`, не только в edit-ops. Коды: wrapped `28→2` → `E_SHORTCUT_WRAP`; pit+shortcut → `E_BRANCH_CONFLICT`; main type `portal` → `E_TYPE` (legacy `fork` → read-only); grid на pit-entry/структурный fork → `E_GRID_ENTRY`; dangling/dup/degrees → `E_REF`/`E_DUP_ID`/`E_DEGREE`. Stage A для этих четырёх конструкций не используется. | 4 конструкта + refs |
+| 3 | CP-bypass приведён к неизменному движку: `finishCar`/пересечение старта **не требует КП**; ложное «круг не засчитается» удалено; warning `W_SHORTCUT_CP_BYPASS` = «КП пропущен; движок не требует КП для финиша»; пит-bypass остаётся запрещён как правило дизайна (`E_PIT_CP_BYPASS`), без ссылки на штраф. | текст + engine-факт |
+| 4 | Порядок миграции: `validate original → canonicalizeRepresentation → migrateKnownHorseshoe`; matcher **rotation/order-invariant** (циклический поиск `LEGACY_HORSESHOE_MAIN`), поэтому неканонический `startNode`/порядок распознаётся. | подкова с неканон. start/order |
+
