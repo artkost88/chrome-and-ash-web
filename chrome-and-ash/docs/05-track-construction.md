@@ -102,15 +102,16 @@ generateTrackSpec(seed, { archetype, size })
 - Board: `track-gen.js` подключён до `track.js`; `#opt-track` даёт подкову/кольцо/змею.
 - Конструктор v1: `track-editor.js` + `track-editor-ui.js`; localStorage `cna.customTracks.v1`, JSON-экспорт/импорт; тест-драйв через `trackSpec`.
 
-## 7. Конструктор трасс v1
+## 7. Конструктор трасс
 
 - Вход: гараж → «КОНСТРУКТОР ТРАСС».
-- Параметры v1: архетип, seed, бюджет опасностей, имя.
-- Геометрия, длина, пит и срез фиксируются архетипом; ручная правка — этап B.
-- Хранение: localStorage `cna.customTracks.v1`, максимум 40, импорт JSON ≤100 КБ.
+- v1: архетип, seed, бюджет опасностей, имя, сохранение/экспорт/тест-драйв.
+- v2 / Stage B: ручная правка `TrackDraft` — вставка/удаление/сдвиг тайлов, кисть, старт/КП, пит-тайл/ветка, срез, undo/redo, локи, read-only для несовместимой геометрии.
+- Спецификация Stage B: `docs/07-track-manual-editor-design.md`.
+- Хранение: localStorage `cna.customTracks.v1`, максимум 40, импорт JSON ≤100 КБ; `TrackSpec schemaVersion` не меняется.
 - Экспорт: `{kind:"cna-track", version:1, track:{...}}`.
 - Тест-драйв: `createGame({trackSpec, trackName, trackArchetype:"custom"})`.
-- Серверная библиотека и share-ссылки не входят в v1.
+- Серверная библиотека и share-ссылки — Stage C, не входят в B.
 
 ## 8. Приёмка
 
