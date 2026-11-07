@@ -1534,6 +1534,17 @@ test('B4-fix: read-only save/export preserve the original spec', () => {
   assert.deepEqual(parsed2.track.spec.decor.filter((d) => typeof d === 'object'), objDecor.decor.filter((d) => typeof d === 'object'));
 });
 
+test('B4-fix: setStart hazard precedence reports E_START_ZONE even on a branch', () => {
+  const s = sessionFor(gen('snake', 2));
+  const hazard = s.draft.nodes.find((n) => ['sand', 'debris', 'event'].includes(n.type));
+  assert.ok(hazard);
+  const before = clone(s.draft);
+  const r = s.apply({ op: 'setStart', uid: hazard.uid });
+  assert.equal(r.ok, false);
+  assert.ok(r.issues.some((i) => i.code === 'E_START_ZONE'), JSON.stringify(r.issues));
+  assert.deepEqual(s.draft, before);
+});
+
 test('B4-fix: hazard capacity is capped at 6 across all archetypes', () => {
   assert.equal(TD.MAX_HAZARDS, 6);
   for (const archetype of ['club', 'horseshoe', 'snake']) {
