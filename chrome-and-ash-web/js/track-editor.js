@@ -1333,6 +1333,7 @@
     if (this.readOnly) return { ok: false, issues: [issue('E_READONLY', 'Трасса только для чтения.')] };
     switch (op.op) {
       case 'paint': return this.paint(op.uid, op.type);
+      case 'paintStroke': return this.paintStroke(op.changes);
       case 'insertBetween': return this.insertBetween(op.from, op.to);
       case 'remove': return this.remove(op.uid);
       case 'move': return this.move(op.uid, op.q, op.r);
@@ -1415,6 +1416,43 @@
     const candidate = clone(this.draft);
     candidate.nodes.find((x) => x.uid === uid).type = type;
     return this.commit(candidate, { selectionUid: uid, warnings: paintWarnings });
+  };
+
+  TrackDraftSession.prototype.paintStroke = function (changes) {
+    if (!Array.isArray(changes) || !changes.length) return { ok: false, issues: [issue('E_OP', 'Пустая кисть.')] };
+    const candidate = clone(this.draft);
+    const warnings = [];
+    const hardIds = new Set([...(candidate.grid || [])]);
+    zoneBufferUids(candidate.main, candidate.startUid, [], 3, 0).forEach((id) => hardIds.add(id));
+    const cpZone = zoneBufferUids(candidate.main, candidate.startUid, [candidate.checkpointUid], 0, 2);
+    for (const change of changes) {
+      const node = candidate.nodes.find((x) => x.uid === change.uid);
+      if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+      if (!PAINT_TYPES.includes(change.type)) return { ok: false, issues: [issue('E_TILE_ROLE', 'Этот тип недоступен кисти.')] };
+      if (nodeLock(candidate, change.uid, 'type')) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+      if (change.uid === candidate.startUid || change.uid === candidate.checkpointUid ||
+        (candidate.pit && candidate.pit.kind === 'tile' && candidate.pit.tile === change.uid) ||
+        (candidate.pit && candidate.pit.kind === 'branch' && candidate.pit.nodes.includes(change.uid)) ||
+        (candidate.decor || []).includes(change.uid)) {
+        return { ok: false, issues: [issue('E_PAINT_FEATURE', 'Этот тайл меняется инструментами.')] };
+      }
+      if ((isHazardType(change.type) || change.type === 'ramp') && hardIds.has(change.uid)) {
+        return { ok: false, issues: [issue(isHazardType(change.type) ? 'E_HAZARD_ZONE' : 'E_RAMP_ZONE',
+          isHazardType(change.type) ? 'Опасность нельзя ставить на старт или решётку.' : 'Трамплин нельзя ставить на старт или решётку.')] };
+      }
+      if ((isHazardType(change.type) || change.type === 'ramp') && cpZone.has(change.uid)) {
+        warnings.push(issue('W_CP_BUFFER', 'Опасность/трамплин в буфере КП ±2 (предупреждение; допускается).', change.uid));
+      }
+      node.type = change.type;
+    }
+    const hazards = candidate.main.filter((uid) => {
+      const node = candidate.nodes.find((x) => x.uid === uid);
+      return node && isHazardType(node.type);
+    }).length;
+    if (hazards > MAX_HAZARDS) return { ok: false, issues: [issue('E_HAZARD_MAX', 'Нельзя ставить больше ' + MAX_HAZARDS + ' опасностей на круг.')] };
+    const check = validateDraft(candidate);
+    if (hasError(check.issues)) return { ok: false, issues: check.issues };
+    return this.commit(candidate, { selectionUid: changes[changes.length - 1].uid, warnings });
   };
 
   TrackDraftSession.prototype.insertBetween = function (from, to) {
@@ -1661,11 +1699,14 @@
       return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Старт или решётка заблокированы.')] };
     }
     const n = d.main.length;
+    if (isHazardType(node.type) || node.type === 'ramp') {
+      return { ok: false, issues: [issue('E_START_ZONE', 'Старт нельзя ставить на опасность/трамплин.')] };
+    }
     if (!d.main.includes(uid)) return { ok: false, issues: [issue('E_START_ROLE', 'Старт ставится только на основной круг.')] };
     if (uid === d.checkpointUid) return { ok: false, issues: [issue('E_START_CP', 'Старт не может стоять на КП.')] };
     if (branchEndpointUids(d).has(uid)) return { ok: false, issues: [issue('E_START_ROLE', 'Старт не может стоять на конце ветки/пите.')] };
-    if (isHazardType(node.type) || node.type === 'ramp' || node.type === 'pit') {
-      return { ok: false, issues: [issue('E_START_ZONE', 'Старт нельзя ставить на опасность/трамплин/пит.')] };
+    if (node.type === 'pit') {
+      return { ok: false, issues: [issue('E_START_ZONE', 'Старт нельзя ставить на пит.')] };
     }
     const locks = d.locks && d.locks.nodes;
     if ((locks[d.startUid] && locks[d.startUid].type) || (locks[uid] && locks[uid].type)) {
@@ -2139,9 +2180,11 @@
     const pitNodes = draft.pit && draft.pit.kind === 'branch' ? draft.pit.nodes : [];
     const scNodes = draft.shortcut ? draft.shortcut.nodes : [];
     const edges = [];
+    const edgePairs = [];
     const line = (a, b, cls) => {
       const pa = pos.get(a), pb = pos.get(b);
       if (!pa || !pb) return;
+      edgePairs.push({ a, b, pa, pb, cls });
       edges.push('<line class="ed-edge' + (cls ? ' ' + cls : '') + '" x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) +
         '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '"/>');
     };
@@ -2171,7 +2214,7 @@
         (isCp ? ' cp' : '') + (isPit ? ' pit' : '') + (isShortcut ? ' sc' : '');
       const aria = 'Тайл: ' + (tile.label || n.type) + (role ? ', ' + role : '') + ', ' + n.q + ',' + n.r;
       return '<g class="' + cls + '" data-uid="' + esc(String(n.uid)) + '" data-type="' + esc(n.type) + '"' +
-        ' role="button" tabindex="-1" aria-label="' + esc(aria) + '" transform="translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')">' +
+        ' role="button" tabindex="' + (selected ? '0' : '-1') + '" aria-label="' + esc(aria) + '" transform="translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')">' +
         '<polygon points="' + hexPoints(0, 0, hexSize) + '" fill="' + tile.fill + '"/>' +
         (selected ? '<polygon class="ed-ring" points="' + hexPoints(0, 0, hexSize + 2) + '"/>' : '') +
         (role ? '<text class="ed-role" y="' + (-hexSize * 0.35).toFixed(1) + '">' + esc(role) + '</text>' : '') +
@@ -2179,11 +2222,20 @@
         '</g>';
     }).join('');
 
+    const handles = scale >= 0.8 ? edgePairs.map((e, i) => {
+      const mx = (e.pa.x + e.pb.x) / 2;
+      const my = (e.pa.y + e.pb.y) / 2;
+      return '<g class="ed-insert" data-insert-from="' + esc(String(e.a)) + '" data-insert-to="' + esc(String(e.b)) +
+        '" data-edge="' + i + '" transform="translate(' + mx.toFixed(1) + ',' + my.toFixed(1) + ')" role="button" tabindex="-1" aria-label="Вставить тайл">' +
+        '<circle r="8"/><line x1="-3" y1="0" x2="3" y2="0"/><line x1="0" y1="-3" x2="0" y2="3"/></g>';
+    }).join('') : '';
     const transform = 'translate(' + tx.toFixed(2) + ',' + ty.toFixed(2) + ') scale(' + scale.toFixed(3) + ')';
     return '<svg id="constructor-canvas-svg" class="editor-svg" role="group" aria-label="Полотно редактора трассы" ' +
       'viewBox="0 0 ' + (view.width || 900) + ' ' + (view.height || 600) + '" preserveAspectRatio="xMidYMid meet">' +
-      '<g class="ed-world" transform="' + transform + '"><g class="ed-edges">' + edges.join('') + '</g>' +
-      '<g class="ed-tiles">' + tiles + '</g></g></svg>';
+      '<g class="ed-world" transform="' + transform + '">' +
+      '<g class="ed-tiles">' + tiles + '</g>' +
+      '<g class="ed-edges" pointer-events="none">' + edges.join('') + '</g>' +
+      '<g class="ed-handles">' + handles + '</g></g></svg>';
   }
 
   CnA.TrackEditor = {

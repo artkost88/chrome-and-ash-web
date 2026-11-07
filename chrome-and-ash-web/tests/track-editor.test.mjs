@@ -411,6 +411,47 @@ test('B2: paint rejects the third consecutive hazard atomically', () => {
   assert.equal(s.past.length, past);
 });
 
+test('B2: paintStroke is one atomic history transaction', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const clean = new Set(paintable(s));
+  let start = -1;
+  for (let i = 0; i < s.draft.main.length; i++) {
+    if (clean.has(s.draft.main[i]) && clean.has(s.draft.main[(i + 1) % s.draft.main.length]) &&
+      clean.has(s.draft.main[(i + 2) % s.draft.main.length])) { start = i; break; }
+  }
+  assert.ok(start >= 0);
+  const ids = [0, 1].map((k) => s.draft.main[(start + k) % s.draft.main.length]);
+  const before = clone(s.draft);
+  const past = s.past.length;
+  const r = s.apply({ op: 'paintStroke', changes: ids.map((uid) => ({ uid, type: 'sand' })) });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(s.revision, 1);
+  assert.equal(s.past.length, past + 1);
+  ids.forEach((uid) => assert.equal(draftNode(s.draft, uid).type, 'sand'));
+  s.undo();
+  assert.deepEqual(s.draft, before);
+
+  const third = s.draft.main[(start + 2) % s.draft.main.length];
+  const bad = s.apply({ op: 'paintStroke', changes: [ids[0], ids[1], third].map((uid) => ({ uid, type: 'sand' })) });
+  assert.equal(bad.ok, false);
+  assert.ok(bad.issues.some((i) => i.code === 'E_HAZARD_RUN'), JSON.stringify(bad.issues));
+  assert.deepEqual(s.draft, before);
+  assert.equal(s.past.length, past);
+});
+
+test('B5: renderer draws edges after tiles and exposes insert handles', () => {
+  const res = TD.fromSpec(gen('club', 1, [0, 0]));
+  assert.equal(res.ok, true);
+  const svg = TD.renderEditorSvg(res.draft, { scale: 1, width: 900, height: 600 }, { selectedUid: res.draft.startUid });
+  assert.ok(svg.indexOf('ed-tiles') >= 0 && svg.indexOf('ed-edges') >= 0);
+  assert.ok(svg.indexOf('ed-tiles') < svg.indexOf('ed-edges'), 'tiles must precede edges in DOM order');
+  assert.match(svg, /class="ed-edges" pointer-events="none"/);
+  assert.match(svg, /tabindex="0"/);
+  assert.match(svg, /class="ed-insert"/);
+  const small = TD.renderEditorSvg(res.draft, { scale: 0.5, width: 900, height: 600 }, {});
+  assert.doesNotMatch(small, /class="ed-insert"/);
+});
+
 test('B2: paint keeps at least one hazard on a shortcut', () => {
   const s = sessionFor(gen('snake', 3));
   const ids = s.draft.shortcut.nodes.slice();
