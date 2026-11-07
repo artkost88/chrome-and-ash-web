@@ -2266,6 +2266,17 @@
     window.addEventListener('pagehide', () => flushAutosave());
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushAutosave(); });
 
+    const boardEl = $('#board');
+    if (boardEl && window.ResizeObserver) {
+      let resizeTimer = 0;
+      new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (UI.game && UI.screen === 'game') updateCamera(false);
+        }, 60);
+      }).observe(boardEl);
+    }
+
     window.addEventListener('unhandledrejection', (e) => {
       console.warn('unhandledrejection', e.reason);
     });
