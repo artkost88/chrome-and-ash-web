@@ -15,6 +15,7 @@ function load(name) {
 
 load('data.js');
 load('track-gen.js');
+load('track-editor.js');
 load('track.js');
 load('engine.js');
 load('ai.js');
@@ -138,6 +139,7 @@ check('syntax: engine.js', syntaxOk('engine.js'));
 check('syntax: ai.js', syntaxOk('ai.js'));
 check('syntax: api.js', syntaxOk('api.js'));
 check('syntax: ui.js', syntaxOk('ui.js'));
+check('syntax: track-editor.js', syntaxOk('track-editor.js'));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
