@@ -409,7 +409,11 @@
     const pool = safe.filter((i) => ![11, 6, 5].includes(i));
     CnA.shuffle(rng, pool);
     const hz = 3 + Math.floor(rng() * 3);
-    for (let i = 0; i < Math.min(hz, pool.length); i++) hazardPlaces.push(pool[i]);
+    for (let i = 0; i < pool.length && hazardPlaces.length < hz; i++) {
+      const idx = pool[i];
+      if (hazardPlaces.some((x) => (x - idx + n) % n <= 1 || (idx - x + n) % n <= 1)) continue;
+      hazardPlaces.push(idx);
+    }
     const hazardTypes = ['sand', 'debris', 'event'];
     hazardPlaces.forEach((idx, i) => { types[idx] = hazardTypes[(i + seed) % 3]; });
     for (let i = 0; i < n; i++) {

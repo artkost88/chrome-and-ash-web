@@ -91,6 +91,11 @@
               <span class="hub-text"><b>РЕЙТИНГ</b><small>ежедневный · заезд · чемпионат</small></span>
               <span class="hub-arrow" aria-hidden="true">→</span>
             </button>
+            <button id="hub-constructor" class="hub-item" type="button">
+              <span class="hub-num">04</span>
+              <span class="hub-text"><b>КОНСТРУКТОР ТРАСС</b><small>сгенерировать и сохранить свою трассу</small></span>
+              <span class="hub-arrow" aria-hidden="true">→</span>
+            </button>
             <button id="hub-help" class="hub-help" type="button">КАК ИГРАТЬ</button>
           </nav>
 
@@ -173,6 +178,46 @@
         </div>
         <div id="pvp-lobby-state" class="panel pvp-lobby-state" hidden></div>
       </div>
+    </section>
+
+    <!-- ============================== КОНСТРУКТОР ТРАСС ============================== -->
+    <section id="screen-constructor" class="screen constructor-screen">
+      <header class="constructor-top">
+        <button id="constructor-back" class="chip-btn" type="button">← В ГАРАЖ</button>
+        <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>конструктор трасс</em></div>
+        <div class="constructor-actions">
+          <button id="constructor-import" class="chip-btn" type="button">ИМПОРТ</button>
+          <input id="constructor-import-file" type="file" accept="application/json,.json" hidden>
+          <button id="constructor-export" class="chip-btn" type="button">ЭКСПОРТ</button>
+        </div>
+      </header>
+      <main class="constructor-main">
+        <aside class="constructor-controls">
+          <label class="field"><span>НАЗВАНИЕ</span><input id="constructor-name" maxlength="40" autocomplete="off"></label>
+          <label class="field"><span>АРХЕТИП</span><select id="constructor-archetype"></select></label>
+          <label class="field"><span>СИД</span><input id="constructor-seed" inputmode="numeric" autocomplete="off">
+            <button id="constructor-random-seed" class="chip-btn" type="button">СЛУЧАЙНЫЙ</button>
+          </label>
+          <div class="constructor-budget">
+            <label class="field"><span>ОПАСНОСТИ, МИН <b id="constructor-hazard-min-val">2</b></span><input id="constructor-hazard-min" type="range" min="0" max="6"></label>
+            <label class="field"><span>ОПАСНОСТИ, МАКС <b id="constructor-hazard-max-val">4</b></span><input id="constructor-hazard-max" type="range" min="0" max="6"></label>
+          </div>
+          <button id="constructor-generate" class="big-btn" type="button">СГЕНЕРИРОВАТЬ</button>
+          <button id="constructor-save" class="big-btn secondary" type="button">СОХРАНИТЬ</button>
+          <button id="constructor-test" class="big-btn" type="button">ТЕСТ-ДРАЙВ</button>
+          <p class="constructor-note">Длина и пит/срез фиксируются архетипом. Ручная правка — следующий этап.</p>
+        </aside>
+        <section class="constructor-stage">
+          <div id="constructor-preview" class="constructor-preview" aria-label="Предпросмотр трассы"></div>
+          <div id="constructor-stats" class="constructor-stats"></div>
+        </section>
+        <aside class="constructor-side">
+          <h3>ВАЛИДАЦИЯ</h3>
+          <div id="constructor-issues"></div>
+          <h3>СОХРАНЁННЫЕ</h3>
+          <div id="constructor-saved" class="constructor-saved"></div>
+        </aside>
+      </main>
     </section>
 
     <!-- ============================== ИГРА ============================== -->
@@ -326,11 +371,13 @@
 
   <script src="js/data.js"></script>
   <script src="js/track-gen.js"></script>
+  <script src="js/track-editor.js"></script>
   <script src="js/track.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/api.js"></script>
   <script src="js/ws.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/track-editor-ui.js"></script>
 </body>
 </html>

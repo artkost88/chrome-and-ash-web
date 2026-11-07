@@ -716,6 +716,86 @@ code { font-family: var(--font-mono); color: var(--brass); }
 }
 
 /* ================================================================
+   КОНСТРУКТОР ТРАСС
+   ================================================================ */
+.constructor-screen {
+  min-height: 100vh; background:
+    radial-gradient(900px 500px at 50% 0%, rgba(200,160,78,.08), transparent 70%),
+    var(--night);
+}
+.constructor-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px clamp(14px, 2vw, 28px); border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(58,51,44,.97), rgba(36,31,26,.95));
+}
+.constructor-top .brand { font-size: 14px; }
+.constructor-actions { display: flex; gap: 6px; }
+.constructor-main {
+  display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr) minmax(250px, 310px);
+  gap: 12px; padding: 12px clamp(14px, 2vw, 28px) 20px; max-width: 2200px; margin: 0 auto;
+  align-items: start;
+}
+.constructor-controls, .constructor-side {
+  border: 1px solid var(--line); background: rgba(36,31,26,.72); padding: 12px;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.constructor-controls .big-btn { width: 100%; }
+.constructor-controls .chip-btn { width: auto; }
+.constructor-controls .field { margin: 0; }
+.constructor-controls .field input, .constructor-controls .field select { width: 100%; }
+.constructor-controls .field .chip-btn { margin-top: 5px; }
+.constructor-controls .field span b { color: var(--brass); font-family: var(--font-mono); font-weight: 400; margin-left: 4px; }
+.constructor-budget { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.constructor-budget .field { min-width: 0; }
+.constructor-note { margin: 2px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+.constructor-stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.constructor-preview {
+  border: 1px solid var(--line); background: rgba(11,15,18,.72); min-height: 300px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 8px;
+}
+.constructor-preview .track-preview-svg { width: 100%; height: min(62vh, 620px); display: block; }
+.pv-edge { stroke: rgba(245,240,232,.42); stroke-width: 2; stroke-linecap: round; }
+.pv-edge.shortcut { stroke: rgba(255,122,30,.8); stroke-dasharray: 6 5; }
+.pv-edge.pit { stroke: rgba(200,160,78,.75); stroke-dasharray: 3 4; }
+.constructor-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.constructor-stat {
+  border: 1px solid rgba(245,240,232,.1); background: rgba(11,15,18,.5);
+  padding: 7px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+}
+.constructor-stat b { display: block; color: var(--chrome); font-size: 14px; margin-top: 2px; }
+.constructor-side h3 {
+  font-family: var(--font-display); font-size: 10px; letter-spacing: .16em;
+  color: var(--muted); margin: 2px 0 0;
+}
+#constructor-issues { display: flex; flex-direction: column; gap: 5px; min-height: 34px; }
+.constructor-issue {
+  border-left: 2px solid var(--flame); background: rgba(255,122,30,.08);
+  padding: 6px 8px; font-size: 11px; line-height: 1.35; color: var(--text-dim);
+}
+.constructor-ok { color: #8fbf7f; font-size: 11px; padding: 6px 0; }
+.constructor-saved { display: flex; flex-direction: column; gap: 5px; min-height: 34px; }
+.saved-track {
+  display: flex; align-items: center; gap: 6px; border: 1px solid rgba(245,240,232,.1);
+  background: rgba(11,15,18,.45); padding: 5px 6px;
+}
+.saved-track .st-load {
+  flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--text);
+  font-size: 11px; line-height: 1.25; cursor: pointer; overflow: hidden; text-overflow: ellipsis;
+}
+.saved-track .st-load:hover { color: var(--brass); }
+.saved-track .st-del {
+  background: none; border: 0; color: var(--muted); font-size: 14px; cursor: pointer; padding: 2px 5px;
+}
+.saved-track .st-del:hover { color: var(--flame); }
+.saved-empty { color: var(--muted); font-size: 11px; padding: 4px 0; }
+
+@media (max-width: 1100px) {
+  .constructor-main { grid-template-columns: 1fr; }
+  .constructor-preview .track-preview-svg { height: 46vh; }
+  .constructor-side { order: 3; }
+}
+
+/* ================================================================
    АДАПТИВ
    ================================================================ */
 @media (max-width: 1080px) {

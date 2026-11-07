@@ -76,6 +76,7 @@
 
   const SCREENS = {
     auth: 'screen-auth', lobby: 'screen-lobby', faction: 'screen-faction', game: 'screen-game',
+    constructor: 'screen-constructor',
     results: 'screen-results', leaderboard: 'screen-leaderboard', pvpLobby: 'screen-pvp-lobby',
   };
 
@@ -350,10 +351,14 @@
     const seed = opts.seed !== undefined ? (Number(opts.seed) >>> 0) : (Math.floor(Math.random() * 4294967295));
     const trackKind = opts.trackKind === 'ring' ? 'ring' : 'mosaic';
     const trackArchetype = opts.trackArchetype || (trackKind === 'ring' ? 'club' : 'horseshoe');
-    const trackSize = opts.trackSize || (trackArchetype === 'club' ? 24 : trackArchetype === 'snake' ? 31 : 36);
+    const trackSpec = opts.trackSpec || null;
+    const trackSize = opts.trackSize || (trackSpec ? trackSpec.size : trackArchetype === 'club' ? 24 : trackArchetype === 'snake' ? 31 : 36);
     const laps = opts.laps === 2 ? 2 : 1;
 
-    const game = CnA.createGame({ mode: 'race', humanFaction: factionId, seed, laps, trackKind, trackSize, trackArchetype });
+    const game = CnA.createGame({
+      mode: 'race', humanFaction: factionId, seed, laps, trackKind, trackSize, trackArchetype,
+      trackSpec, trackName: opts.trackName || (trackSpec && trackSpec.name) || null,
+    });
     if (runMode === 'daily') game.mode = 'daily';
 
     const payload = { mode: runMode, faction: factionId, trackKind, trackSize, laps, seed };
@@ -396,6 +401,25 @@
     const info = TRACK_INFO[archetype];
     await startNewRun('race', UI.quickFaction, {
       trackKind: info.kind, trackSize: info.size, trackArchetype: archetype, laps: 1,
+    });
+  }
+
+  async function startCustomTrack(spec) {
+    if (!spec) return;
+    const report = CnA.validateTrackSpec(spec);
+    if (!report.ok) {
+      showToast('Трасса не проходит валидацию.', 'damage', 2600);
+      return;
+    }
+    const kind = spec.archetype === 'club' ? 'ring' : 'mosaic';
+    await startNewRun('race', UI.quickFaction || 'chrome', {
+      trackSpec: JSON.parse(JSON.stringify(spec)),
+      trackName: spec.name,
+      trackArchetype: 'custom',
+      trackKind: kind,
+      trackSize: spec.size,
+      seed: spec.seed,
+      laps: 1,
     });
   }
 
@@ -2161,6 +2185,10 @@
       showScreen('auth');
     });
     $('#hub-new').addEventListener('click', () => openFactionScreen('race'));
+    $('#hub-constructor').addEventListener('click', () => {
+      if (CnA.TrackEditorUI) CnA.TrackEditorUI.open();
+      else showToast('Конструктор не загрузился.', 'damage', 2600);
+    });
     $('#hub-continue').addEventListener('click', () => { if (UI.activeSave) continueRun(); });
     $('#hub-leaderboard').addEventListener('click', openHubLeaderboard);
     $('#hub-help').addEventListener('click', () => openHelp('lobby'));
@@ -2962,6 +2990,12 @@
   }
 
   /* ================================================================== */
+
+  CnA.UI = {
+    showScreen,
+    showToast,
+    startCustomTrack,
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

@@ -140,6 +140,7 @@ check('syntax: ai.js', syntaxOk('ai.js'));
 check('syntax: api.js', syntaxOk('api.js'));
 check('syntax: ui.js', syntaxOk('ui.js'));
 check('syntax: track-editor.js', syntaxOk('track-editor.js'));
+check('syntax: track-editor-ui.js', syntaxOk('track-editor-ui.js'));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
