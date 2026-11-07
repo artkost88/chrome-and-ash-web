@@ -186,9 +186,15 @@
         <button id="constructor-back" class="chip-btn" type="button">← В ГАРАЖ</button>
         <div class="brand">ХРОМ <span>И ПЕПЕЛ</span><em>конструктор трасс</em></div>
         <div class="constructor-actions">
+          <button id="constructor-undo" class="chip-btn" type="button" title="Отменить (Ctrl+Z)">↶</button>
+          <button id="constructor-redo" class="chip-btn" type="button" title="Повторить (Ctrl+Y)">↷</button>
+          <button id="constructor-reset" class="chip-btn" type="button">СБРОС</button>
           <button id="constructor-import" class="chip-btn" type="button">ИМПОРТ</button>
           <input id="constructor-import-file" type="file" accept="application/json,.json" hidden>
           <button id="constructor-export" class="chip-btn" type="button">ЭКСПОРТ</button>
+          <button id="constructor-save" class="big-btn mini" type="button">СОХРАНИТЬ</button>
+          <button id="constructor-save-copy" class="chip-btn" type="button">КОПИЯ</button>
+          <button id="constructor-test" class="big-btn mini" type="button">ТЕСТ-ДРАЙВ</button>
         </div>
       </header>
       <main class="constructor-main">
@@ -203,15 +209,68 @@
             <label class="field"><span>ОПАСНОСТИ, МАКС <b id="constructor-hazard-max-val">4</b></span><input id="constructor-hazard-max" type="range" min="0" max="6"></label>
           </div>
           <button id="constructor-generate" class="big-btn" type="button">СГЕНЕРИРОВАТЬ</button>
-          <button id="constructor-save" class="big-btn secondary" type="button">СОХРАНИТЬ</button>
-          <button id="constructor-test" class="big-btn" type="button">ТЕСТ-ДРАЙВ</button>
-          <p class="constructor-note">Длина и пит/срез фиксируются архетипом. Ручная правка — следующий этап.</p>
+          <div class="constructor-palette" id="constructor-palette" role="radiogroup" aria-label="Палитра тайлов">
+            <button type="button" class="palette-btn" data-tile="straight">ПРЯМАЯ</button>
+            <button type="button" class="palette-btn" data-tile="turn">ПОВОРОТ</button>
+            <button type="button" class="palette-btn" data-tile="sand">ПЕСОК</button>
+            <button type="button" class="palette-btn" data-tile="debris">ОБЛОМКИ</button>
+            <button type="button" class="palette-btn" data-tile="event">ПУСТОШЬ</button>
+            <button type="button" class="palette-btn" data-tile="ramp">ТРАМПЛИН</button>
+            <button type="button" class="palette-btn" data-tile="tunnel">ТОННЕЛЬ</button>
+            <button type="button" class="palette-btn" data-tile="bridge">МОСТ</button>
+            <button type="button" class="palette-btn feature-btn" data-tool="pit-tile">ПИТ-ТАЙЛ</button>
+            <button type="button" class="palette-btn feature-btn" data-tool="pit-branch">ПИТ-ВЕТКА</button>
+            <button type="button" class="palette-btn feature-btn" data-tool="shortcut">СРЕЗ</button>
+          </div>
+          <p class="constructor-note" id="constructor-mode">Выбор → правка. Кисть ставит тип, сдвиг тащит тайл. W_* не блокируют сохранение.</p>
         </aside>
         <section class="constructor-stage">
-          <div id="constructor-preview" class="constructor-preview" aria-label="Предпросмотр трассы"></div>
+          <div id="constructor-toolbar" class="constructor-toolbar" role="toolbar" aria-label="Инструменты редактора">
+            <button id="constructor-tool-select" class="tool-btn" type="button" data-tool="select" aria-pressed="true">ВЫБОР <b>V</b></button>
+            <button id="constructor-tool-paint" class="tool-btn" type="button" data-tool="paint" aria-pressed="false">КИСТЬ <b>B</b></button>
+            <button id="constructor-tool-move" class="tool-btn" type="button" data-tool="move" aria-pressed="false">СДВИГ <b>M</b></button>
+            <span class="toolbar-gap"></span>
+            <button id="constructor-zoom-out" class="chip-btn" type="button">−</button>
+            <span id="constructor-zoom-label" class="zoom-label">100%</span>
+            <button id="constructor-zoom-in" class="chip-btn" type="button">+</button>
+            <button id="constructor-zoom-fit" class="chip-btn" type="button">ОБЗОР</button>
+          </div>
+          <div id="constructor-preview" class="constructor-preview" aria-label="Полотно редактора">
+            <div id="constructor-canvas" class="constructor-canvas"></div>
+          </div>
+          <div id="constructor-status" class="constructor-status" role="status">Сгенерируйте трассу или загрузите сохранённую.</div>
+          <div id="constructor-live" class="sr-only" aria-live="polite"></div>
           <div id="constructor-stats" class="constructor-stats"></div>
+          <div id="constructor-dirty" class="constructor-dirty" hidden>● не сохранено</div>
         </section>
         <aside class="constructor-side">
+          <div id="constructor-inspector" class="constructor-inspector">
+            <h3>ВЫБРАННЫЙ ТАЙЛ</h3>
+            <div id="constructor-node-title">Ничего не выбрано</div>
+            <div id="constructor-node-meta" class="node-meta"></div>
+            <div class="inspector-row">
+              <button id="constructor-insert" class="chip-btn" type="button">ВСТАВИТЬ</button>
+              <button id="constructor-delete" class="chip-btn danger" type="button">УДАЛИТЬ</button>
+            </div>
+            <div class="inspector-row">
+              <button id="constructor-make-start" class="chip-btn" type="button">СДЕЛАТЬ СТАРТОМ</button>
+              <button id="constructor-make-cp" class="chip-btn" type="button">СДЕЛАТЬ КП</button>
+            </div>
+            <div class="inspector-locks">
+              <label><input id="constructor-lock-pos" type="checkbox"> позиция</label>
+              <label><input id="constructor-lock-type" type="checkbox"> тип</label>
+              <label><input id="constructor-lock-remove" type="checkbox"> удаление</label>
+            </div>
+            <div class="inspector-row">
+              <button id="constructor-pit-tile" class="chip-btn" type="button">ПИТ-ТАЙЛ</button>
+              <button id="constructor-clear-pit" class="chip-btn" type="button">УБРАТЬ ПИТ</button>
+            </div>
+            <div class="inspector-row">
+              <button id="constructor-pit-branch" class="chip-btn" type="button">ПИТ-ВЕТКА</button>
+              <button id="constructor-shortcut" class="chip-btn" type="button">СРЕЗ</button>
+              <button id="constructor-clear-shortcut" class="chip-btn" type="button">УБРАТЬ СРЕЗ</button>
+            </div>
+          </div>
           <h3>ВАЛИДАЦИЯ</h3>
           <div id="constructor-issues"></div>
           <h3>СОХРАНЁННЫЕ</h3>

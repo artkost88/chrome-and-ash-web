@@ -2109,6 +2109,83 @@
     };
   }
 
+  /* --- B5: pure editor SVG renderer ---------------------------------- */
+
+  function editorBounds(draft, hexSize) {
+    const size = hexSize || draft.hexSize || 34;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    (draft.nodes || []).forEach((n) => {
+      if (!isInt(n.q) || !isInt(n.r)) return;
+      const p = hexXY(n.q, n.r, size);
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    });
+    if (!isFinite(minX)) return { x: 0, y: 0, w: 1, h: 1 };
+    return { x: minX - size, y: minY - size, w: Math.max(1, maxX - minX + size * 2), h: Math.max(1, maxY - minY + size * 2) };
+  }
+
+  function renderEditorSvg(draft, view, opts) {
+    opts = opts || {};
+    view = view || {};
+    const hexSize = view.hexSize || draft.hexSize || 34;
+    const scale = view.scale || 1;
+    const tx = view.tx || 0;
+    const ty = view.ty || 0;
+    const byUid = new Map((draft.nodes || []).map((n) => [n.uid, n]));
+    const pos = new Map();
+    draft.nodes.forEach((n) => { if (isInt(n.q) && isInt(n.r)) pos.set(n.uid, hexXY(n.q, n.r, hexSize)); });
+    const grid = new Set(draft.grid || []);
+    const pitTile = draft.pit && draft.pit.kind === 'tile' ? draft.pit.tile : null;
+    const pitNodes = draft.pit && draft.pit.kind === 'branch' ? draft.pit.nodes : [];
+    const scNodes = draft.shortcut ? draft.shortcut.nodes : [];
+    const edges = [];
+    const line = (a, b, cls) => {
+      const pa = pos.get(a), pb = pos.get(b);
+      if (!pa || !pb) return;
+      edges.push('<line class="ed-edge' + (cls ? ' ' + cls : '') + '" x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) +
+        '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '"/>');
+    };
+    for (let i = 0; i < draft.main.length; i++) line(draft.main[i], draft.main[(i + 1) % draft.main.length], '');
+    const wire = (br, cls) => {
+      if (!br || !br.nodes || !br.nodes.length) return;
+      line(br.entry, br.nodes[0], cls);
+      for (let i = 0; i < br.nodes.length - 1; i++) line(br.nodes[i], br.nodes[i + 1], cls);
+      line(br.nodes[br.nodes.length - 1], br.exit, cls);
+    };
+    if (draft.pit && draft.pit.kind === 'branch') wire(draft.pit, 'pit');
+    if (draft.shortcut) wire(draft.shortcut, 'shortcut');
+
+    const tiles = draft.nodes.map((n) => {
+      const p = pos.get(n.uid);
+      if (!p) return '';
+      const tile = (CnA.TILES && CnA.TILES[n.type]) || { fill: '#3a332c', ink: '#f5f0e8', short: n.type };
+      const isStart = n.uid === draft.startUid;
+      const isCp = n.uid === draft.checkpointUid;
+      const isGrid = grid.has(n.uid);
+      const isPit = n.uid === pitTile || pitNodes.includes(n.uid);
+      const isShortcut = scNodes.includes(n.uid);
+      const selected = opts.selectedUid === n.uid;
+      const role = isStart ? 'СТАРТ' : isCp ? 'КП' : isGrid ? 'РЕШЁТКА' : isPit ? 'ПИТ' : isShortcut ? 'СРЕЗ' : '';
+      const short = isStart ? 'СТ' : isCp ? 'КП' : isGrid ? 'G' : isPit ? 'П' : isShortcut ? 'С' : (tile.short || '');
+      const cls = 'ed-node' + (selected ? ' selected' : '') + (isGrid ? ' grid' : '') + (isStart ? ' start' : '') +
+        (isCp ? ' cp' : '') + (isPit ? ' pit' : '') + (isShortcut ? ' sc' : '');
+      const aria = 'Тайл: ' + (tile.label || n.type) + (role ? ', ' + role : '') + ', ' + n.q + ',' + n.r;
+      return '<g class="' + cls + '" data-uid="' + esc(String(n.uid)) + '" data-type="' + esc(n.type) + '"' +
+        ' role="button" tabindex="-1" aria-label="' + esc(aria) + '" transform="translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')">' +
+        '<polygon points="' + hexPoints(0, 0, hexSize) + '" fill="' + tile.fill + '"/>' +
+        (selected ? '<polygon class="ed-ring" points="' + hexPoints(0, 0, hexSize + 2) + '"/>' : '') +
+        (role ? '<text class="ed-role" y="' + (-hexSize * 0.35).toFixed(1) + '">' + esc(role) + '</text>' : '') +
+        (short ? '<text class="ed-short" y="' + (hexSize * 0.35).toFixed(1) + '">' + esc(short) + '</text>' : '') +
+        '</g>';
+    }).join('');
+
+    const transform = 'translate(' + tx.toFixed(2) + ',' + ty.toFixed(2) + ') scale(' + scale.toFixed(3) + ')';
+    return '<svg id="constructor-canvas-svg" class="editor-svg" role="group" aria-label="Полотно редактора трассы" ' +
+      'viewBox="0 0 ' + (view.width || 900) + ' ' + (view.height || 600) + '" preserveAspectRatio="xMidYMid meet">' +
+      '<g class="ed-world" transform="' + transform + '"><g class="ed-edges">' + edges.join('') + '</g>' +
+      '<g class="ed-tiles">' + tiles + '</g></g></svg>';
+  }
+
   CnA.TrackEditor = {
     ARCHETYPES: CnA.TRACK_ARCHETYPES,
     STORE_KEY,
@@ -2141,6 +2218,8 @@
     prepareSpec,
     fromSpec,
     toSpec,
+    renderEditorSvg,
+    editorBounds,
     draftFromCanonical,
     detectReadOnly,
     createSession,
