@@ -343,6 +343,8 @@
   }
 
   function generate() {
+    if (session && !session.readOnly && (session.dirty || session.unsavedNew) &&
+      !window.confirm('Несохранённые правки будут потеряны. Сгенерировать заново?')) return;
     const o = optionsFromControls();
     const r = E.generate(o);
     if (!r.spec) {
