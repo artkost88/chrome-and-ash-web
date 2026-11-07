@@ -1379,12 +1379,16 @@
     if (onShortcut && (type === 'tunnel' || type === 'bridge')) {
       return { ok: false, issues: [issue('E_TILE_ROLE', 'Этот тип доступен только основной петле.')] };
     }
-    const protectedIds = new Set([...(this.draft.grid || [])]);
-    zoneBufferUids(this.draft.main, this.draft.startUid, [this.draft.checkpointUid], 3, 2)
-      .forEach((id) => protectedIds.add(id));
-    if ((isHazardType(type) || type === 'ramp') && protectedIds.has(uid)) {
+    const hardIds = new Set([...(this.draft.grid || [])]);
+    zoneBufferUids(this.draft.main, this.draft.startUid, [], 3, 0).forEach((id) => hardIds.add(id));
+    const cpZone = zoneBufferUids(this.draft.main, this.draft.startUid, [this.draft.checkpointUid], 0, 2);
+    if ((isHazardType(type) || type === 'ramp') && hardIds.has(uid)) {
       return { ok: false, issues: [issue(isHazardType(type) ? 'E_HAZARD_ZONE' : 'E_RAMP_ZONE',
-        isHazardType(type) ? 'Опасность нельзя ставить на старт, решётку или КП.' : 'Трамплин нельзя ставить на старт, решётку или КП.')] };
+        isHazardType(type) ? 'Опасность нельзя ставить на старт или решётку.' : 'Трамплин нельзя ставить на старт или решётку.')] };
+    }
+    const paintWarnings = [];
+    if ((isHazardType(type) || type === 'ramp') && cpZone.has(uid) && !hardIds.has(uid)) {
+      paintWarnings.push(issue('W_CP_BUFFER', 'Опасность/трамплин в буфере КП ±2 (предупреждение; допускается).', uid));
     }
     if (onShortcut && isHazardType(node.type) && !isHazardType(type)) {
       const others = this.draft.shortcut.nodes.some((x) => {
@@ -1407,10 +1411,10 @@
         if (run > 2) return { ok: false, issues: [issue('E_HAZARD_RUN', 'Нельзя ставить третью опасность подряд.')] };
       }
     }
-    if (node.type === type) return { ok: true, issues: [], noop: true, selectionUid: uid };
+    if (node.type === type) return { ok: true, issues: [], warnings: paintWarnings, noop: true, selectionUid: uid };
     const candidate = clone(this.draft);
     candidate.nodes.find((x) => x.uid === uid).type = type;
-    return this.commit(candidate, { selectionUid: uid });
+    return this.commit(candidate, { selectionUid: uid, warnings: paintWarnings });
   };
 
   TrackDraftSession.prototype.insertBetween = function (from, to) {

@@ -1229,12 +1229,13 @@ test('B4-fix: start±3 buffer is enforced by structural/report/import', () => {
   assert.ok(E.report(cpPlus1).warnings.some((i) => i.code === 'W_CP_BUFFER'));
   const cpSession = sessionFor(spec);
   const cpNext = cpSession.draft.main[(cpIdx + 1) % cpSession.draft.main.length];
-  assert.ok(cpSession.apply({ op: 'paint', uid: cpNext, type: 'sand' }).issues
-    .some((i) => i.code === 'E_HAZARD_ZONE'));
+  const cpPaint = cpSession.apply({ op: 'paint', uid: cpNext, type: 'sand' });
+  assert.equal(cpPaint.ok, true);
+  assert.ok((cpPaint.warnings || []).some((i) => i.code === 'W_CP_BUFFER'));
 });
 
-test('B4-fix: paint rejects hazards/ramps inside the start±3 and CP±2 buffers', () => {
-  const s = sessionFor(gen('club', 1));
+test('B4-fix: paint keeps start±3/grid hard, CP±2 warning-only', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
   const n = s.draft.main.length;
   const startIdx = 0;
   const plus1 = s.draft.main[(startIdx + 1) % n];
@@ -1243,7 +1244,15 @@ test('B4-fix: paint rejects hazards/ramps inside the start±3 and CP±2 buffers'
   assert.ok(s.apply({ op: 'paint', uid: plus3, type: 'ramp' }).issues.some((i) => i.code === 'E_RAMP_ZONE'));
   const cpIdx = s.draft.main.indexOf(s.draft.checkpointUid);
   const cpNext = s.draft.main[(cpIdx + 1) % n];
-  assert.ok(s.apply({ op: 'paint', uid: cpNext, type: 'sand' }).issues.some((i) => i.code === 'E_HAZARD_ZONE'));
+  const painted = s.apply({ op: 'paint', uid: cpNext, type: 'sand' });
+  assert.equal(painted.ok, true, JSON.stringify(painted.issues));
+  assert.ok((painted.warnings || []).some((w) => w.code === 'W_CP_BUFFER'));
+  assert.equal(draftNode(s.draft, cpNext).type, 'sand');
+  const cpPrev = s.draft.main[(cpIdx - 1 + n) % n];
+  const ramped = s.apply({ op: 'paint', uid: cpPrev, type: 'ramp' });
+  assert.equal(ramped.ok, true, JSON.stringify(ramped.issues));
+  assert.ok((ramped.warnings || []).some((w) => w.code === 'W_CP_BUFFER'));
+  assert.equal(draftNode(s.draft, cpPrev).type, 'ramp');
 });
 
 test('B4-fix: store/import reject wrapped, both, unknown and grid-entry specs', () => {
