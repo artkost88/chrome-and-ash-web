@@ -354,10 +354,23 @@ function featureUids(draft) {
     draft.pit && draft.pit.tile, draft.pit && draft.pit.entry, draft.pit && draft.pit.exit,
     draft.shortcut && draft.shortcut.entry, draft.shortcut && draft.shortcut.exit]);
 }
+function startCpBufferUids(draft) {
+  const main = draft.main;
+  const out = new Set();
+  const add = (uid, radius) => {
+    const idx = main.indexOf(uid);
+    if (idx < 0) return;
+    for (let d = -radius; d <= radius; d++) out.add(main[(idx + d + main.length) % main.length]);
+  };
+  add(draft.startUid, 3);
+  add(draft.checkpointUid, 2);
+  return out;
+}
 function paintable(session) {
   const feature = featureUids(session.draft);
+  const buffer = startCpBufferUids(session.draft);
   return session.draft.main.filter((uid) => {
-    if (feature.has(uid)) return false;
+    if (feature.has(uid) || buffer.has(uid)) return false;
     const node = draftNode(session.draft, uid);
     return node && ['straight', 'turn'].includes(node.type);
   });
@@ -812,18 +825,22 @@ test('B4: hazard budget DP matches brute force for n=6..12', () => {
 });
 
 test('B4: generate reports the real hazard budget and warns on underfill', () => {
-  const r = E.generate({ archetype: 'club', seed: 5, hazardMin: 6, hazardMax: 6, name: 'Бюджет' });
-  assert.equal(r.ok, true, JSON.stringify(r.issues));
-  assert.ok(r.budget);
-  assert.equal(r.budget.requestedMin, 6);
-  assert.equal(r.budget.requestedMax, 6);
-  assert.equal(r.budget.actual, r.stats.hazards);
-  assert.ok(r.budget.achievable >= r.budget.actual);
-  assert.equal(r.budget.achievable, TD.maxGeneratedHazards(r.spec));
-  if (r.budget.actual < 6) {
-    assert.equal(r.budget.ok, false);
-    assert.ok(r.issues.some((i) => i.code === 'W_HAZARD_BUDGET'));
-    assert.match(r.issues.find((i) => i.code === 'W_HAZARD_BUDGET').message, /максимум/);
+  for (const archetype of ['club', 'horseshoe', 'snake']) {
+    const r = E.generate({ archetype, seed: 5, hazardMin: 6, hazardMax: 6, name: 'Бюджет' });
+    assert.equal(r.ok, true, archetype + ': ' + JSON.stringify(r.issues));
+    assert.ok(r.budget);
+    assert.equal(r.budget.requestedMin, 6);
+    assert.ok(r.budget.requestedMax <= 6);
+    assert.equal(r.budget.actual, r.stats.hazards);
+    assert.ok(r.budget.achievable <= 6, 'slider/generator max is 6');
+    assert.equal(r.budget.sliderMax, r.budget.achievable);
+    assert.ok(r.budget.achievable >= r.budget.actual);
+    assert.equal(r.budget.achievable, Math.min(6, TD.maxGeneratedHazards(r.spec)));
+    if (r.budget.actual < 6) {
+      assert.equal(r.budget.ok, false);
+      assert.ok(r.issues.some((i) => i.code === 'W_HAZARD_BUDGET'));
+      assert.match(r.issues.find((i) => i.code === 'W_HAZARD_BUDGET').message, /максимум/);
+    }
   }
 });
 
@@ -1000,23 +1017,21 @@ test('B4-fix: inserts on the last three main edges recompute the grid', () => {
   }
 });
 
-test('B4-fix: last-edge removal recomputes the grid', () => {
+test('B4-fix: last-edge removal recomputes the grid unconditionally', () => {
   const s = sessionFor(gen('snake', 2));
   const n = s.draft.main.length;
-  const feature = featureUids(s.draft);
-  const uid = s.draft.main[n - 3];
-  assert.ok(!feature.has(uid));
+  const inserted = s.apply({ op: 'insertBetween', from: s.draft.main[n - 3], to: s.draft.main[n - 2] });
+  assert.equal(inserted.ok, true, JSON.stringify(inserted.issues));
+  assert.equal(s.draft.main.length, n + 1);
+  const uid = inserted.selectionUid;
   const r = s.apply({ op: 'remove', uid });
-  if (r.ok) {
-    assert.equal(s.draft.main.length, n - 1);
-    assert.deepEqual(s.draft.grid, [
-      s.draft.main[s.draft.main.length - 1], s.draft.main[s.draft.main.length - 1],
-      s.draft.main[s.draft.main.length - 2], s.draft.main[s.draft.main.length - 2],
-    ]);
-    assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
-  } else {
-    assert.ok(r.issues.some((i) => i.code === 'E_REMOVE_GEOMETRY' || i.code === 'E_REMOVE_FEATURE'));
-  }
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(s.draft.main.length, n);
+  assert.deepEqual(s.draft.grid, [
+    s.draft.main[s.draft.main.length - 1], s.draft.main[s.draft.main.length - 1],
+    s.draft.main[s.draft.main.length - 2], s.draft.main[s.draft.main.length - 2],
+  ]);
+  assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
 });
 
 test('B4-fix: swapped main order is rejected by every entry point', () => {
@@ -1049,8 +1064,10 @@ test('B4-fix: feature locks block every feature mutation', () => {
   const grid = sessionFor(gen('snake', 2));
   assert.equal(grid.apply({ op: 'setFeatureLock', feature: 'grid', locked: true }).ok, true);
   const n = grid.draft.main.length;
+  assert.ok(grid.apply({ op: 'insertBetween', from: grid.draft.main[n - 2], to: grid.draft.main[n - 1] }).issues
+    .some((i) => i.code === 'E_LOCKED_FEATURE'), 'penultimate edge');
   assert.ok(grid.apply({ op: 'insertBetween', from: grid.draft.main[n - 1], to: grid.draft.main[0] }).issues
-    .some((i) => i.code === 'E_LOCKED_FEATURE'));
+    .some((i) => i.code === 'E_LOCKED_FEATURE'), 'last edge');
   assert.equal(grid.apply({ op: 'insertBetween', from: grid.draft.main[5], to: grid.draft.main[6] }).ok, true);
 
   const pit = sessionFor(gen('horseshoe', 1));
@@ -1092,6 +1109,22 @@ test('B4-fix: node type/remove locks protect branch tools', () => {
   assert.ok(snake.apply({ op: 'clearShortcut', force: true }).issues.some((i) => i.code === 'E_LOCKED_REMOVE'));
   assert.ok(snake.apply({ op: 'setShortcut', entry: snake.draft.main[4], exit: snake.draft.main[13], force: true }).issues
     .some((i) => i.code === 'E_LOCKED_REMOVE'));
+
+  const horseType = sessionFor(gen('horseshoe', 1));
+  const pitBranchUid = horseType.draft.pit.nodes[0];
+  assert.equal(horseType.apply({ op: 'setLock', uid: pitBranchUid, flags: { type: true } }).ok, true);
+  assert.ok(horseType.apply({ op: 'setPitTile', uid: horseType.draft.main[5], force: true }).issues
+    .some((i) => i.code === 'E_LOCKED_TYPE'));
+  assert.ok(horseType.apply({ op: 'setPitBranch', entry: horseType.draft.main[33], exit: horseType.draft.main[35], force: true }).issues
+    .some((i) => i.code === 'E_LOCKED_TYPE'));
+  assert.ok(horseType.apply({ op: 'clearPit', force: true }).issues.some((i) => i.code === 'E_LOCKED_TYPE'));
+
+  const snakeType = sessionFor(gen('snake', 2));
+  const scTypeUid = snakeType.draft.shortcut.nodes[0];
+  assert.equal(snakeType.apply({ op: 'setLock', uid: scTypeUid, flags: { type: true } }).ok, true);
+  assert.ok(snakeType.apply({ op: 'setShortcut', entry: snakeType.draft.main[4], exit: snakeType.draft.main[13], force: true }).issues
+    .some((i) => i.code === 'E_LOCKED_TYPE'));
+  assert.ok(snakeType.apply({ op: 'clearShortcut', force: true }).issues.some((i) => i.code === 'E_LOCKED_TYPE'));
 });
 
 test('B4-fix: insertBetween recognises the branch exit edge', () => {
@@ -1110,6 +1143,17 @@ test('B4-fix: insertBetween recognises the branch exit edge', () => {
   const pitExit = horse.draft.pit.exit;
   const pitR = horse.apply({ op: 'insertBetween', from: pitLast, to: pitExit });
   assert.notEqual(pitR.issues[0] && pitR.issues[0].code, 'E_INSERT_EDGE');
+
+  const freePit = sessionFor(gen('horseshoe', 1, [0, 0]));
+  assert.equal(freePit.apply({ op: 'clearPit', force: true }).ok, true);
+  const pitBuilt = freePit.apply({ op: 'setPitBranch', entry: freePit.draft.main[4], exit: freePit.draft.main[6], force: true });
+  assert.equal(pitBuilt.ok, true, JSON.stringify(pitBuilt.issues));
+  const builtPit = freePit.draft.pit;
+  const builtLast = builtPit.nodes[builtPit.nodes.length - 1];
+  const pitInsert = freePit.apply({ op: 'insertBetween', from: builtLast, to: builtPit.exit });
+  assert.equal(pitInsert.ok, true, JSON.stringify(pitInsert.issues));
+  assert.equal(freePit.draft.pit.nodes.length, builtPit.nodes.length + 1);
+  assert.equal(CnA.validateTrackSpec(TD.toSpec(freePit.draft)).ok, true);
 });
 
 test('B4-fix: pit cannot be both tile and branch and pit ends are protected', () => {
@@ -1149,6 +1193,56 @@ test('B4-fix: setStart rejects hazards/ramps in the new start zone', () => {
   }
   assert.ok(uid);
   assert.ok(s.apply({ op: 'setStart', uid }).issues.some((i) => i.code === 'E_START_ZONE'));
+});
+
+test('B4-fix: start±3 buffer is enforced by structural/report/import', () => {
+  const spec = gen('club', 1);
+  const main = spec.main;
+  const startIdx = main.indexOf(spec.startNode);
+  const mut = (offset, type) => {
+    const s = clone(spec);
+    s.nodes.find((n) => n.id === main[(startIdx + offset + main.length) % main.length]).type = type;
+    return s;
+  };
+  const plus1 = mut(1, 'sand');
+  let check = TD.validateStructural(plus1);
+  assert.ok(check.issues.some((i) => i.code === 'E_HAZARD_ZONE'), JSON.stringify(check.issues.slice(0, 3)));
+  assert.equal(E.report(plus1).ok, false);
+  expectRejectedEverywhere(plus1, 'E_HAZARD_ZONE');
+
+  const plus3 = mut(3, 'ramp');
+  check = TD.validateStructural(plus3);
+  assert.ok(check.issues.some((i) => i.code === 'E_RAMP_ZONE'), JSON.stringify(check.issues.slice(0, 3)));
+  assert.equal(E.report(plus3).ok, false);
+  expectRejectedEverywhere(plus3, 'E_RAMP_ZONE');
+
+  const minus3 = mut(-3, 'sand');
+  assert.ok(TD.validateStructural(minus3).issues.some((i) => i.code === 'E_HAZARD_ZONE'));
+
+  const cpId = spec.checkpoints.find((id) => id !== spec.startNode);
+  const cpIdx = spec.main.indexOf(cpId);
+  const cpPlus1 = clone(spec);
+  cpPlus1.nodes.find((n) => n.id === spec.main[(cpIdx + 1) % spec.main.length]).type = 'sand';
+  assert.ok(TD.validateStructural(cpPlus1).issues.some((i) => i.code === 'E_CP_BUFFER'));
+  assert.equal(E.report(cpPlus1).ok, true);
+  assert.ok(E.report(cpPlus1).warnings.some((i) => i.code === 'W_CP_BUFFER'));
+  const cpSession = sessionFor(spec);
+  const cpNext = cpSession.draft.main[(cpIdx + 1) % cpSession.draft.main.length];
+  assert.ok(cpSession.apply({ op: 'paint', uid: cpNext, type: 'sand' }).issues
+    .some((i) => i.code === 'E_HAZARD_ZONE'));
+});
+
+test('B4-fix: paint rejects hazards/ramps inside the start±3 and CP±2 buffers', () => {
+  const s = sessionFor(gen('club', 1));
+  const n = s.draft.main.length;
+  const startIdx = 0;
+  const plus1 = s.draft.main[(startIdx + 1) % n];
+  const plus3 = s.draft.main[(startIdx + 3) % n];
+  assert.ok(s.apply({ op: 'paint', uid: plus1, type: 'sand' }).issues.some((i) => i.code === 'E_HAZARD_ZONE'));
+  assert.ok(s.apply({ op: 'paint', uid: plus3, type: 'ramp' }).issues.some((i) => i.code === 'E_RAMP_ZONE'));
+  const cpIdx = s.draft.main.indexOf(s.draft.checkpointUid);
+  const cpNext = s.draft.main[(cpIdx + 1) % n];
+  assert.ok(s.apply({ op: 'paint', uid: cpNext, type: 'sand' }).issues.some((i) => i.code === 'E_HAZARD_ZONE'));
 });
 
 test('B4-fix: store/import reject wrapped, both, unknown and grid-entry specs', () => {
@@ -1256,7 +1350,7 @@ test('B4-fix: generate budget achievable is truthful for club seed 5 [6,6]', () 
     }
     return best;
   })();
-  assert.equal(r.budget.achievable, TD.maxGeneratedHazards(spec));
+  assert.equal(r.budget.achievable, Math.min(6, TD.maxGeneratedHazards(spec)));
   assert.ok(r.budget.actual <= r.budget.achievable);
   assert.ok(r.budget.achievable >= brute, 'dp must not be below brute force');
   if (r.budget.actual < 6) {

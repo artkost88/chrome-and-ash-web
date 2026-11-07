@@ -319,6 +319,17 @@
     const n = (main || []).length;
     return n >= 2 ? [main[n - 1], main[n - 1], main[n - 2], main[n - 2]] : [];
   }
+  function zoneBufferUids(main, startUid, cpUids, startRadius, cpRadius) {
+    const set = new Set();
+    const add = (uid, radius) => {
+      const idx = (main || []).indexOf(uid);
+      if (idx < 0) return;
+      for (let d = -radius; d <= radius; d++) set.add(main[(idx + d + main.length) % main.length]);
+    };
+    add(startUid, startRadius == null ? 3 : startRadius);
+    (cpUids || []).forEach((uid) => add(uid, cpRadius == null ? 2 : cpRadius));
+    return set;
+  }
 
   /* --- B1: canonical representation ---------------------------------- */
 
@@ -658,6 +669,10 @@
     pitNodes.concat(shortcutNodes).forEach((id) => { if (!seen.has(id)) add('E_BRANCH', 'узел ветки не достижим из старта', id); });
 
     const protectedIds = new Set([input.startNode, ...(input.grid || []), ...(input.checkpoints || [])]);
+    const startZone = zoneBufferUids(main, input.startNode, [], 3, 0);
+    startZone.forEach((id) => protectedIds.add(id));
+    const cpId = (input.checkpoints || []).find((id) => id !== input.startNode);
+    const cpZone = cpId != null ? zoneBufferUids(main, input.startNode, [cpId], 0, 2) : new Set();
     if (pitBranch) { protectedIds.add(input.pit.entry); protectedIds.add(input.pit.exit); }
     if (pitTile) protectedIds.add(input.pit.tile);
     let run = 0;
@@ -669,8 +684,14 @@
     main.forEach((id) => {
       const node = byId.get(id);
       if (!node) return;
-      if (isHazardType(node.type) && protectedIds.has(id)) add('E_HAZARD_ZONE', 'опасность на старте/решётке/КП', id);
-      if (node.type === 'ramp' && protectedIds.has(id)) add('E_RAMP_ZONE', 'трамплин на старте/решётке/КП', id);
+      if (isHazardType(node.type)) {
+        if (protectedIds.has(id)) add('E_HAZARD_ZONE', 'опасность на старте/решётке/КП', id);
+        else if (cpZone.has(id)) add('E_CP_BUFFER', 'опасность в буфере КП ±2', id);
+      }
+      if (node.type === 'ramp') {
+        if (protectedIds.has(id)) add('E_RAMP_ZONE', 'трамплин на старте/решётке/КП', id);
+        else if (cpZone.has(id)) add('E_CP_BUFFER', 'трамплин в буфере КП ±2', id);
+      }
     });
 
     const cps = (input.checkpoints || []).filter((id) => id !== input.startNode);
@@ -766,9 +787,12 @@
       allowNonAxial: reason === 'layout' || reason === 'coord',
       allowFork: reason === 'fork',
     });
-    if (!structural.ok) {
+    const cpBuffer = structural.issues.filter((i) => i.code === 'E_CP_BUFFER');
+    const hard = structural.issues.filter((i) => String(i.code).startsWith('E_') && i.code !== 'E_CP_BUFFER');
+    if (hard.length) {
       return { ok: false, readOnly: false, issues: structural.issues, warnings };
     }
+    cpBuffer.forEach((i) => warnings.push(issue('W_CP_BUFFER', i.message, i.nodeId)));
     const again = CnA.validateTrackSpec(canonical);
     if (!again.ok) {
       return { ok: false, readOnly: false, issues: again.issues, warnings };
@@ -1118,7 +1142,10 @@
     }
     if (spec) {
       const structural = validateStructural(spec);
-      issues.push(...structural.issues);
+      structural.issues.forEach((i) => {
+        if (i.code === 'E_CP_BUFFER') issues.push(issue('W_CP_BUFFER', i.message, i.nodeId));
+        else issues.push(i);
+      });
       const stageA = CnA.validateTrackSpec(spec);
       if (!stageA.ok) issues.push(...stageA.issues);
     }
@@ -1297,7 +1324,9 @@
     if (onShortcut && (type === 'tunnel' || type === 'bridge')) {
       return { ok: false, issues: [issue('E_TILE_ROLE', 'Этот тип доступен только основной петле.')] };
     }
-    const protectedIds = new Set([this.draft.startUid, this.draft.checkpointUid, ...(this.draft.grid || [])]);
+    const protectedIds = new Set([...(this.draft.grid || [])]);
+    zoneBufferUids(this.draft.main, this.draft.startUid, [this.draft.checkpointUid], 3, 2)
+      .forEach((id) => protectedIds.add(id));
     if ((isHazardType(type) || type === 'ramp') && protectedIds.has(uid)) {
       return { ok: false, issues: [issue(isHazardType(type) ? 'E_HAZARD_ZONE' : 'E_RAMP_ZONE',
         isHazardType(type) ? 'Опасность нельзя ставить на старт, решётку или КП.' : 'Трамплин нельзя ставить на старт, решётку или КП.')] };
@@ -1356,7 +1385,7 @@
     }
     if (!kind) return { ok: false, issues: [issue('E_INSERT_EDGE', 'Между этими тайлами нет ребра.')] };
     const featureLocks = (d.locks && d.locks.features) || {};
-    if (kind === 'main' && insertAt === n && featureLocks.grid) {
+    if (kind === 'main' && insertAt >= n - 1 && featureLocks.grid) {
       return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Решётка заблокирована.')] };
     }
     if (kind === 'pit' && featureLocks.pit) return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Пит заблокирован.')] };
@@ -1586,6 +1615,12 @@
     const idx = mainIndexOf(d, uid);
     const newMain = d.main.slice(idx).concat(d.main.slice(0, idx));
     const issues = [];
+    zoneBufferUids(newMain, uid, [], 3, 0).forEach((zid) => {
+      const zn = d.nodes.find((x) => x.uid === zid);
+      if (zn && (isHazardType(zn.type) || zn.type === 'ramp')) {
+        issues.push(issue('E_START_ZONE', 'Стартовая зона/зона КП не может содержать опасность/трамплин.'));
+      }
+    });
     const cp = newMain.indexOf(d.checkpointUid);
     if (cp / n < 0.25 || cp / n > 0.65) {
       issues.push(issue('E_START_CP_RANGE', 'КП выйдет за пределы 25..65% круга.'));
@@ -1676,6 +1711,7 @@
     }
     if (hasPit && d.pit.kind === 'branch') {
       for (const oldUid of d.pit.nodes) {
+        if (nodeLock(d, oldUid, 'type')) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
         if (nodeLock(d, oldUid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
       }
     }
@@ -1753,6 +1789,7 @@
     }
     if (d.pit && d.pit.kind === 'branch') {
       for (const oldUid of d.pit.nodes) {
+        if (nodeLock(d, oldUid, 'type')) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
         if (nodeLock(d, oldUid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
       }
     }
@@ -1823,6 +1860,7 @@
     if (hasShortcut && !opts.force) return { ok: false, requiresConfirm: true, issues: [] };
     if (d.shortcut) {
       for (const oldUid of d.shortcut.nodes) {
+        if (nodeLock(d, oldUid, 'type')) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
         if (nodeLock(d, oldUid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
       }
     }
@@ -1944,12 +1982,13 @@
     const max = Math.max(min, Math.floor(Number(requestedMax) || min));
     const stats = statsFor(spec);
     const actual = stats ? stats.hazards : 0;
-    const achievable = Math.max(actual, maxGeneratedHazards(spec));
+    const achievable = Math.min(6, Math.max(actual, maxGeneratedHazards(spec)));
     return {
       requestedMin: min,
-      requestedMax: max,
+      requestedMax: Math.min(6, max),
       actual,
       achievable,
+      sliderMax: achievable,
       ok: actual >= min,
     };
   }
