@@ -177,17 +177,21 @@
     const raw = input.track && input.track.spec ? input.track : input;
     const spec = raw.spec;
     if (!spec) return { ok: false, issues: [{ code: 'E_IMPORT', message: 'нет TrackSpec' }] };
-    const r = report(spec);
-    if (!r.ok) return { ok: false, issues: r.issues };
+    const prepared = prepareSpec(spec);
+    if (!prepared.ok) return { ok: false, issues: prepared.issues };
+    const canonical = prepared.canonical ? clone(prepared.canonical) : clone(spec);
     return {
       ok: true,
+      readOnly: !!prepared.readOnly,
+      reason: prepared.reason || null,
+      warnings: prepared.warnings || [],
       track: {
         schemaVersion: 1,
         id: String(raw.id || fallbackId || customId()).slice(0, 80),
         name: cleanName(raw.name || spec.name),
         createdAt: raw.createdAt || nowIso(),
         updatedAt: raw.updatedAt || nowIso(),
-        spec: clone(spec),
+        spec: canonical,
       },
     };
   }
@@ -484,6 +488,9 @@
 
     const pitBranch = !!(input.pit && input.pit.nodes && input.pit.nodes.length);
     const pitTile = !!(input.pit && !pitBranch && input.pit.tile != null);
+    if (input.pit && input.pit.tile != null && (input.pit.nodes || []).length) {
+      add('E_PIT', 'пит не может быть одновременно тайлом и ветвью');
+    }
     const shortcut = input.shortcut || null;
     const pitNodes = pitBranch ? input.pit.nodes : [];
     const shortcutNodes = shortcut ? (shortcut.nodes || []) : [];
@@ -651,6 +658,8 @@
     pitNodes.concat(shortcutNodes).forEach((id) => { if (!seen.has(id)) add('E_BRANCH', 'узел ветки не достижим из старта', id); });
 
     const protectedIds = new Set([input.startNode, ...(input.grid || []), ...(input.checkpoints || [])]);
+    if (pitBranch) { protectedIds.add(input.pit.entry); protectedIds.add(input.pit.exit); }
+    if (pitTile) protectedIds.add(input.pit.tile);
     let run = 0;
     for (let i = 0; i < main.length * 2; i++) {
       const node = byId.get(main[i % main.length]);
@@ -1217,6 +1226,7 @@
     if (this.readOnly) return { ok: false, issues: [issue('E_READONLY', 'Трасса только для чтения.')] };
     if (!this.future.length) return { ok: false, issues: [issue('E_REDO_EMPTY', 'Нечего повторять.')] };
     this.past.push(this.snapshot());
+    if (this.past.length > HISTORY_LIMIT) this.past.shift();
     this.restore(this.future.pop());
     return { ok: true, issues: [] };
   };
@@ -1335,16 +1345,22 @@
       insertAt = mi + 1;
       if (n >= 36) return { ok: false, issues: [issue('E_LENGTH_MAX', 'Круг уже максимальной длины (36).')] };
     } else if (d.pit && d.pit.kind === 'branch') {
-      const seq = [d.pit.entry].concat(d.pit.nodes);
+      const seq = [d.pit.entry].concat(d.pit.nodes, [d.pit.exit]);
       const k = seq.indexOf(from);
-      if (k >= 0 && seq[k + 1] === to) { kind = 'pit'; insertAt = k; }
+      if (k >= 0 && k < seq.length - 1 && seq[k + 1] === to) { kind = 'pit'; insertAt = k; }
     }
     if (!kind && d.shortcut) {
-      const seq = [d.shortcut.entry].concat(d.shortcut.nodes);
+      const seq = [d.shortcut.entry].concat(d.shortcut.nodes, [d.shortcut.exit]);
       const k = seq.indexOf(from);
-      if (k >= 0 && seq[k + 1] === to) { kind = 'shortcut'; insertAt = k; }
+      if (k >= 0 && k < seq.length - 1 && seq[k + 1] === to) { kind = 'shortcut'; insertAt = k; }
     }
     if (!kind) return { ok: false, issues: [issue('E_INSERT_EDGE', 'Между этими тайлами нет ребра.')] };
+    const featureLocks = (d.locks && d.locks.features) || {};
+    if (kind === 'main' && insertAt === n && featureLocks.grid) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Решётка заблокирована.')] };
+    }
+    if (kind === 'pit' && featureLocks.pit) return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Пит заблокирован.')] };
+    if (kind === 'shortcut' && featureLocks.shortcut) return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Срез заблокирован.')] };
     if (kind === 'shortcut') {
       const a = mainIndexOf(d, d.shortcut.entry);
       const b = mainIndexOf(d, d.shortcut.exit);
@@ -1386,6 +1402,10 @@
     const feature = new Set([d.startUid, d.checkpointUid, ...(d.grid || []),
       d.pit && d.pit.tile, d.pit && d.pit.entry, d.pit && d.pit.exit,
       d.shortcut && d.shortcut.entry, d.shortcut && d.shortcut.exit]);
+    const featureName = featureOfUid(d, uid);
+    if (featureName && featureLocked(d, featureName)) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
+    }
     if (feature.has(uid)) return { ok: false, issues: [issue('E_REMOVE_FEATURE', 'Старт, КП, решётка и концы веток не удаляются — используйте инструмент.')] };
     const lock = d.locks && d.locks.nodes[uid];
     if (lock && lock.remove) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
@@ -1441,6 +1461,10 @@
     if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
     const lock = d.locks && d.locks.nodes[uid];
     if (lock && lock.pos) return { ok: false, issues: [issue('E_LOCKED_POS', 'Позиция тайла закреплена.')] };
+    const featureName = featureOfUid(d, uid);
+    if (featureName && featureLocked(d, featureName)) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
+    }
     if (!isInt(q) || !isInt(r)) return { ok: false, issues: [issue('E_COORD', 'Неверная координата клетки.')] };
     if (node.q === q && node.r === r) return { ok: true, issues: [], noop: true };
     const at = d.nodes.find((x) => x.uid !== uid && x.q === q && x.r === r);
@@ -1518,11 +1542,36 @@
     return s;
   }
 
+  function featureOfUid(draft, uid) {
+    if (uid === draft.startUid) return 'start';
+    if (uid === draft.checkpointUid) return 'checkpoint';
+    if ((draft.grid || []).includes(uid)) return 'grid';
+    if (draft.pit) {
+      if (draft.pit.kind === 'tile' && draft.pit.tile === uid) return 'pit';
+      if (draft.pit.kind === 'branch' &&
+        (uid === draft.pit.entry || uid === draft.pit.exit || draft.pit.nodes.includes(uid))) return 'pit';
+    }
+    if (draft.shortcut &&
+      (uid === draft.shortcut.entry || uid === draft.shortcut.exit || draft.shortcut.nodes.includes(uid))) return 'shortcut';
+    return null;
+  }
+
+  function featureLocked(draft, name) {
+    return !!(draft.locks && draft.locks.features && draft.locks.features[name]);
+  }
+
+  function nodeLock(draft, uid, flag) {
+    return !!(draft.locks && draft.locks.nodes && draft.locks.nodes[uid] && draft.locks.nodes[uid][flag]);
+  }
+
   TrackDraftSession.prototype.setStart = function (uid) {
     const d = this.draft;
     const node = d.nodes.find((x) => x.uid === uid);
     if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
     if (uid === d.startUid) return { ok: true, issues: [], noop: true };
+    if (featureLocked(d, 'start') || featureLocked(d, 'grid')) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Старт или решётка заблокированы.')] };
+    }
     const n = d.main.length;
     if (!d.main.includes(uid)) return { ok: false, issues: [issue('E_START_ROLE', 'Старт ставится только на основной круг.')] };
     if (uid === d.checkpointUid) return { ok: false, issues: [issue('E_START_CP', 'Старт не может стоять на КП.')] };
@@ -1554,6 +1603,9 @@
     if (d.shortcut) entries.add(d.shortcut.entry);
     for (const g of new Set(newGrid)) {
       const gridNode = d.nodes.find((x) => x.uid === g);
+      if (gridNode && (isHazardType(gridNode.type) || gridNode.type === 'ramp')) {
+        issues.push(issue('E_START_ZONE', 'Стартовая зона не может содержать опасность/трамплин.'));
+      }
       if (entries.has(g) || (gridNode && gridNode.type === 'fork')) {
         issues.push(issue('E_GRID_ENTRY', 'Решётка попадёт на вход/развилку ветки.'));
       } else if (!gridNode || !NORMAL_GRID_TYPES.includes(gridNode.type) ||
@@ -1577,6 +1629,9 @@
     const node = d.nodes.find((x) => x.uid === uid);
     if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
     if (uid === d.checkpointUid) return { ok: true, issues: [], noop: true };
+    if (featureLocked(d, 'checkpoint')) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'КП заблокирован.')] };
+    }
     if (!d.main.includes(uid) || uid === d.startUid) {
       return { ok: false, issues: [issue('E_CHECKPOINT_ROLE', 'КП ставится на основной круг, не на старт.')] };
     }
@@ -1616,10 +1671,13 @@
     const hasPit = !!d.pit;
     if (hasPit && d.pit.kind === 'tile' && d.pit.tile === uid) return { ok: true, issues: [], noop: true };
     if (hasPit && !opts.force) return { ok: false, requiresConfirm: true, issues: [] };
-    const locks = d.locks && d.locks.nodes;
-    if ((hasPit && d.pit.kind === 'tile' && locks[d.pit.tile] && locks[d.pit.tile].type) ||
-      (locks[uid] && locks[uid].type)) {
+    if ((hasPit && d.pit.kind === 'tile' && nodeLock(d, d.pit.tile, 'type')) || nodeLock(d, uid, 'type')) {
       return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    }
+    if (hasPit && d.pit.kind === 'branch') {
+      for (const oldUid of d.pit.nodes) {
+        if (nodeLock(d, oldUid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
+      }
     }
     const candidate = clone(d);
     const oldBranch = d.pit && d.pit.kind === 'branch' ? d.pit.nodes : [];
@@ -1639,6 +1697,15 @@
       return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
     }
     if (!d.pit) return { ok: true, issues: [], noop: true };
+    if (d.pit.kind === 'tile' && nodeLock(d, d.pit.tile, 'type')) {
+      return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    }
+    if (d.pit.kind === 'branch') {
+      for (const uid of d.pit.nodes) {
+        if (nodeLock(d, uid, 'type')) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+        if (nodeLock(d, uid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
+      }
+    }
     const candidate = clone(d);
     if (d.pit.kind === 'branch') {
       candidate.nodes = candidate.nodes.filter((x) => !d.pit.nodes.includes(x.uid));
@@ -1681,6 +1748,14 @@
     if (cpIdx > a && cpIdx < b) return { ok: false, issues: [issue('E_PIT_CP_BYPASS', 'Пит обходит контрольный пункт.')] };
     const hasPit = !!d.pit;
     if (hasPit && !opts.force) return { ok: false, requiresConfirm: true, issues: [] };
+    if (d.pit && d.pit.kind === 'tile' && nodeLock(d, d.pit.tile, 'type')) {
+      return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    }
+    if (d.pit && d.pit.kind === 'branch') {
+      for (const oldUid of d.pit.nodes) {
+        if (nodeLock(d, oldUid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
+      }
+    }
     const oldBranch = d.pit && d.pit.kind === 'branch' ? new Set(d.pit.nodes) : new Set();
     const route = findFreeRoute(d, entry, exit, (cells) => cells.length >= 2 && cells.length + 1 > dist, oldBranch);
     if (!route) return { ok: false, issues: [issue('E_PIT_NO_PATH', 'Не удалось проложить пит-ветку по свободным клеткам.')] };
@@ -1706,6 +1781,10 @@
       return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
     }
     if (!d.shortcut) return { ok: true, issues: [], noop: true };
+    for (const uid of d.shortcut.nodes) {
+      if (nodeLock(d, uid, 'type')) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+      if (nodeLock(d, uid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
+    }
     const candidate = clone(d);
     candidate.nodes = candidate.nodes.filter((x) => !d.shortcut.nodes.includes(x.uid));
     candidate.shortcut = null;
@@ -1742,6 +1821,11 @@
     const maxLen = Math.max.apply(null, allowed);
     const hasShortcut = !!d.shortcut;
     if (hasShortcut && !opts.force) return { ok: false, requiresConfirm: true, issues: [] };
+    if (d.shortcut) {
+      for (const oldUid of d.shortcut.nodes) {
+        if (nodeLock(d, oldUid, 'remove')) return { ok: false, issues: [issue('E_LOCKED_REMOVE', 'Тайл защищён от удаления.')] };
+      }
+    }
     const oldBranch = d.shortcut ? new Set(d.shortcut.nodes) : new Set();
     const route = findFreeRoute(d, entry, exit, (cells) => allowed.includes(cells.length), oldBranch);
     if (!route) return { ok: false, issues: [issue('E_SHORTCUT_NO_PATH', 'Не удалось проложить срез по свободным клеткам.')] };
@@ -1840,6 +1924,14 @@
     (spec.shortcut && spec.shortcut.nodes || []).forEach((id) => protectedIds.add(id));
     (spec.pit && spec.pit.entry != null ? [spec.pit.entry, spec.pit.exit] : []).forEach((id) => protectedIds.add(id));
     (spec.shortcut ? [spec.shortcut.entry, spec.shortcut.exit] : []).forEach((id) => protectedIds.add(id));
+    if (spec.pit && spec.pit.tile != null) protectedIds.add(spec.pit.tile);
+    const protectAround = (id, radius) => {
+      const idx = main.indexOf(id);
+      if (idx < 0) return;
+      for (let d = -radius; d <= radius; d++) protectedIds.add(main[(idx + d + main.length) % main.length]);
+    };
+    protectAround(spec.startNode, 3);
+    (spec.checkpoints || []).forEach((id) => protectAround(id, 2));
     return maxHazardsCycle(main.length, (i) => {
       const node = byId.get(main[i]);
       if (!node || protectedIds.has(main[i])) return false;
