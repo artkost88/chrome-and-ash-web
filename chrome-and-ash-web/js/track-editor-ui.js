@@ -34,7 +34,32 @@
     const el = $('screen-constructor');
     return !!(el && el.classList.contains('active'));
   }
-  function nodeOf(uid) { return session ? session.draft.nodes.find((n) => n.uid === uid) : null; }
+  function nodeOf(uid) { return session && session.draft ? session.draft.nodes.find((n) => n.uid === uid) : null; }
+
+  function makeReadOnlyShell(spec, reason, warnings) {
+    const original = clone(spec);
+    const rep = E.report(original);
+    return {
+      readOnly: true,
+      reason: reason || 'readonly',
+      originalSpec: original,
+      draft: null,
+      selectionUid: null,
+      dirty: false,
+      unsavedNew: false,
+      warnings: warnings || [],
+      report() {
+        return { ok: true, readOnly: true, issues: [], warnings: this.warnings, stats: rep.stats, dirty: false };
+      },
+      toSpec() { return clone(original); },
+      select() { return { ok: false, issues: [{ code: 'E_READONLY', message: 'Только чтение.' }] }; },
+      undo() { return { ok: false, issues: [{ code: 'E_UNDO_EMPTY', message: 'Нечего отменять.' }] }; },
+      redo() { return { ok: false, issues: [{ code: 'E_REDO_EMPTY', message: 'Нечего повторять.' }] }; },
+      reset() { return { ok: false, issues: [{ code: 'E_READONLY', message: 'Только чтение.' }] }; },
+      setLock() { return { ok: false, issues: [{ code: 'E_READONLY', message: 'Только чтение.' }] }; },
+      markSaved() {},
+    };
+  }
   function canvasEl() { return $('constructor-canvas'); }
 
   function ensureStore() {
@@ -99,8 +124,11 @@
   function dedupeWarnings(list) {
     const seen = new Map();
     (list || []).forEach((w) => {
-      const key = w.code + '|' + (w.nodeId == null ? '' : w.nodeId) + '|' + (w.message || '');
-      if (!seen.has(key)) seen.set(key, w);
+      const key = w.code + '|' + (w.message || '');
+      if (!seen.has(key)) seen.set(key, Object.assign({}, w, { count: 0, nodeIds: [] }));
+      const item = seen.get(key);
+      item.count += 1;
+      if (w.nodeId != null) item.nodeIds.push(w.nodeId);
     });
     return [...seen.values()];
   }
@@ -159,7 +187,7 @@
     warnings.forEach((w) => {
       const d = document.createElement('div');
       d.className = 'constructor-warning';
-      d.textContent = w.code + ': ' + (w.message || '');
+      d.textContent = w.code + ': ' + (w.message || '') + (w.count > 1 ? ' ×' + w.count : '');
       box.appendChild(d);
     });
     errors.forEach((issue) => {
@@ -215,6 +243,19 @@
     const title = $('constructor-node-title');
     const meta = $('constructor-node-meta');
     if (!title || !meta) return;
+    if (session && !session.draft) {
+      title.textContent = 'Только чтение';
+      meta.textContent = 'Исходная геометрия сохранена: ' + (session.reason || 'несовместимый формат') +
+        '. Экспорт, тест-драйв и копия доступны.';
+      ['constructor-insert', 'constructor-delete', 'constructor-make-start', 'constructor-make-cp',
+        'constructor-pit-tile', 'constructor-clear-pit', 'constructor-pit-branch', 'constructor-shortcut',
+        'constructor-clear-shortcut', 'constructor-undo', 'constructor-redo', 'constructor-reset',
+        'constructor-save', 'constructor-lock-pos', 'constructor-lock-type', 'constructor-lock-remove',
+        'constructor-flock-start', 'constructor-flock-checkpoint', 'constructor-flock-grid',
+        'constructor-flock-pit', 'constructor-flock-shortcut'].forEach((id) => setDisabled(id, true));
+      document.querySelectorAll('#constructor-palette .palette-btn, #constructor-toolbar .tool-btn').forEach((b) => { b.disabled = true; });
+      return;
+    }
     const uid = session ? session.selectionUid : null;
     const node = uid ? nodeOf(uid) : null;
     if (!node) {
@@ -346,12 +387,15 @@
       return false;
     }
     session = created.session;
+    if (!session && created.readOnly) {
+      session = makeReadOnlyShell(created.originalSpec || spec, created.reason, created.warnings);
+    }
     editingId = (opts && opts.trackId) || null;
     view = null;
     pendingFeature = null;
     pendingEntry = null;
     if (session) {
-      session.select(session.draft.startUid);
+      if (session.draft) session.select(session.draft.startUid);
       renderAll();
       const rep = session.report();
       setStatus(session.readOnly
@@ -455,6 +499,7 @@
     pendingEntry = null;
     tool = 'select';
     document.querySelectorAll('#constructor-palette .palette-btn').forEach((b) => b.classList.toggle('active', btn && b === btn));
+    updatePaletteAria();
     document.querySelectorAll('#constructor-toolbar .tool-btn').forEach((b) => b.classList.remove('active'));
     setStatus(kind === 'pit-branch' ? 'Пит-ветка: клик вход, затем выход.' : 'Срез: клик вход, затем выход.', false);
   }
@@ -493,9 +538,17 @@
     setStatus(tool === 'paint' ? 'Кисть: ' + paintType + '. Клик по тайлу.' : tool === 'move' ? 'Сдвиг: перетащите тайл на соседнюю клетку.' : 'Выбор: клик по тайлу, Ctrl+Z — отмена.', false);
   }
 
+  function updatePaletteAria() {
+    document.querySelectorAll('#constructor-palette .palette-btn').forEach((b) => {
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', b.classList.contains('active') ? 'true' : 'false');
+    });
+  }
+
   function setPaintType(type, btn) {
     paintType = type;
     document.querySelectorAll('#constructor-palette .palette-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    updatePaletteAria();
     if (session && !session.readOnly) setTool('paint');
     setStatus('Кисть: ' + type, false);
   }
@@ -649,10 +702,12 @@
       dragUid = null;
       isDragging = false;
       tryOp({ op: 'move', uid, q: cell.q, r: cell.r }, 'Тайл сдвинут');
+      focusSelectedNode();
       return;
     }
     dragUid = null;
     isDragging = false;
+    focusSelectedNode();
   }
 
   function onKeyDown(e) {
@@ -665,7 +720,7 @@
       selectNeighbor(e.key);
       return;
     }
-    if (e.key === ' ') { spaceHeld = true; return; }
+    if (e.key === ' ') { e.preventDefault(); spaceHeld = true; return; }
     if (e.ctrlKey || e.metaKey) {
       if (e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
       if (e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
@@ -873,6 +928,7 @@
   function bind() {
     if (bound) return;
     bound = true;
+    updatePaletteAria();
     const arch = $('constructor-archetype');
     if (arch) arch.addEventListener('change', () => {
       const a = E.ARCHETYPES[arch.value];
