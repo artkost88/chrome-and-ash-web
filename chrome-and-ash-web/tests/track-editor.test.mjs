@@ -948,6 +948,94 @@ test('B4: branch-node removal is atomic and keeps branch metadata consistent', (
   assert.deepEqual(s.draft, before);
 });
 
+/* ==================================================================== */
+/* task-12: code-review fixes (P0 first).                               */
+/* ==================================================================== */
+
+function expectRejectedEverywhere(spec, code) {
+  const from = TD.fromSpec(spec);
+  assert.equal(from.ok, false);
+  assert.ok(from.issues.some((i) => i.code === code), 'fromSpec: ' + JSON.stringify(from.issues.slice(0, 3)));
+  const rep = E.report(spec);
+  assert.equal(rep.ok, false);
+  assert.ok(rep.issues.some((i) => i.code === code), 'report: ' + JSON.stringify(rep.issues.slice(0, 3)));
+  const session = TD.createSession(spec);
+  assert.equal(session.ok, false);
+  const map = new Map();
+  const store = E.createStore({
+    getItem: (k) => map.get(k) ?? null,
+    setItem: (k, v) => map.set(k, v),
+    removeItem: (k) => map.delete(k),
+  });
+  const saved = store.save(E.envelope(spec, 'Bad', 'custom-bad'));
+  assert.equal(saved.ok, false);
+  assert.ok(saved.issues.some((i) => i.code === code), 'save: ' + JSON.stringify(saved.issues.slice(0, 3)));
+  const text = JSON.stringify({ kind: 'cna-track', version: 1, track: E.envelope(spec, 'Bad', 'custom-bad2') });
+  const imported = store.importJson(text);
+  assert.equal(imported.ok, false);
+  assert.ok(imported.issues.some((i) => i.code === code), 'import: ' + JSON.stringify(imported.issues.slice(0, 3)));
+}
+
+test('B4-fix: inserts on the last three main edges recompute the grid', () => {
+  const n = 31;
+  for (const edge of [n - 3, n - 2, n - 1]) {
+    const s = sessionFor(gen('snake', 2));
+    const before = clone(s.draft);
+    const from = s.draft.main[edge];
+    const to = s.draft.main[(edge + 1) % n];
+    const r = s.apply({ op: 'insertBetween', from, to });
+    assert.equal(r.ok, true, 'edge ' + edge + ': ' + JSON.stringify(r.issues));
+    assert.equal(s.draft.main.length, n + 1);
+    const expected = [
+      s.draft.main[s.draft.main.length - 1], s.draft.main[s.draft.main.length - 1],
+      s.draft.main[s.draft.main.length - 2], s.draft.main[s.draft.main.length - 2],
+    ];
+    assert.deepEqual(s.draft.grid, expected, 'edge ' + edge);
+    assert.deepEqual(TD.toSpec(s.draft).grid, [
+      s.draft.main.length - 1, s.draft.main.length - 1, s.draft.main.length - 2, s.draft.main.length - 2,
+    ]);
+    assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
+    s.undo();
+    assert.deepEqual(s.draft, before);
+  }
+});
+
+test('B4-fix: last-edge removal recomputes the grid', () => {
+  const s = sessionFor(gen('snake', 2));
+  const n = s.draft.main.length;
+  const feature = featureUids(s.draft);
+  const uid = s.draft.main[n - 3];
+  assert.ok(!feature.has(uid));
+  const r = s.apply({ op: 'remove', uid });
+  if (r.ok) {
+    assert.equal(s.draft.main.length, n - 1);
+    assert.deepEqual(s.draft.grid, [
+      s.draft.main[s.draft.main.length - 1], s.draft.main[s.draft.main.length - 1],
+      s.draft.main[s.draft.main.length - 2], s.draft.main[s.draft.main.length - 2],
+    ]);
+    assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
+  } else {
+    assert.ok(r.issues.some((i) => i.code === 'E_REMOVE_GEOMETRY' || i.code === 'E_REMOVE_FEATURE'));
+  }
+});
+
+test('B4-fix: swapped main order is rejected by every entry point', () => {
+  const spec = gen('snake', 2);
+  const swapped = clone(spec);
+  const tmp = swapped.main[3];
+  swapped.main[3] = swapped.main[4];
+  swapped.main[4] = tmp;
+  expectRejectedEverywhere(swapped, 'E_LOOP');
+});
+
+test('B4-fix: startNode with a non-start type is rejected by every entry point', () => {
+  const spec = gen('snake', 2);
+  const broken = clone(spec);
+  broken.nodes.find((n) => n.id === broken.startNode).type = 'straight';
+  broken.nodes.find((n) => n.id === 5).type = 'start';
+  expectRejectedEverywhere(broken, 'E_START_COUNT');
+});
+
 test('B4: structural validation gates store save/import', () => {
   const map = new Map();
   const store = E.createStore({

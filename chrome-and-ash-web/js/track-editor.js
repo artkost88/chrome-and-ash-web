@@ -311,6 +311,10 @@
     return Math.round(n.x) + ',' + Math.round(n.y);
   }
   function remapList(list, map) { return (list || []).map((id) => map.get(id)); }
+  function derivedGrid(main) {
+    const n = (main || []).length;
+    return n >= 2 ? [main[n - 1], main[n - 1], main[n - 2], main[n - 2]] : [];
+  }
 
   /* --- B1: canonical representation ---------------------------------- */
 
@@ -500,6 +504,18 @@
     if (starts.length !== 1) add('E_START_COUNT', 'стартовых тайлов: ' + starts.length);
     if (!mainSet.has(input.startNode)) add('E_START_INDEX', 'startNode не на main');
     else if (main[0] !== input.startNode) add('E_START_INDEX', 'startNode должен быть main[0]');
+    const startNode = byId.get(input.startNode);
+    if (startNode && startNode.type !== 'start') add('E_START_COUNT', 'startNode должен иметь type start', input.startNode);
+
+    if (new Set(main).size !== main.length) add('E_LOOP', 'main содержит повторяющиеся тайлы');
+    for (let i = 0; i < main.length; i++) {
+      const node = byId.get(main[i]);
+      if (!node) continue;
+      const nextId = main[(i + 1) % main.length];
+      const prevId = main[(i - 1 + main.length) % main.length];
+      if (!(node.next || []).includes(nextId)) add('E_LOOP', 'main[i].next не содержит main[i+1]', main[i]);
+      if (!(node.prev || []).includes(prevId)) add('E_LOOP', 'main[i].prev не содержит main[i-1]', main[i]);
+    }
 
     const grid = input.grid || [];
     if (grid.length !== 4) add('E_GRID', 'grid должен содержать 4 слота');
@@ -1345,7 +1361,10 @@
     const candidate = clone(d);
     const uid = this.nextUid();
     candidate.nodes.push({ uid, q: cell.q, r: cell.r, type: kind === 'pit' ? 'pit' : 'straight' });
-    if (kind === 'main') candidate.main.splice(insertAt, 0, uid);
+    if (kind === 'main') {
+      candidate.main.splice(insertAt, 0, uid);
+      candidate.grid = derivedGrid(candidate.main);
+    }
     else if (kind === 'pit') candidate.pit.nodes.splice(insertAt, 0, uid);
     else candidate.shortcut.nodes.splice(insertAt, 0, uid);
     return this.commit(candidate, { selectionUid: uid });
@@ -1386,6 +1405,7 @@
         return { ok: false, issues: [issue('E_REMOVE_GEOMETRY', 'После удаления соседние тайлы не соприкасаются — сначала сдвиньте соседа.')] };
       }
       candidate.main.splice(mi, 1);
+      candidate.grid = derivedGrid(candidate.main);
     } else {
       const chains = [];
       if (candidate.pit && candidate.pit.kind === 'branch') {
