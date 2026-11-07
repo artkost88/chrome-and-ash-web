@@ -97,7 +97,16 @@
     spec.label = o.name;
     spec.seed = o.seed;
     const r = report(spec);
-    return { spec, ok: r.ok, issues: r.issues, stats: r.stats, options: o };
+    const budget = hazardBudgetReport(spec, o.hazardMin, o.hazardMax);
+    const issues = (r.issues || []).slice();
+    if (budget.actual < budget.requestedMin) {
+      issues.push({
+        code: 'W_HAZARD_BUDGET',
+        message: 'Запрошено минимум ' + budget.requestedMin + ', размещено ' + budget.actual +
+          '; максимум — ' + budget.achievable + '.',
+      });
+    }
+    return { spec, ok: r.ok, issues, warnings: issues.filter((i) => String(i.code).startsWith('W_')), stats: r.stats, budget, options: o };
   }
 
   function hexPoints(cx, cy, r) {
@@ -1143,7 +1152,7 @@
     this.selectionUid = null;
     this.focusUid = null;
     this.baselineFingerprint = this.draft ? JSON.stringify(toSpec(this.draft)) : null;
-    this.unsavedNew = !this.draft || this.draft.source.kind !== 'saved';
+    this.unsavedNew = !this.draft || (this.draft.source.kind !== 'saved' && !this.draft.source.trackId);
     const self = this;
     Object.defineProperty(this, 'dirty', {
       enumerable: true,
@@ -1760,7 +1769,103 @@
       warnings: check.warnings || [],
       stats,
       dirty: this.dirty,
+      unsavedNew: this.unsavedNew,
+      canUndo: this.past.length > 0,
+      canRedo: this.future.length > 0,
     };
+  };
+
+  /* --- B4: hazard budget DP ------------------------------------------ */
+
+  function maxHazardsCycle(n, allowedAt, maxRun) {
+    if (!n) return 0;
+    let best = 0;
+    for (let endRun = 0; endRun <= maxRun; endRun++) {
+      let valid = true;
+      for (let k = 1; k <= endRun; k++) {
+        if (!allowedAt((n - k + n) % n)) { valid = false; break; }
+      }
+      if (!valid) continue;
+      let dp = new Array(maxRun + 1).fill(-1);
+      dp[endRun] = 0;
+      for (let i = 0; i < n; i++) {
+        const ndp = new Array(maxRun + 1).fill(-1);
+        for (let run = 0; run <= maxRun; run++) {
+          if (dp[run] < 0) continue;
+          if (dp[run] > ndp[0]) ndp[0] = dp[run];
+          if (allowedAt(i) && run < maxRun && dp[run] + 1 > ndp[run + 1]) ndp[run + 1] = dp[run] + 1;
+        }
+        dp = ndp;
+      }
+      if (dp[endRun] > best) best = dp[endRun];
+    }
+    return best;
+  }
+
+  function maxPaintHazards(n, protectedIds) {
+    const protectedSet = protectedIds instanceof Set ? protectedIds : new Set(protectedIds || []);
+    return maxHazardsCycle(n, (i) => !protectedSet.has(i), 2);
+  }
+
+  function maxGeneratedHazards(spec) {
+    if (!spec || !Array.isArray(spec.main)) return 0;
+    const main = spec.main;
+    const byId = new Map((spec.nodes || []).map((n) => [n.id, n]));
+    const protectedIds = new Set([spec.startNode, ...(spec.grid || []), ...(spec.checkpoints || [])]);
+    (spec.pit && spec.pit.nodes || []).forEach((id) => protectedIds.add(id));
+    (spec.shortcut && spec.shortcut.nodes || []).forEach((id) => protectedIds.add(id));
+    (spec.pit && spec.pit.entry != null ? [spec.pit.entry, spec.pit.exit] : []).forEach((id) => protectedIds.add(id));
+    (spec.shortcut ? [spec.shortcut.entry, spec.shortcut.exit] : []).forEach((id) => protectedIds.add(id));
+    return maxHazardsCycle(main.length, (i) => {
+      const node = byId.get(main[i]);
+      if (!node || protectedIds.has(main[i])) return false;
+      return node.type === 'straight' || node.type === 'turn' || isHazardType(node.type);
+    }, 1);
+  }
+
+  function hazardBudgetReport(spec, requestedMin, requestedMax) {
+    const min = Math.max(0, Math.floor(Number(requestedMin) || 0));
+    const max = Math.max(min, Math.floor(Number(requestedMax) || min));
+    const stats = statsFor(spec);
+    const actual = stats ? stats.hazards : 0;
+    const achievable = Math.max(actual, maxGeneratedHazards(spec));
+    return {
+      requestedMin: min,
+      requestedMax: max,
+      actual,
+      achievable,
+      ok: actual >= min,
+    };
+  }
+
+  TrackDraftSession.prototype.reset = function (opts) {
+    opts = opts || {};
+    if (this.readOnly) return { ok: false, issues: [issue('E_READONLY', 'Трасса только для чтения.')] };
+    if (!opts.force) return { ok: false, requiresConfirm: true, issues: [] };
+    const src = this.draft && this.draft.source;
+    if (!src || !src.sourceSpec) return { ok: false, issues: [issue('E_RESET', 'Нет исходной трассы для сброса.')] };
+    const fresh = draftFromCanonical(src.sourceSpec, {
+      kind: src.kind,
+      trackId: src.trackId,
+      migrated: (src.migrated || []).length > 0,
+      originalSpec: src.originalSpec,
+    });
+    this.draft = fresh;
+    this.uidSeq = fresh.nodes.length;
+    this.selectionUid = null;
+    this.focusUid = null;
+    this.past = [];
+    this.future = [];
+    this.revision += 1;
+    return { ok: true, issues: [] };
+  };
+
+  TrackDraftSession.prototype.markSaved = function (trackId) {
+    if (!this.draft) return;
+    this.draft.source.trackId = trackId || this.draft.source.trackId;
+    this.draft.source.kind = 'saved';
+    this.unsavedNew = false;
+    this.baselineFingerprint = JSON.stringify(toSpec(this.draft));
   };
 
   function createSession(spec, opts) {
@@ -1812,6 +1917,9 @@
     detectReadOnly,
     createSession,
     TrackDraftSession,
+    maxPaintHazards,
+    maxGeneratedHazards,
+    hazardBudgetReport,
     axialAdjacent,
     axialNeighbors,
     hexXY,

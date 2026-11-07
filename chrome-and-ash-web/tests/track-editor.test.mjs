@@ -774,6 +774,229 @@ test('B3: setShortcut rejects wrap, near-start, saving, conflict and locks', () 
     .some((i) => i.code === 'E_LOCKED_FEATURE'));
 });
 
+/* ==================================================================== */
+/* Stage B — B4: session history, locks, dirty, budget and properties.  */
+/* ==================================================================== */
+
+function bruteMaxHazards(n, protectedSet, maxRun) {
+  let best = 0;
+  for (let mask = 0; mask < (1 << n); mask++) {
+    let ok = true;
+    for (let i = 0; i < n; i++) {
+      if ((mask >> i) & 1) {
+        if (protectedSet.has(i)) { ok = false; break; }
+        for (let k = 1; k <= maxRun; k++) {
+          if (!((mask >> ((i - k + n) % n)) & 1)) break;
+          if (k === maxRun) ok = false;
+        }
+      }
+      if (!ok) break;
+    }
+    if (!ok) continue;
+    let count = 0;
+    for (let i = 0; i < n; i++) if ((mask >> i) & 1) count++;
+    if (count > best) best = count;
+  }
+  return best;
+}
+
+test('B4: hazard budget DP matches brute force for n=6..12', () => {
+  for (let n = 6; n <= 12; n++) {
+    for (let t = 0; t < 20; t++) {
+      const rng = CnA.mulberry32(n * 101 + t);
+      const protectedSet = new Set();
+      for (let i = 0; i < n; i++) if (rng() < 0.25) protectedSet.add(i);
+      assert.equal(TD.maxPaintHazards(n, protectedSet), bruteMaxHazards(n, protectedSet, 2), 'n=' + n + ' t=' + t);
+    }
+  }
+});
+
+test('B4: generate reports the real hazard budget and warns on underfill', () => {
+  const r = E.generate({ archetype: 'club', seed: 5, hazardMin: 6, hazardMax: 6, name: 'Бюджет' });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.ok(r.budget);
+  assert.equal(r.budget.requestedMin, 6);
+  assert.equal(r.budget.requestedMax, 6);
+  assert.equal(r.budget.actual, r.stats.hazards);
+  assert.ok(r.budget.achievable >= r.budget.actual);
+  assert.equal(r.budget.achievable, TD.maxGeneratedHazards(r.spec));
+  if (r.budget.actual < 6) {
+    assert.equal(r.budget.ok, false);
+    assert.ok(r.issues.some((i) => i.code === 'W_HAZARD_BUDGET'));
+    assert.match(r.issues.find((i) => i.code === 'W_HAZARD_BUDGET').message, /максимум/);
+  }
+});
+
+test('B4: undo/redo restores draft, selection and lock flags', () => {
+  const s = sessionFor(gen('snake', 2));
+  const uid = paintable(s)[0];
+  const initial = clone(s.draft);
+  assert.equal(s.apply({ op: 'paint', uid, type: 'sand' }).ok, true);
+  assert.equal(s.apply({ op: 'setLock', uid, flags: { pos: true } }).ok, true);
+  assert.deepEqual(s.draft.locks.nodes[uid], { pos: true });
+  assert.equal(s.undo().ok, true);
+  assert.equal(s.draft.locks.nodes[uid], undefined);
+  assert.equal(s.undo().ok, true);
+  assert.deepEqual(s.draft, initial);
+  assert.equal(s.undo().ok, false);
+  assert.ok(s.undo().issues.some((i) => i.code === 'E_UNDO_EMPTY'));
+  assert.equal(s.redo().ok, true);
+  assert.equal(draftNode(s.draft, uid).type, 'sand');
+  assert.equal(s.redo().ok, true);
+  assert.equal(s.draft.locks.nodes[uid].pos, true);
+  assert.equal(s.redo().ok, false);
+  assert.ok(s.redo().issues.some((i) => i.code === 'E_REDO_EMPTY'));
+});
+
+test('B4: history is capped at 50 snapshots', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const uid = paintable(s)[0];
+  for (let i = 0; i < 60; i++) {
+    assert.equal(s.apply({ op: 'setLock', uid, flags: { pos: i % 2 === 0 } }).ok, true);
+  }
+  assert.equal(s.past.length, 50);
+});
+
+test('B4: dirty/unsavedNew follow edits, locks and markSaved', () => {
+  const s = sessionFor(gen('snake', 2));
+  assert.equal(s.dirty, false);
+  assert.equal(s.unsavedNew, true);
+  const uid = paintable(s)[0];
+  assert.equal(s.apply({ op: 'paint', uid, type: 'sand' }).ok, true);
+  assert.equal(s.dirty, true);
+  s.undo();
+  assert.equal(s.dirty, false);
+  const rev = s.revision;
+  assert.equal(s.apply({ op: 'setLock', uid, flags: { type: true } }).ok, true);
+  assert.equal(s.revision, rev + 1);
+  assert.equal(s.dirty, false, 'locks are not part of the exported spec');
+  s.markSaved('custom-test');
+  assert.equal(s.unsavedNew, false);
+  assert.equal(s.dirty, false);
+  assert.equal(s.apply({ op: 'paint', uid: paintable(s)[1], type: 'debris' }).ok, true);
+  assert.equal(s.dirty, true);
+  const reset = s.reset({ force: true });
+  assert.equal(reset.ok, true, JSON.stringify(reset.issues));
+  assert.equal(s.dirty, false);
+  assert.equal(s.past.length, 0);
+});
+
+test('B4: reset without force asks for confirmation and returns migrated baseline', () => {
+  const spec = gen('horseshoe', 3);
+  const expected = legacyHorseshoeExpected(spec);
+  const s = sessionFor(spec);
+  const uid = paintable(s)[0];
+  assert.equal(s.apply({ op: 'paint', uid, type: 'sand' }).ok, true);
+  const pending = s.reset();
+  assert.equal(pending.ok, false);
+  assert.equal(pending.requiresConfirm, true);
+  const r = s.reset({ force: true });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.deepEqual(TD.toSpec(s.draft), expected);
+  assert.equal(s.dirty, false);
+});
+
+test('B4: read-only sessions reject edits but still report', () => {
+  const spec = gen('snake', 1);
+  for (const n of spec.nodes) if (n.id === 4) n.type = 'fork';
+  const created = TD.createSession(spec);
+  assert.equal(created.ok, true);
+  assert.equal(created.readOnly, true);
+  assert.ok(created.session);
+  const s = created.session;
+  assert.ok(s.apply({ op: 'paint', uid: s.draft.main[3], type: 'sand' }).issues
+    .some((i) => i.code === 'E_READONLY'));
+  const rep = s.report();
+  assert.equal(rep.ok, true);
+  assert.equal(rep.readOnly, true);
+});
+
+test('B4: remove lock blocks deletion and is undoable', () => {
+  const s = sessionFor(gen('snake', 2));
+  const feature = featureUids(s.draft);
+  const n = s.draft.main.length;
+  let bend = null;
+  for (let i = 2; i < n - 1 && !bend; i++) {
+    const uid = s.draft.main[i];
+    if (feature.has(uid)) continue;
+    if (isAdj(draftNode(s.draft, s.draft.main[i - 1]), draftNode(s.draft, s.draft.main[i + 1]))) bend = uid;
+  }
+  assert.ok(bend);
+  assert.equal(s.apply({ op: 'setLock', uid: bend, flags: { remove: true } }).ok, true);
+  assert.ok(s.apply({ op: 'remove', uid: bend }).issues.some((i) => i.code === 'E_LOCKED_REMOVE'));
+  s.undo();
+  assert.equal(s.apply({ op: 'remove', uid: bend }).ok, true);
+});
+
+test('B4: structural validation gates store save/import', () => {
+  const map = new Map();
+  const store = E.createStore({
+    getItem: (k) => map.get(k) ?? null,
+    setItem: (k, v) => map.set(k, v),
+    removeItem: (k) => map.delete(k),
+  });
+  const spec = gen('snake', 3);
+  spec.shortcut.nodes.forEach((id) => { spec.nodes.find((n) => n.id === id).type = 'straight'; });
+  const env = E.envelope(spec, 'Плохой срез', 'custom-bad');
+  const saved = store.save(env);
+  assert.equal(saved.ok, false);
+  assert.ok(saved.issues.some((i) => i.code === 'E_SHORTCUT_RISK'));
+  const text = JSON.stringify({ kind: 'cna-track', version: 1, track: env });
+  const imported = store.importJson(text);
+  assert.equal(imported.ok, false);
+  assert.ok(imported.issues.some((i) => i.code === 'E_SHORTCUT_RISK'));
+});
+
+test('B4: random operations are atomic, valid, dense and fully undoable', () => {
+  const s = sessionFor(gen('snake', 6));
+  const initial = clone(s.draft);
+  const rng = CnA.mulberry32(424242);
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+  let accepted = 0;
+  for (let iter = 0; iter < 120; iter++) {
+    const roll = rng();
+    let op;
+    if (roll < 0.34) {
+      op = { op: 'paint', uid: pick(s.draft.nodes).uid, type: pick(TD.PAINT_TYPES) };
+    } else if (roll < 0.52) {
+      const uid = pick(s.draft.main);
+      const node = draftNode(s.draft, uid);
+      const dir = pick([[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]);
+      op = { op: 'move', uid, q: node.q + dir[0], r: node.r + dir[1] };
+    } else if (roll < 0.64) {
+      const i = Math.floor(rng() * s.draft.main.length);
+      op = { op: 'insertBetween', from: s.draft.main[i], to: s.draft.main[(i + 1) % s.draft.main.length] };
+    } else if (roll < 0.74) {
+      op = { op: 'remove', uid: pick(s.draft.nodes).uid };
+    } else if (roll < 0.82) {
+      op = { op: 'setStart', uid: pick(s.draft.main) };
+    } else if (roll < 0.90) {
+      op = { op: 'setCheckpoint', uid: pick(s.draft.main) };
+    } else if (roll < 0.94) {
+      op = { op: 'setPitTile', uid: pick(s.draft.main), force: true };
+    } else if (roll < 0.97) {
+      op = { op: 'setShortcut', entry: pick(s.draft.main), exit: pick(s.draft.main), force: true };
+    } else {
+      op = { op: rng() < 0.5 ? 'clearPit' : 'clearShortcut', force: true };
+    }
+    const before = clone(s.draft);
+    const r = s.apply(op);
+    if (r.ok) {
+      accepted++;
+      const check = TD.validateDraft(s.draft);
+      assert.equal(check.ok, true, iter + ' ' + JSON.stringify(op) + ': ' + JSON.stringify(check.issues.slice(0, 3)));
+      const out = TD.toSpec(s.draft);
+      out.nodes.forEach((n, i) => assert.equal(n.id, i, 'dense ids at op ' + iter));
+      assert.equal(CnA.validateTrackSpec(out).ok, true, 'stage A at op ' + iter);
+    } else {
+      assert.deepEqual(s.draft, before, 'rejected op must not mutate at ' + iter);
+    }
+  }
+  assert.ok(accepted > 0);
+  while (s.past.length) s.undo();
+  assert.deepEqual(s.draft, initial);
+});
+
 test('storage corruption and malformed generated specs do not throw', () => {
   const store = E.createStore({
     getItem: () => '{not-json',
