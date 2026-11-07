@@ -2139,7 +2139,15 @@
     const res = fromSpec(spec, opts);
     if (!res.ok) return res;
     if (!res.draft && res.readOnly) {
-      return { ok: true, readOnly: true, reason: res.reason, issues: [], session: null };
+      return {
+        ok: true,
+        readOnly: true,
+        reason: res.reason,
+        issues: [],
+        originalSpec: res.originalSpec,
+        warnings: res.warnings || [],
+        session: null,
+      };
     }
     return {
       ok: true,
