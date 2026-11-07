@@ -93,3 +93,24 @@ test('snake has a shortcut and no pit', () => {
   const shortcutTypes = spec.shortcut.nodes.map((id) => spec.nodes.find((n) => n.id === id).type);
   assert.ok(shortcutTypes.some((t) => ['sand', 'debris', 'event'].includes(t)), 'срез должен иметь риск');
 });
+
+test('hazard budget override is valid and respected', () => {
+  for (const archetype of ['club', 'horseshoe', 'snake']) {
+    for (const budget of [[0, 0], [2, 2], [5, 5]]) {
+      for (let seed = 1; seed <= 20; seed++) {
+        const spec = CnA.generateTrackSpec(seed, {
+          archetype,
+          size: CnA.TRACK_ARCHETYPES[archetype].defaultSize,
+          hazardBudget: budget,
+        });
+        const report = CnA.validateTrackSpec(spec);
+        assert.equal(report.ok, true, `${archetype}/${seed}: ${JSON.stringify(report.issues.slice(0, 3))}`);
+        const count = spec.main.filter((id) => {
+          const node = spec.nodes.find((n) => n.id === id);
+          return node && CnA.HAZARD_TILES.includes(node.type);
+        }).length;
+        assert.ok(count >= budget[0] && count <= budget[1], `${archetype}/${seed}: ${count} hazards for ${budget}`);
+      }
+    }
+  }
+});

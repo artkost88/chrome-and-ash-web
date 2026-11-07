@@ -90,6 +90,70 @@
       if (!changed) break;
     }
   }
+
+  /* Конструктор: приводит число опасностей на основной петле к заданному
+     бюджету. Опасности на старте, решётке, КП, пите и срезе не трогаем. */
+  function applyHazardBudget(spec, budget, seed) {
+    const min = Math.max(0, Math.floor(Number(budget[0]) || 0));
+    const max = Math.max(min, Math.floor(Number(budget[1]) || min));
+    const out = clone(spec);
+    const byId = new Map(out.nodes.map((n) => [n.id, n]));
+    const main = (out.main || out.nodes.filter((n) => !n.inner).map((n) => n.id)).slice();
+    if (!main.length) return clone(spec);
+
+    const protectedIds = new Set([...(out.grid || []), out.startNode, ...(out.checkpoints || [])]);
+    (out.pit && out.pit.nodes ? out.pit.nodes : []).forEach((id) => protectedIds.add(id));
+    (out.shortcut && out.shortcut.nodes ? out.shortcut.nodes : []).forEach((id) => protectedIds.add(id));
+    const startIdx = main.indexOf(out.startNode);
+    const cpIdxes = (out.checkpoints || []).map((id) => main.indexOf(id)).filter((i) => i >= 0);
+    const protectAround = (idx, radius) => {
+      if (idx < 0) return;
+      for (let d = -radius; d <= radius; d++) protectedIds.add(main[(idx + d + main.length) % main.length]);
+    };
+    protectAround(startIdx, 3);
+    cpIdxes.forEach((idx) => protectAround(idx, 2));
+    if (out.pit) {
+      [out.pit.entry, out.pit.exit, out.pit.tile].forEach((id) => { if (id != null) protectedIds.add(id); });
+    }
+    if (out.shortcut) {
+      [out.shortcut.entry, out.shortcut.exit].forEach((id) => { if (id != null) protectedIds.add(id); });
+    }
+
+    const isHazard = (id) => {
+      const n = byId.get(id);
+      return !!n && CnA.HAZARD_TILES.includes(n.type);
+    };
+    let hazardIds = main.filter(isHazard);
+    while (hazardIds.length > max) {
+      const id = hazardIds[hazardIds.length - 1];
+      const n = byId.get(id);
+      if (!n) break;
+      n.type = 'straight';
+      hazardIds = main.filter(isHazard);
+    }
+
+    const hasHazardNeighbor = (id) => {
+      const idx = main.indexOf(id);
+      if (idx < 0) return true;
+      return isHazard(main[(idx - 1 + main.length) % main.length]) ||
+        isHazard(main[(idx + 1) % main.length]);
+    };
+    const candidates = () => main.filter((id) => {
+      const n = byId.get(id);
+      return n && !protectedIds.has(id) && (n.type === 'straight' || n.type === 'turn') && !hasHazardNeighbor(id);
+    });
+    let guard = 0;
+    while (hazardIds.length < min && guard++ < 40) {
+      const pool = candidates();
+      if (!pool.length) break;
+      const pickIdx = Math.floor(CnA.mulberry32((seed >>> 0) + 73 + hazardIds.length)() * pool.length);
+      const n = byId.get(pool[pickIdx]);
+      n.type = ['sand', 'debris', 'event'][(seed + hazardIds.length) % 3];
+      hazardIds = main.filter(isHazard);
+    }
+
+    return validateTrackSpec(out).ok ? out : clone(spec);
+  }
   function pick(nodes, pred) { return nodes.find(pred) || null; }
 
   function buildAxialSpec(seed, coords, opt) {
@@ -595,12 +659,18 @@
     if (arch.id === 'club') spec = buildClubSpec(s, size);
     else if (arch.id === 'snake') spec = buildSnakeSpec(s, size);
     else spec = buildHorseshoeSpec(s, size || 36);
+    if (opts && typeof opts === 'object' && Array.isArray(opts.hazardBudget)) {
+      spec = applyHazardBudget(spec, opts.hazardBudget, s);
+    }
     let check = validateTrackSpec(spec);
     if (!check.ok) {
       // Детерминированный fallback: тот же архетип, seed 0; если и он плох — вернуть как есть.
-      const fallback = arch.id === 'club' ? buildClubSpec(0, arch.defaultSize)
+      let fallback = arch.id === 'club' ? buildClubSpec(0, arch.defaultSize)
         : arch.id === 'snake' ? buildSnakeSpec(0, arch.defaultSize)
         : buildHorseshoeSpec(0, 36);
+      if (opts && typeof opts === 'object' && Array.isArray(opts.hazardBudget)) {
+        fallback = applyHazardBudget(fallback, opts.hazardBudget, 0);
+      }
       if (validateTrackSpec(fallback).ok) spec = fallback;
     }
     return spec;
@@ -613,6 +683,7 @@
 
   CnA.TRACK_ARCHETYPES = ARCHETYPES;
   CnA.generateTrackSpec = generateTrackSpec;
+  CnA.applyHazardBudget = applyHazardBudget;
   CnA.compileTrack = compileTrack;
   CnA.generateTrack = generateTrack;
   CnA.validateTrackSpec = validateTrackSpec;
