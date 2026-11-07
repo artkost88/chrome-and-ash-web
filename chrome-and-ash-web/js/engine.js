@@ -189,11 +189,20 @@
   function setupRace(game) {
     game.rng = CnA.mulberry32(game.seed + game.raceIndex * 1013 + 7);
     const trackSize = game.trackSize || 28;
-    const track = CnA.generateTrack(game.seed + game.raceIndex * 977, {
-      archetype: game.trackArchetype || (game.trackKind === 'ring' ? 'club' : 'horseshoe'),
-      size: trackSize,
-      kind: game.trackKind,
-    });
+    let track;
+    if (game.trackSpec) {
+      const report = CnA.validateTrackSpec(game.trackSpec);
+      if (!report.ok) throw new Error('invalid trackSpec: ' + JSON.stringify(report.issues.slice(0, 3)));
+      track = CnA.compileTrack(game.trackSpec);
+      track.name = game.trackName || game.trackSpec.name || 'Трасса';
+      track.label = track.name;
+    } else {
+      track = CnA.generateTrack(game.seed + game.raceIndex * 977, {
+        archetype: game.trackArchetype || (game.trackKind === 'ring' ? 'club' : 'horseshoe'),
+        size: trackSize,
+        kind: game.trackKind,
+      });
+    }
     game.stage = 'race';
     game.race = {
       track,
@@ -303,6 +312,8 @@
       trackSize: opts.trackSize || 28,
       trackKind: opts.trackKind === 'mosaic' ? 'mosaic' : 'ring',
       trackArchetype: opts.trackArchetype || null,
+      trackSpec: opts.trackSpec ? JSON.parse(JSON.stringify(opts.trackSpec)) : null,
+      trackName: opts.trackName || null,
       raceIndex: 0,
       stage: 'race',
       cars: CnA.FACTIONS.map((f, i) => makeCar(f, i)),

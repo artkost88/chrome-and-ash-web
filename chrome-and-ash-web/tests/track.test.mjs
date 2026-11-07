@@ -61,6 +61,25 @@ test('engine accepts a selected archetype', () => {
   assert.equal(new Set(game.race.track.grid).size, 2);
 });
 
+test('engine compiles a custom spec and preserves its name', () => {
+  const spec = CnA.generateTrackSpec(77, { archetype: 'snake', size: 31 });
+  spec.name = 'Авторская змея';
+  const game = CnA.createGame({
+    humanFaction: 'chrome', trackSpec: spec, trackName: spec.name,
+    trackArchetype: 'custom', trackSize: spec.size, quiet: true,
+  });
+  assert.equal(game.race.track.name, 'Авторская змея');
+  assert.equal(game.race.track.main.length, spec.main.length);
+  assert.equal(game.trackSpec.name, 'Авторская змея');
+  assert.equal(new Set(game.race.track.grid).size, 2);
+});
+
+test('engine rejects an invalid custom spec', () => {
+  const spec = CnA.generateTrackSpec(77, { archetype: 'snake' });
+  spec.nodes[1].type = 'start';
+  assert.throws(() => CnA.createGame({ trackSpec: spec, quiet: true }), /invalid trackSpec/);
+});
+
 test('validator catches broken graph and hazard rules', () => {
   const spec = specFor('club', 1);
   const broken = JSON.parse(JSON.stringify(spec));
