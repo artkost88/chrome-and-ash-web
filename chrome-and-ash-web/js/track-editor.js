@@ -86,6 +86,7 @@
     }
     spec.name = o.name;
     spec.label = o.name;
+    spec.seed = o.seed;
     const r = report(spec);
     return { spec, ok: r.ok, issues: r.issues, stats: r.stats, options: o };
   }

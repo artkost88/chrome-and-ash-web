@@ -27,6 +27,7 @@ test('generate returns a valid deterministic spec and stats', () => {
   assert.equal(a.ok, true, JSON.stringify(a.issues));
   assert.deepEqual(a.spec, b.spec);
   assert.equal(a.spec.name, 'Тест');
+  assert.equal(a.spec.seed, 123);
   assert.equal(a.stats.length, a.spec.size);
   assert.ok(a.stats.hazards >= 2 && a.stats.hazards <= 2);
 });

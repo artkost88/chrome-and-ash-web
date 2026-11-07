@@ -209,7 +209,7 @@
       if (!editingId || !store || !store.get(editingId)) editingId = null;
     }
     const seed = $('constructor-seed');
-    if (seed && r.spec) seed.value = String(r.spec.seed == null ? o.seed : r.spec.seed);
+    if (seed && r.spec) seed.value = String(o.seed);
     setDirty(true);
     render();
   }
