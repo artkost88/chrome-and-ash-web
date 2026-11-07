@@ -719,7 +719,8 @@ code { font-family: var(--font-mono); color: var(--brass); }
    КОНСТРУКТОР ТРАСС
    ================================================================ */
 .constructor-screen {
-  min-height: 100vh; background:
+  height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column;
+  background:
     radial-gradient(900px 500px at 50% 0%, rgba(200,160,78,.08), transparent 70%),
     var(--night);
 }
@@ -732,12 +733,13 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .constructor-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .constructor-main {
   display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr) minmax(250px, 310px);
-  gap: 12px; padding: 12px clamp(14px, 2vw, 28px) 20px; max-width: 2200px; margin: 0 auto;
-  align-items: start;
+  gap: 12px; padding: 12px clamp(14px, 2vw, 28px) 16px; max-width: 2200px; margin: 0 auto;
+  align-items: stretch; flex: 1; min-height: 0; width: 100%; overflow: hidden;
 }
 .constructor-controls, .constructor-side {
   border: 1px solid var(--line); background: rgba(36,31,26,.72); padding: 12px;
   display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  overflow: auto; min-height: 0;
 }
 .constructor-controls .big-btn { width: 100%; }
 .constructor-controls .chip-btn { width: auto; }
@@ -748,10 +750,10 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .constructor-budget { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .constructor-budget .field { min-width: 0; }
 .constructor-note { margin: 2px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.45; }
-.constructor-stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.constructor-stage { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; overflow: hidden; }
 .constructor-preview {
-  border: 1px solid var(--line); background: rgba(11,15,18,.72); min-height: 300px;
-  display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 8px;
+  border: 1px solid var(--line); background: rgba(11,15,18,.72); min-height: 0; flex: 1;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 4px;
 }
 .constructor-preview .track-preview-svg { width: 100%; height: min(62vh, 620px); display: block; }
 .pv-edge { stroke: rgba(245,240,232,.42); stroke-width: 2; stroke-linecap: round; }
@@ -801,7 +803,12 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .tool-btn.active b { color: var(--waste); }
 .toolbar-gap { flex: 1; }
 .zoom-label { min-width: 44px; text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--brass); }
-.constructor-canvas { width: 100%; height: min(58vh, 560px); min-height: 320px; }
+.constructor-canvas { width: 100%; height: 100%; min-height: 260px; }
+.ed-edges { pointer-events: none; }
+.ed-insert circle { fill: rgba(11,15,18,.85); stroke: var(--brass); stroke-width: 1.5; }
+.ed-insert line { stroke: var(--brass); stroke-width: 1.5; }
+.ed-insert { cursor: pointer; opacity: .75; }
+.ed-insert:hover { opacity: 1; }
 .constructor-canvas .editor-svg { width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
 .ed-edge { stroke: rgba(245,240,232,.38); stroke-width: 4; stroke-linecap: round; }
 .ed-edge.pit { stroke: rgba(200,160,78,.75); stroke-dasharray: 5 4; }
@@ -849,14 +856,34 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .inspector-locks { display: flex; gap: 8px; flex-wrap: wrap; font-size: 10px; color: var(--text-dim); }
 .inspector-locks input { accent-color: var(--brass); }
 .constructor-inspector .chip-btn { font-size: 10px; padding: 5px 7px; }
+.constructor-modal {
+  position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
+  background: rgba(5,7,9,.72); padding: 20px;
+}
+.constructor-modal-card {
+  max-width: 460px; width: 100%; border: 1px solid var(--brass); background: var(--waste);
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 24px 60px rgba(0,0,0,.65);
+}
+.constructor-modal-card h3 { margin: 0; font-family: var(--font-display); font-size: 13px; letter-spacing: .08em; color: var(--brass); }
+.constructor-modal-card p { margin: 0; color: var(--text-dim); font-size: 12px; line-height: 1.45; }
+.constructor-modal-card .chip-btn { cursor: pointer; }
+.primary { background: var(--brass) !important; color: var(--waste) !important; border-color: var(--brass) !important; }
 .locked-node { opacity: .82; }
 
 @media (max-width: 1280px) {
-  .constructor-main { grid-template-columns: minmax(230px, 270px) minmax(0, 1fr) minmax(230px, 290px); }
-  .constructor-canvas { height: min(52vh, 480px); }
+  .constructor-main { grid-template-columns: minmax(210px, 250px) minmax(0, 1fr) minmax(220px, 260px); gap: 8px; }
 }
 @media (max-width: 1100px) {
-  .constructor-main { grid-template-columns: 1fr; }
+  .constructor-main { grid-template-columns: minmax(190px, 220px) minmax(0, 1fr) minmax(200px, 230px); gap: 7px; padding-left: 10px; padding-right: 10px; }
+  .constructor-controls, .constructor-side { padding: 8px; }
+  .constructor-top { padding: 7px 10px; }
+  .constructor-actions .chip-btn, .constructor-actions .big-btn.mini { padding: 5px 7px; font-size: 10px; }
+}
+@media (max-width: 900px) {
+  .constructor-screen { height: auto; min-height: 100vh; overflow: visible; display: block; }
+  .constructor-main { grid-template-columns: 1fr; overflow: visible; flex: none; }
+  .constructor-controls, .constructor-side { overflow: visible; }
+  .constructor-preview { min-height: 46vh; flex: none; }
   .constructor-preview .track-preview-svg { height: 46vh; }
   .constructor-canvas { height: 46vh; }
   .constructor-side { order: 3; }

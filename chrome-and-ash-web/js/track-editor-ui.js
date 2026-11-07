@@ -23,6 +23,7 @@
   let dragStart = null;
   let panStart = null;
   let spaceHeld = false;
+  let stroke = null;
 
   function $(id) { return document.getElementById(id); }
   function val(id) { const el = $(id); return el ? el.value : ''; }
@@ -95,8 +96,22 @@
     const el = $('constructor-live');
     if (el) el.textContent = String(text || '');
   }
+  function dedupeWarnings(list) {
+    const seen = new Map();
+    (list || []).forEach((w) => {
+      const key = w.code + '|' + (w.nodeId == null ? '' : w.nodeId) + '|' + (w.message || '');
+      if (!seen.has(key)) seen.set(key, w);
+    });
+    return [...seen.values()];
+  }
   function warnText(warnings) {
-    return (warnings || []).map((w) => w.code + ': ' + (w.message || '')).join(' · ');
+    const grouped = new Map();
+    dedupeWarnings(warnings).forEach((w) => {
+      const key = w.code + '|' + (w.message || '');
+      if (!grouped.has(key)) grouped.set(key, { code: w.code, message: w.message || '', count: 0 });
+      grouped.get(key).count += 1;
+    });
+    return [...grouped.values()].map((g) => g.code + ': ' + g.message + (g.count > 1 ? ' ×' + g.count : '')).join(' · ');
   }
 
   function renderStats() {
@@ -133,7 +148,7 @@
     box.innerHTML = '';
     const rep = session ? session.report() : null;
     const errors = rep ? (rep.issues || []) : [];
-    const warnings = rep ? (rep.warnings || []) : [];
+    const warnings = dedupeWarnings(rep ? (rep.warnings || []) : []);
     if (!errors.length && !warnings.length) {
       const ok = document.createElement('div');
       ok.className = 'constructor-ok';
@@ -222,6 +237,11 @@
       const el = $('constructor-lock-' + f);
       if (el) el.checked = !!locks[f];
     });
+    const fl = (session && session.draft.locks && session.draft.locks.features) || {};
+    ['start', 'checkpoint', 'grid', 'pit', 'shortcut'].forEach((f) => {
+      const el = $('constructor-flock-' + f);
+      if (el) el.checked = !!fl[f];
+    });
     const ro = !session || session.readOnly;
     ['constructor-insert', 'constructor-delete', 'constructor-make-start', 'constructor-make-cp',
       'constructor-pit-tile', 'constructor-clear-pit', 'constructor-pit-branch', 'constructor-shortcut',
@@ -237,6 +257,7 @@
     setDisabled('constructor-clear-pit', ro || !session.draft.pit);
     setDisabled('constructor-clear-shortcut', ro || !session.draft.shortcut);
     ['pos', 'type', 'remove'].forEach((f) => setDisabled('constructor-lock-' + f, !!ro));
+    ['start', 'checkpoint', 'grid', 'pit', 'shortcut'].forEach((f) => setDisabled('constructor-flock-' + f, !!ro));
     document.querySelectorAll('#constructor-palette .palette-btn, #constructor-toolbar .tool-btn').forEach((b) => { b.disabled = !!ro; });
   }
 
@@ -245,7 +266,7 @@
     const el = canvasEl();
     const width = (el && el.clientWidth) || 900;
     const height = (el && el.clientHeight) || 520;
-    const b = TD.editorBounds(session.draft, 34);
+    const b = TD.editorBounds(session.draft, session.draft.hexSize || 34);
     const scale = Math.max(0.35, Math.min(3, Math.min(width / b.w, height / b.h) * 0.94));
     view = {
       width,
@@ -497,8 +518,55 @@
     return { q: rx, r: ry };
   }
 
+  function focusSelectedNode() {
+    if (!session || !session.selectionUid) return;
+    const el = document.querySelector('#constructor-canvas [data-uid="' + session.selectionUid + '"]');
+    if (el) el.focus({ preventScroll: true });
+  }
+
+  function selectNeighbor(key) {
+    if (!session || !session.selectionUid) return;
+    const cur = nodeOf(session.selectionUid);
+    if (!cur) return;
+    const size = session.draft.hexSize || 34;
+    const p0 = TD.hexXY(cur.q, cur.r, size);
+    const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
+    if (!dir) return;
+    let best = null, bestScore = Infinity;
+    session.draft.nodes.forEach((n) => {
+      if (n.uid === cur.uid || !TD.isInt(n.q) || !TD.isInt(n.r)) return;
+      const p = TD.hexXY(n.q, n.r, size);
+      const dx = p.x - p0.x, dy = p.y - p0.y;
+      const dot = dx * dir[0] + dy * dir[1];
+      if (dot <= 0) return;
+      const score = Math.hypot(dx, dy);
+      if (score < bestScore) { bestScore = score; best = n.uid; }
+    });
+    if (best) {
+      session.select(best);
+      renderAll();
+      focusSelectedNode();
+      live('Выбран тайл ' + best);
+    }
+  }
+
+  function addStrokeChange(uid) {
+    if (!stroke || stroke.uids.has(uid)) return;
+    const node = nodeOf(uid);
+    if (!node || node.type === paintType) return;
+    stroke.uids.add(uid);
+    stroke.changes.push({ uid, type: paintType });
+  }
+
   function onCanvasDown(event) {
     if (!session) return;
+    const handle = event.target.closest && event.target.closest('[data-insert-from]');
+    if (handle && !session.readOnly) {
+      event.preventDefault();
+      tryOp({ op: 'insertBetween', from: handle.getAttribute('data-insert-from'), to: handle.getAttribute('data-insert-to') }, 'Вставлено');
+      focusSelectedNode();
+      return;
+    }
     const nodeEl = event.target.closest && event.target.closest('[data-uid]');
     const uid = nodeEl ? nodeEl.getAttribute('data-uid') : null;
     if (event.button === 1 || spaceHeld) {
@@ -512,7 +580,14 @@
       return;
     }
     if (pendingFeature) { handleFeatureClick(uid); return; }
-    if (tool === 'paint') { tryOp({ op: 'paint', uid, type: paintType }, 'Тип изменён'); return; }
+    if (tool === 'paint') {
+      stroke = { changes: [], uids: new Set() };
+      addStrokeChange(uid);
+      try { event.target.setPointerCapture(event.pointerId); } catch (e) { /* ignore */ }
+      setStatus('Кисть: ' + paintType + ' · отпустите кнопку, чтобы применить', false);
+      event.preventDefault();
+      return;
+    }
     if (tool === 'move') {
       dragUid = uid;
       dragStart = { x: event.clientX, y: event.clientY };
@@ -522,6 +597,7 @@
     }
     session.select(uid);
     renderAll();
+    focusSelectedNode();
     live('Выбран тайл ' + uid);
   }
 
@@ -530,6 +606,15 @@
       view.tx = panStart.tx + (event.clientX - panStart.x);
       view.ty = panStart.ty + (event.clientY - panStart.y);
       renderCanvas();
+      return;
+    }
+    if (stroke) {
+      const el = document.elementFromPoint(event.clientX, event.clientY);
+      const nodeEl = el && el.closest && el.closest('[data-uid]');
+      if (nodeEl) {
+        addStrokeChange(nodeEl.getAttribute('data-uid'));
+        setStatus('Кисть: ' + paintType + ' · ' + stroke.changes.length + ' тайл(ов)', false);
+      }
       return;
     }
     if (dragUid) {
@@ -543,6 +628,20 @@
 
   function onCanvasUp(event) {
     if (isPanning) { isPanning = false; panStart = null; return; }
+    if (stroke) {
+      const changes = stroke.changes;
+      stroke = null;
+      if (changes.length) {
+        const res = session.apply({ op: 'paintStroke', changes });
+        if (res.ok) acceptResult(res, 'Кисть применена (' + changes.length + ')');
+        else {
+          setStatus(((res.issues && res.issues[0] && (res.issues[0].code + ': ' + res.issues[0].message)) || 'Кисть отменена.'), true);
+          toast('Кисть отменена: ' + ((res.issues && res.issues[0] && res.issues[0].message) || 'ошибка'), 'damage');
+        }
+        focusSelectedNode();
+      }
+      return;
+    }
     if (dragUid && isDragging) {
       const w = screenToWorld(event.clientX, event.clientY);
       const cell = worldToCell(w.x, w.y);
@@ -560,6 +659,12 @@
     if (!screenActive()) return;
     const tag = (e.target && e.target.tagName || '').toLowerCase();
     if (['input', 'select', 'textarea'].includes(tag) || (e.target && e.target.isContentEditable)) return;
+    const activeNode = document.activeElement && document.activeElement.closest && document.activeElement.closest('.ed-node');
+    if (activeNode && e.key.indexOf('Arrow') === 0) {
+      e.preventDefault();
+      selectNeighbor(e.key);
+      return;
+    }
     if (e.key === ' ') { spaceHeld = true; return; }
     if (e.ctrlKey || e.metaKey) {
       if (e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
@@ -596,13 +701,13 @@
   function undo() {
     if (!session) return;
     const r = session.undo();
-    if (r.ok) { renderAll(); setStatus('Отменено.', false); live('Отменено'); }
+    if (r.ok) { renderAll(); focusSelectedNode(); setStatus('Отменено.', false); live('Отменено'); }
     else setStatus((r.issues && r.issues[0] && r.issues[0].message) || 'Нечего отменять.', true);
   }
   function redo() {
     if (!session) return;
     const r = session.redo();
-    if (r.ok) { renderAll(); setStatus('Повторено.', false); live('Повторено'); }
+    if (r.ok) { renderAll(); focusSelectedNode(); setStatus('Повторено.', false); live('Повторено'); }
     else setStatus((r.issues && r.issues[0] && r.issues[0].message) || 'Нечего повторять.', true);
   }
   function resetDraft() {
@@ -667,10 +772,42 @@
     setStatus('Экспорт готов.', false);
   }
 
+  function chooseImportConflict(name) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'constructor-modal';
+      const card = document.createElement('div');
+      card.className = 'constructor-modal-card';
+      const h = document.createElement('h3');
+      h.textContent = 'Трасса с таким id уже есть';
+      const p = document.createElement('p');
+      p.textContent = '«' + name + '» уже сохранена. Заменить, импортировать копией или отменить?';
+      const row = document.createElement('div');
+      row.className = 'inspector-row';
+      const mk = (label, value, cls) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip-btn' + (cls ? ' ' + cls : '');
+        b.textContent = label;
+        b.addEventListener('click', () => { overlay.remove(); resolve(value); });
+        row.appendChild(b);
+        return b;
+      };
+      mk('ЗАМЕНИТЬ', 'replace', 'danger');
+      const copyBtn = mk('ИМПОРТ КОПИЕЙ', 'copy', 'primary');
+      mk('ОТМЕНА', 'cancel');
+      card.appendChild(h); card.appendChild(p); card.appendChild(row);
+      overlay.appendChild(card);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve('cancel'); } });
+      document.body.appendChild(overlay);
+      copyBtn.focus();
+    });
+  }
+
   function importTrack(file) {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       ensureStore();
       const r = store.importJson(String(reader.result || ''));
       if (!r.ok) {
@@ -678,7 +815,19 @@
         toast('Импорт отклонён.', 'damage');
         return;
       }
-      const saved = store.save(r.track);
+      let track = r.track;
+      const existing = track && track.id ? store.get(track.id) : null;
+      if (existing) {
+        const choice = await chooseImportConflict(existing.name);
+        if (choice === 'cancel') { setStatus('Импорт отменён.', false); return; }
+        if (choice === 'copy') {
+          track = Object.assign({}, track, {
+            id: E.customId(),
+            name: E.cleanName((track.name || 'Трасса') + ' (копия)'),
+          });
+        }
+      }
+      const saved = store.save(track);
       if (!saved.ok) { setStatus('Импорт отклонён валидатором.', true); return; }
       loadEnvelope(saved.track);
       renderSaved();
@@ -781,6 +930,15 @@
         flags[f] = el.checked;
         const r = session.apply({ op: 'setLock', uid: selectedUid(), flags });
         if (r.ok) { renderAll(); setStatus('Замок обновлён.', false); }
+      });
+    });
+    ['start', 'checkpoint', 'grid', 'pit', 'shortcut'].forEach((f) => {
+      const el = $('constructor-flock-' + f); if (!el) return;
+      el.addEventListener('change', () => {
+        if (!session || session.readOnly) return;
+        const r = session.apply({ op: 'setFeatureLock', feature: f, locked: el.checked });
+        if (r.ok) { renderAll(); setStatus('Замок объекта обновлён.', false); }
+        else { el.checked = !el.checked; setStatus((r.issues && r.issues[0] && r.issues[0].message) || 'Замок недоступен.', true); }
       });
     });
     const canvas = canvasEl();
