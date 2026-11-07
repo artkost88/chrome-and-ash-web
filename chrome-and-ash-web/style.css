@@ -459,7 +459,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .bottom-right .players { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .bottom-right .player { padding: 6px 9px 7px; min-width: 0; }
 .bottom-right .log-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; padding: 0; margin: 0; max-width: none; }
-.bottom-right .log { flex: 1; height: auto; min-height: 120px; }
+.bottom-right .log { flex: 1 1 auto; height: auto; min-height: 0; max-height: clamp(200px, 27vh, 300px); overflow-y: auto; }
 .bottom-right .phase-strip { width: 100%; }
 .bottom-strip .hand-zone { width: 100%; }
 .phase-strip {
@@ -476,7 +476,7 @@ code { font-family: var(--font-mono); color: var(--brass); }
 .phase-chip.done { color: var(--brass); border-color: rgba(200,160,78,.5); }
 .phase-info { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .phase-turn { font-family: var(--font-mono); font-size: 12px; color: var(--brass); letter-spacing: .05em; }
-.phase-hint { font-size: 12px; line-height: 1.35; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phase-hint { font-size: 12px; line-height: 1.35; color: var(--text-dim); white-space: normal; }
 .phase-calc { font-family: var(--font-mono); font-size: 10.5px; color: var(--brass); }
 .phase-finish { font-family: var(--font-mono); font-size: 10px; color: var(--flame); letter-spacing: .03em; }
 .badge-auto { cursor: help; }
