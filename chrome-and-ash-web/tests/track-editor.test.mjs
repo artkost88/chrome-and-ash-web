@@ -335,6 +335,7 @@ function sessionFor(spec) {
 }
 
 function draftNode(draft, uid) { return draft.nodes.find((n) => n.uid === uid); }
+function isHazardType(t) { return CnA.HAZARD_TILES.includes(t); }
 function draftNodeAt(draft, q, r) { return draft.nodes.find((n) => n.q === q && n.r === r); }
 function isAdj(a, b) {
   const dirs = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
@@ -553,6 +554,224 @@ test('B2: validateDraft reports axial and duplicate problems', () => {
   const node = draftNode(dup, dup.main[7]);
   other.q = node.q; other.r = node.r;
   assert.ok(TD.validateDraft(dup).issues.some((i) => i.code === 'E_DUPLICATE_COORD'));
+});
+
+/* ==================================================================== */
+/* Stage B — B3: start/checkpoint/grid, pit and shortcut tools.         */
+/* ==================================================================== */
+
+function mainIndex(s, uid) { return s.draft.main.indexOf(uid); }
+function cpIndexInRange(s) {
+  const idx = mainIndex(s, s.draft.checkpointUid);
+  return idx >= Math.ceil(s.draft.main.length * 0.25) && idx <= Math.floor(s.draft.main.length * 0.65);
+}
+
+test('B3: setStart rotates the loop, moves grid and keeps the lap valid', () => {
+  const s = sessionFor(gen('snake', 2));
+  const n = s.draft.main.length;
+  const cp = mainIndex(s, s.draft.checkpointUid);
+  const feature = featureUids(s.draft);
+  let uid = null;
+  for (let i = 1; i < n; i++) {
+    const u = s.draft.main[i];
+    if (feature.has(u)) continue;
+    const node = draftNode(s.draft, u);
+    if (!node || isHazardType(node.type) || node.type === 'ramp') continue;
+    const newCp = (cp - i + n) % n;
+    if (newCp < Math.ceil(n * 0.25) || newCp > Math.floor(n * 0.65)) continue;
+    const g1 = draftNode(s.draft, s.draft.main[(i - 1 + n) % n]);
+    const g2 = draftNode(s.draft, s.draft.main[(i - 2 + n) % n]);
+    if (!['straight', 'turn'].includes(g1.type) || !['straight', 'turn'].includes(g2.type)) continue;
+    uid = u;
+    break;
+  }
+  assert.ok(uid, 'need a legal new start');
+  const oldStart = s.draft.startUid;
+  const r = s.apply({ op: 'setStart', uid });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(s.draft.startUid, uid);
+  assert.equal(s.draft.main[0], uid);
+  assert.equal(draftNode(s.draft, uid).type, 'start');
+  assert.equal(draftNode(s.draft, oldStart).type, 'straight');
+  assert.deepEqual(s.draft.grid, [
+    s.draft.main[n - 1], s.draft.main[n - 1], s.draft.main[n - 2], s.draft.main[n - 2],
+  ]);
+  assert.ok(cpIndexInRange(s));
+  const spec = TD.toSpec(s.draft);
+  assert.equal(CnA.validateTrackSpec(spec).ok, true, JSON.stringify(CnA.validateTrackSpec(spec).issues));
+});
+
+test('B3: setStart rejects roles, locks, CP range and wrapped branches', () => {
+  const s = sessionFor(gen('snake', 2));
+  assert.ok(s.apply({ op: 'setStart', uid: s.draft.checkpointUid }).issues
+    .some((i) => i.code === 'E_START_CP'));
+  const n = s.draft.main.length;
+  const cp = mainIndex(s, s.draft.checkpointUid);
+  const feature = featureUids(s.draft);
+  const outOfRange = s.draft.main.find((u, i) => i > 0 && !feature.has(u) &&
+    !isHazardType(draftNode(s.draft, u).type) && draftNode(s.draft, u).type !== 'ramp' &&
+    (((cp - i + n) % n) < Math.ceil(n * 0.25) || ((cp - i + n) % n) > Math.floor(n * 0.65)));
+  assert.ok(outOfRange);
+  assert.ok(s.apply({ op: 'setStart', uid: outOfRange }).issues.some((i) => i.code === 'E_START_CP_RANGE'));
+
+  const wrap = sessionFor(gen('snake', 2));
+  const scEntry = mainIndex(wrap, wrap.draft.shortcut.entry);
+  const scExit = mainIndex(wrap, wrap.draft.shortcut.exit);
+  const wrapUid = wrap.draft.main.find((u, i) => i > 0 &&
+    (scEntry - i + n) % n >= (scExit - i + n) % n &&
+    !featureUids(wrap.draft).has(u) && !isHazardType(draftNode(wrap.draft, u).type));
+  assert.ok(wrapUid);
+  assert.ok(wrap.apply({ op: 'setStart', uid: wrapUid }).issues.some((i) => i.code === 'E_SHORTCUT_WRAP'));
+
+  const horse = sessionFor(gen('horseshoe', 2));
+  assert.ok(horse.apply({ op: 'setStart', uid: horse.draft.main[34] }).issues
+    .some((i) => i.code === 'E_GRID_ENTRY'));
+
+  const locked = sessionFor(gen('snake', 2));
+  const target = locked.draft.main[5];
+  assert.equal(locked.apply({ op: 'setLock', uid: target, flags: { type: true } }).ok, true);
+  assert.ok(locked.apply({ op: 'setStart', uid: target }).issues.some((i) => i.code === 'E_LOCKED_TYPE'));
+});
+
+test('B3: setCheckpoint moves the CP within 25..65%', () => {
+  const s = sessionFor(gen('snake', 2));
+  const n = s.draft.main.length;
+  const feature = featureUids(s.draft);
+  const uid = s.draft.main.find((u, i) => i > 0 && i / n >= 0.25 && i / n <= 0.65 &&
+    !feature.has(u) && !isHazardType(draftNode(s.draft, u).type) && draftNode(s.draft, u).type !== 'ramp');
+  assert.ok(uid);
+  const oldCp = s.draft.checkpointUid;
+  const r = s.apply({ op: 'setCheckpoint', uid });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(s.draft.checkpointUid, uid);
+  assert.equal(draftNode(s.draft, oldCp).type, 'straight');
+  assert.equal(draftNode(s.draft, uid).type, 'checkpoint');
+  assert.deepEqual(TD.toSpec(s.draft).checkpoints, [0, mainIndex(s, uid)]);
+  assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
+});
+
+test('B3: setCheckpoint rejects range, grid, start and hazards', () => {
+  const s = sessionFor(gen('snake', 2));
+  const n = s.draft.main.length;
+  const out = s.draft.main.find((u, i) => i > 0 && i / n < 0.25);
+  assert.ok(out);
+  assert.ok(s.apply({ op: 'setCheckpoint', uid: out }).issues
+    .some((i) => i.code === 'E_CHECKPOINT_RANGE'));
+  assert.ok(s.apply({ op: 'setCheckpoint', uid: s.draft.grid[0] }).issues
+    .some((i) => i.code === 'E_CHECKPOINT_GRID'));
+  assert.ok(s.apply({ op: 'setCheckpoint', uid: s.draft.startUid }).issues
+    .some((i) => i.code === 'E_CHECKPOINT_ROLE'));
+});
+
+test('B3: setPitTile replaces the tile after confirmation and keeps a shortcut', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const oldPit = s.draft.pit.tile;
+  const newPit = paintable(s).find((u) => u !== oldPit);
+  assert.ok(newPit);
+  const pending = s.apply({ op: 'setPitTile', uid: newPit });
+  assert.equal(pending.ok, false);
+  assert.equal(pending.requiresConfirm, true);
+  const r = s.apply({ op: 'setPitTile', uid: newPit, force: true });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(s.draft.pit.kind, 'tile');
+  assert.equal(s.draft.pit.tile, newPit);
+  assert.equal(draftNode(s.draft, oldPit).type, 'straight');
+  assert.equal(draftNode(s.draft, newPit).type, 'pit');
+  const out = TD.toSpec(s.draft);
+  assert.equal(out.pit.tile, mainIndex(s, newPit));
+  assert.equal(CnA.validateTrackSpec(out).ok, true);
+
+  const snake = sessionFor(gen('snake', 2));
+  const uid = paintable(snake)[0];
+  const r2 = snake.apply({ op: 'setPitTile', uid, force: true });
+  assert.equal(r2.ok, true, JSON.stringify(r2.issues));
+  assert.equal(snake.draft.pit.kind, 'tile');
+  assert.ok(snake.draft.shortcut);
+  assert.equal(CnA.validateTrackSpec(TD.toSpec(snake.draft)).ok, true);
+});
+
+test('B3: clearPit then setPitBranch restores the v1 horseshoe pit (33 -> 35)', () => {
+  const s = sessionFor(gen('horseshoe', 1));
+  assert.equal(s.draft.pit.kind, 'branch');
+  const cleared = s.apply({ op: 'clearPit', force: true });
+  assert.equal(cleared.ok, true, JSON.stringify(cleared.issues));
+  assert.equal(s.draft.pit, null);
+  const entry = s.draft.main[33];
+  const exit = s.draft.main[35];
+  const r = s.apply({ op: 'setPitBranch', entry, exit, force: true });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.equal(s.draft.pit.kind, 'branch');
+  assert.ok(s.draft.pit.nodes.length >= 2);
+  const out = TD.toSpec(s.draft);
+  assert.equal(CnA.validateTrackSpec(out).ok, true, JSON.stringify(CnA.validateTrackSpec(out).issues));
+  assert.equal(out.grid[0], out.pit.exit);
+  const firstRoute = s.draft.pit.nodes.map((u) => draftNode(s.draft, u)).map((n) => [n.q, n.r]);
+  assert.equal(s.apply({ op: 'clearPit', force: true }).ok, true);
+  assert.equal(s.apply({ op: 'setPitBranch', entry, exit, force: true }).ok, true);
+  const secondRoute = s.draft.pit.nodes.map((u) => draftNode(s.draft, u)).map((n) => [n.q, n.r]);
+  assert.deepEqual(secondRoute, firstRoute, 'auto route must be deterministic');
+});
+
+test('B3: setPitBranch rejects wrap, distance, CP bypass, grid entry and conflict', () => {
+  const s = sessionFor(gen('horseshoe', 1));
+  assert.ok(s.apply({ op: 'clearPit', force: true }).ok);
+  assert.ok(s.apply({ op: 'setPitBranch', entry: s.draft.main[33], exit: s.draft.main[2], force: true }).issues
+    .some((i) => i.code === 'E_PIT_WRAP'));
+  assert.ok(s.apply({ op: 'setPitBranch', entry: s.draft.main[5], exit: s.draft.main[20], force: true }).issues
+    .some((i) => i.code === 'E_PIT_DISTANCE'));
+  assert.ok(s.apply({ op: 'setPitBranch', entry: s.draft.main[12], exit: s.draft.main[16], force: true }).issues
+    .some((i) => i.code === 'E_PIT_CP_BYPASS'));
+  assert.ok(s.apply({ op: 'setPitBranch', entry: s.draft.main[34], exit: s.draft.main[35], force: true }).issues
+    .some((i) => i.code === 'E_GRID_ENTRY'));
+  const snake = sessionFor(gen('snake', 2));
+  assert.ok(snake.apply({ op: 'setPitBranch', entry: snake.draft.main[5], exit: snake.draft.main[9], force: true }).issues
+    .some((i) => i.code === 'E_BRANCH_CONFLICT'));
+  assert.equal(s.apply({ op: 'setFeatureLock', feature: 'pit', locked: true }).ok, true);
+  assert.ok(s.apply({ op: 'clearPit', force: true }).issues.some((i) => i.code === 'E_LOCKED_FEATURE'));
+});
+
+test('B3: setShortcut builds a risky branch and clearShortcut removes it', () => {
+  const s = sessionFor(gen('snake', 2));
+  const n = s.draft.main.length;
+  const feature = featureUids(s.draft);
+  let built = null;
+  for (let a = 4; a < n - 3 && !built; a++) {
+    for (let b = a + 3; b < n - 3; b++) {
+      const entry = s.draft.main[a];
+      const exit = s.draft.main[b];
+      if (feature.has(entry) || feature.has(exit)) continue;
+      const r = s.apply({ op: 'setShortcut', entry, exit, force: true });
+      if (r.ok) { built = { entry, exit, warnings: r.warnings }; break; }
+    }
+  }
+  assert.ok(built, 'snake must accept at least one shortcut');
+  assert.equal(s.draft.shortcut.entry, built.entry);
+  assert.equal(s.draft.shortcut.exit, built.exit);
+  assert.ok(s.draft.shortcut.nodes.length >= 1);
+  assert.ok(s.draft.shortcut.nodes.some((u) => isHazardType(draftNode(s.draft, u).type)));
+  const out = TD.toSpec(s.draft);
+  assert.equal(CnA.validateTrackSpec(out).ok, true, JSON.stringify(CnA.validateTrackSpec(out).issues));
+  const cleared = s.apply({ op: 'clearShortcut', force: true });
+  assert.equal(cleared.ok, true, JSON.stringify(cleared.issues));
+  assert.equal(s.draft.shortcut, null);
+  assert.equal(CnA.validateTrackSpec(TD.toSpec(s.draft)).ok, true);
+});
+
+test('B3: setShortcut rejects wrap, near-start, saving, conflict and locks', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const n = s.draft.main.length;
+  assert.ok(s.apply({ op: 'setShortcut', entry: s.draft.main[n - 4], exit: s.draft.main[3] }).issues
+    .some((i) => i.code === 'E_SHORTCUT_WRAP'));
+  assert.ok(s.apply({ op: 'setShortcut', entry: s.draft.main[2], exit: s.draft.main[10] }).issues
+    .some((i) => i.code === 'E_SHORTCUT_NEAR_START'));
+  assert.ok(s.apply({ op: 'setShortcut', entry: s.draft.main[4], exit: s.draft.main[6] }).issues
+    .some((i) => i.code === 'E_SHORTCUT_SAVING'));
+  const horse = sessionFor(gen('horseshoe', 1));
+  assert.ok(horse.apply({ op: 'setShortcut', entry: horse.draft.main[5], exit: horse.draft.main[10] }).issues
+    .some((i) => i.code === 'E_BRANCH_CONFLICT'));
+  assert.equal(s.apply({ op: 'setFeatureLock', feature: 'shortcut', locked: true }).ok, true);
+  assert.ok(s.apply({ op: 'setShortcut', entry: s.draft.main[5], exit: s.draft.main[10] }).issues
+    .some((i) => i.code === 'E_LOCKED_FEATURE'));
 });
 
 test('storage corruption and malformed generated specs do not throw', () => {

@@ -1436,6 +1436,297 @@
     });
   };
 
+  function findFreeRoute(draft, entryUid, exitUid, accept, excludeUids) {
+    const byUid = new Map((draft.nodes || []).map((n) => [n.uid, n]));
+    const entry = byUid.get(entryUid);
+    const exit = byUid.get(exitUid);
+    if (!entry || !exit) return null;
+    const excluded = excludeUids || new Set();
+    const blocked = new Set(draft.nodes.filter((n) => !excluded.has(n.uid)).map((n) => n.q + ',' + n.r));
+    const path = [];
+    let found = null;
+    let steps = 0;
+    const dfs = (cell, visited) => {
+      if (found) return;
+      if (++steps > 50000) return;
+      path.push(cell);
+      if (axialAdjacent(cell, exit) && accept(path)) {
+        found = path.map((c) => ({ q: c.q, r: c.r }));
+        path.pop();
+        return;
+      }
+      if (path.length >= (accept.maxDepth || 12)) { path.pop(); return; }
+      for (const nb of axialNeighbors(cell.q, cell.r)) {
+        if (found) break;
+        const key = nb.q + ',' + nb.r;
+        if (blocked.has(key) || visited.has(key)) continue;
+        if (nb.q === exit.q && nb.r === exit.r) continue;
+        visited.add(key);
+        dfs(nb, visited);
+        visited.delete(key);
+      }
+      path.pop();
+    };
+    for (const nb of axialNeighbors(entry.q, entry.r)) {
+      const key = nb.q + ',' + nb.r;
+      if (blocked.has(key)) continue;
+      if (nb.q === exit.q && nb.r === exit.r) continue;
+      dfs(nb, new Set([key]));
+      if (found) break;
+    }
+    return found;
+  }
+
+  function branchEndpointUids(draft) {
+    const s = new Set();
+    if (draft.pit && draft.pit.kind === 'branch') { s.add(draft.pit.entry); s.add(draft.pit.exit); }
+    if (draft.pit && draft.pit.kind === 'tile') s.add(draft.pit.tile);
+    if (draft.shortcut) { s.add(draft.shortcut.entry); s.add(draft.shortcut.exit); }
+    return s;
+  }
+
+  TrackDraftSession.prototype.setStart = function (uid) {
+    const d = this.draft;
+    const node = d.nodes.find((x) => x.uid === uid);
+    if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    if (uid === d.startUid) return { ok: true, issues: [], noop: true };
+    const n = d.main.length;
+    if (!d.main.includes(uid)) return { ok: false, issues: [issue('E_START_ROLE', 'Старт ставится только на основной круг.')] };
+    if (uid === d.checkpointUid) return { ok: false, issues: [issue('E_START_CP', 'Старт не может стоять на КП.')] };
+    if (branchEndpointUids(d).has(uid)) return { ok: false, issues: [issue('E_START_ROLE', 'Старт не может стоять на конце ветки/пите.')] };
+    if (isHazardType(node.type) || node.type === 'ramp' || node.type === 'pit') {
+      return { ok: false, issues: [issue('E_START_ZONE', 'Старт нельзя ставить на опасность/трамплин/пит.')] };
+    }
+    const locks = d.locks && d.locks.nodes;
+    if ((locks[d.startUid] && locks[d.startUid].type) || (locks[uid] && locks[uid].type)) {
+      return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    }
+    const idx = mainIndexOf(d, uid);
+    const newMain = d.main.slice(idx).concat(d.main.slice(0, idx));
+    const issues = [];
+    const cp = newMain.indexOf(d.checkpointUid);
+    if (cp / n < 0.25 || cp / n > 0.65) {
+      issues.push(issue('E_START_CP_RANGE', 'КП выйдет за пределы 25..65% круга.'));
+    }
+    const indexOf = (u) => newMain.indexOf(u);
+    if (d.shortcut && indexOf(d.shortcut.entry) >= indexOf(d.shortcut.exit)) {
+      issues.push(issue('E_SHORTCUT_WRAP', 'Срез замкнётся через старт/финиш.'));
+    }
+    if (d.pit && d.pit.kind === 'branch' && indexOf(d.pit.entry) >= indexOf(d.pit.exit)) {
+      issues.push(issue('E_PIT_WRAP', 'Пит-ветка замкнётся через старт/финиш.'));
+    }
+    const newGrid = [newMain[n - 1], newMain[n - 1], newMain[n - 2], newMain[n - 2]];
+    const entries = new Set();
+    if (d.pit && d.pit.kind === 'branch') entries.add(d.pit.entry);
+    if (d.shortcut) entries.add(d.shortcut.entry);
+    for (const g of new Set(newGrid)) {
+      const gridNode = d.nodes.find((x) => x.uid === g);
+      if (entries.has(g) || (gridNode && gridNode.type === 'fork')) {
+        issues.push(issue('E_GRID_ENTRY', 'Решётка попадёт на вход/развилку ветки.'));
+      } else if (!gridNode || !NORMAL_GRID_TYPES.includes(gridNode.type) ||
+        g === d.checkpointUid || isHazardType(gridNode.type) || gridNode.type === 'ramp' ||
+        (d.pit && d.pit.kind === 'tile' && d.pit.tile === g)) {
+        issues.push(issue('E_GRID', 'Решётка должна стоять на чистых прямых/поворотах.'));
+      }
+    }
+    if (hasError(issues)) return { ok: false, issues };
+    const candidate = clone(d);
+    candidate.main = newMain;
+    candidate.startUid = uid;
+    candidate.grid = newGrid;
+    candidate.nodes.find((x) => x.uid === d.startUid).type = 'straight';
+    candidate.nodes.find((x) => x.uid === uid).type = 'start';
+    return this.commit(candidate, { selectionUid: uid });
+  };
+
+  TrackDraftSession.prototype.setCheckpoint = function (uid) {
+    const d = this.draft;
+    const node = d.nodes.find((x) => x.uid === uid);
+    if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    if (uid === d.checkpointUid) return { ok: true, issues: [], noop: true };
+    if (!d.main.includes(uid) || uid === d.startUid) {
+      return { ok: false, issues: [issue('E_CHECKPOINT_ROLE', 'КП ставится на основной круг, не на старт.')] };
+    }
+    if ((d.grid || []).includes(uid)) return { ok: false, issues: [issue('E_CHECKPOINT_GRID', 'КП не может стоять на решётке.')] };
+    if (branchEndpointUids(d).has(uid)) return { ok: false, issues: [issue('E_CHECKPOINT_ROLE', 'КП не может стоять на конце ветки/пите.')] };
+    if (isHazardType(node.type) || node.type === 'ramp') {
+      return { ok: false, issues: [issue('E_CHECKPOINT_ZONE', 'КП нельзя ставить на опасность/трамплин.')] };
+    }
+    const n = d.main.length;
+    const idx = mainIndexOf(d, uid);
+    if (idx / n < 0.25 || idx / n > 0.65) {
+      return { ok: false, issues: [issue('E_CHECKPOINT_RANGE', 'КП должен быть в пределах 25..65% круга.')] };
+    }
+    const locks = d.locks && d.locks.nodes;
+    if ((locks[d.checkpointUid] && locks[d.checkpointUid].type) || (locks[uid] && locks[uid].type)) {
+      return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    }
+    const candidate = clone(d);
+    candidate.nodes.find((x) => x.uid === d.checkpointUid).type = 'straight';
+    candidate.nodes.find((x) => x.uid === uid).type = 'checkpoint';
+    candidate.checkpointUid = uid;
+    return this.commit(candidate, { selectionUid: uid });
+  };
+
+  TrackDraftSession.prototype.setPitTile = function (uid, opts) {
+    opts = opts || {};
+    const d = this.draft;
+    if (d.locks && d.locks.features && d.locks.features.pit) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
+    }
+    const node = d.nodes.find((x) => x.uid === uid);
+    if (!node) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
+    if (!d.main.includes(uid) || uid === d.startUid || uid === d.checkpointUid || (d.grid || []).includes(uid) ||
+      branchEndpointUids(d).has(uid)) {
+      return { ok: false, issues: [issue('E_PIT_ROLE', 'Пит-тайл ставится только на свободный тайл круга.')] };
+    }
+    const hasPit = !!d.pit;
+    if (hasPit && d.pit.kind === 'tile' && d.pit.tile === uid) return { ok: true, issues: [], noop: true };
+    if (hasPit && !opts.force) return { ok: false, requiresConfirm: true, issues: [] };
+    const locks = d.locks && d.locks.nodes;
+    if ((hasPit && d.pit.kind === 'tile' && locks[d.pit.tile] && locks[d.pit.tile].type) ||
+      (locks[uid] && locks[uid].type)) {
+      return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    }
+    const candidate = clone(d);
+    const oldBranch = d.pit && d.pit.kind === 'branch' ? d.pit.nodes : [];
+    if (oldBranch.length) candidate.nodes = candidate.nodes.filter((x) => !oldBranch.includes(x.uid));
+    if (d.pit && d.pit.kind === 'tile') {
+      const old = candidate.nodes.find((x) => x.uid === d.pit.tile);
+      if (old) old.type = 'straight';
+    }
+    candidate.nodes.find((x) => x.uid === uid).type = 'pit';
+    candidate.pit = { kind: 'tile', tile: uid };
+    return this.commit(candidate, { selectionUid: uid });
+  };
+
+  TrackDraftSession.prototype.clearPit = function () {
+    const d = this.draft;
+    if (d.locks && d.locks.features && d.locks.features.pit) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
+    }
+    if (!d.pit) return { ok: true, issues: [], noop: true };
+    const candidate = clone(d);
+    if (d.pit.kind === 'branch') {
+      candidate.nodes = candidate.nodes.filter((x) => !d.pit.nodes.includes(x.uid));
+    } else {
+      const old = candidate.nodes.find((x) => x.uid === d.pit.tile);
+      if (old) old.type = 'straight';
+    }
+    candidate.pit = null;
+    return this.commit(candidate, {});
+  };
+
+  TrackDraftSession.prototype.setPitBranch = function (entry, exit, opts) {
+    opts = opts || {};
+    const d = this.draft;
+    if (d.locks && d.locks.features && d.locks.features.pit) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
+    }
+    if (d.shortcut) return { ok: false, issues: [issue('E_BRANCH_CONFLICT', 'Пит-ветка и срез не могут существовать одновременно.')] };
+    const entryNode = d.nodes.find((x) => x.uid === entry);
+    const exitNode = d.nodes.find((x) => x.uid === exit);
+    if (!entryNode || !exitNode) return { ok: false, issues: [issue('E_PIT_ROLE', 'Тайл не найден.')] };
+    if (!d.main.includes(entry) || !d.main.includes(exit)) {
+      return { ok: false, issues: [issue('E_PIT_ROLE', 'Концы пита должны быть на основном круге.')] };
+    }
+    if (entry === exit) return { ok: false, issues: [issue('E_PIT_ROLE', 'Вход и выход пита должны различаться.')] };
+    if (entry === d.startUid || exit === d.startUid || entry === d.checkpointUid || exit === d.checkpointUid) {
+      return { ok: false, issues: [issue('E_PIT_ROLE', 'Пит не может стоять на старте или КП.')] };
+    }
+    if ((d.grid || []).includes(entry)) return { ok: false, issues: [issue('E_GRID_ENTRY', 'Вход пита не может стоять на решётке.')] };
+    if ((d.grid || []).includes(exit) && !(exit === d.main[d.main.length - 1] || exit === d.main[d.main.length - 2])) {
+      return { ok: false, issues: [issue('E_GRID_ENTRY', 'Выход пита на решётке разрешён только на main[n-1]/main[n-2].')] };
+    }
+    const n = d.main.length;
+    const a = mainIndexOf(d, entry);
+    const b = mainIndexOf(d, exit);
+    if (a >= b) return { ok: false, issues: [issue('E_PIT_WRAP', 'Пит-ветка замыкается через старт/финиш.')] };
+    const dist = b - a;
+    if (dist < 2 || dist > 5) return { ok: false, issues: [issue('E_PIT_DISTANCE', 'Вход/выход пита слишком далеко (2..5).')] };
+    const cpIdx = mainIndexOf(d, d.checkpointUid);
+    if (cpIdx > a && cpIdx < b) return { ok: false, issues: [issue('E_PIT_CP_BYPASS', 'Пит обходит контрольный пункт.')] };
+    const hasPit = !!d.pit;
+    if (hasPit && !opts.force) return { ok: false, requiresConfirm: true, issues: [] };
+    const oldBranch = d.pit && d.pit.kind === 'branch' ? new Set(d.pit.nodes) : new Set();
+    const route = findFreeRoute(d, entry, exit, (cells) => cells.length >= 2 && cells.length + 1 > dist, oldBranch);
+    if (!route) return { ok: false, issues: [issue('E_PIT_NO_PATH', 'Не удалось проложить пит-ветку по свободным клеткам.')] };
+    const candidate = clone(d);
+    if (oldBranch.size) candidate.nodes = candidate.nodes.filter((x) => !oldBranch.has(x.uid));
+    if (d.pit && d.pit.kind === 'tile') {
+      const old = candidate.nodes.find((x) => x.uid === d.pit.tile);
+      if (old) old.type = 'straight';
+    }
+    const uids = [];
+    route.forEach((cell) => {
+      const uid = this.nextUid();
+      uids.push(uid);
+      candidate.nodes.push({ uid, q: cell.q, r: cell.r, type: 'pit' });
+    });
+    candidate.pit = { kind: 'branch', entry, exit, nodes: uids };
+    return this.commit(candidate, { selectionUid: uids[0] });
+  };
+
+  TrackDraftSession.prototype.clearShortcut = function () {
+    const d = this.draft;
+    if (d.locks && d.locks.features && d.locks.features.shortcut) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
+    }
+    if (!d.shortcut) return { ok: true, issues: [], noop: true };
+    const candidate = clone(d);
+    candidate.nodes = candidate.nodes.filter((x) => !d.shortcut.nodes.includes(x.uid));
+    candidate.shortcut = null;
+    return this.commit(candidate, {});
+  };
+
+  TrackDraftSession.prototype.setShortcut = function (entry, exit, opts) {
+    opts = opts || {};
+    const d = this.draft;
+    if (d.locks && d.locks.features && d.locks.features.shortcut) {
+      return { ok: false, issues: [issue('E_LOCKED_FEATURE', 'Объект заблокирован.')] };
+    }
+    if (d.pit && d.pit.kind === 'branch') {
+      return { ok: false, issues: [issue('E_BRANCH_CONFLICT', 'Пит-ветка и срез не могут существовать одновременно.')] };
+    }
+    const entryNode = d.nodes.find((x) => x.uid === entry);
+    const exitNode = d.nodes.find((x) => x.uid === exit);
+    if (!entryNode || !exitNode) return { ok: false, issues: [issue('E_SHORTCUT_CONFLICT', 'Тайл не найден.')] };
+    if (!d.main.includes(entry) || !d.main.includes(exit) || entry === exit) {
+      return { ok: false, issues: [issue('E_SHORTCUT_CONFLICT', 'Концы среза должны быть разными тайлами круга.')] };
+    }
+    if (entry === d.startUid || exit === d.startUid || entry === d.checkpointUid || exit === d.checkpointUid ||
+      (d.grid || []).includes(entry) || (d.grid || []).includes(exit)) {
+      return { ok: false, issues: [issue('E_SHORTCUT_CONFLICT', 'Срез не может начинаться/заканчиваться на старте, КП или решётке.')] };
+    }
+    const n = d.main.length;
+    const a = mainIndexOf(d, entry);
+    const b = mainIndexOf(d, exit);
+    if (a >= b) return { ok: false, issues: [issue('E_SHORTCUT_WRAP', 'Срез замыкается через старт/финиш.')] };
+    if (a <= 3 || b >= n - 3) return { ok: false, issues: [issue('E_SHORTCUT_NEAR_START', 'Срез слишком близко к старту/финишу.')] };
+    const dist = b - a;
+    const allowed = [dist - 2, dist - 3].filter((x) => x >= 1);
+    if (!allowed.length) return { ok: false, issues: [issue('E_SHORTCUT_SAVING', 'Срез должен экономить 1–2 тайла.')] };
+    const maxLen = Math.max.apply(null, allowed);
+    const hasShortcut = !!d.shortcut;
+    if (hasShortcut && !opts.force) return { ok: false, requiresConfirm: true, issues: [] };
+    const oldBranch = d.shortcut ? new Set(d.shortcut.nodes) : new Set();
+    const route = findFreeRoute(d, entry, exit, (cells) => allowed.includes(cells.length), oldBranch);
+    if (!route) return { ok: false, issues: [issue('E_SHORTCUT_NO_PATH', 'Не удалось проложить срез по свободным клеткам.')] };
+    const candidate = clone(d);
+    if (oldBranch.size) candidate.nodes = candidate.nodes.filter((x) => !oldBranch.has(x.uid));
+    const uids = [];
+    route.forEach((cell, i) => {
+      const uid = this.nextUid();
+      uids.push(uid);
+      candidate.nodes.push({ uid, q: cell.q, r: cell.r, type: i === route.length - 1 ? 'debris' : 'straight' });
+    });
+    candidate.shortcut = { entry, exit, nodes: uids, type: 'debris' };
+    const warnings = [];
+    const cpIdx = mainIndexOf(d, d.checkpointUid);
+    if (cpIdx > a && cpIdx < b) warnings.push(issue('W_SHORTCUT_CP_BYPASS', 'КП пропущен; движок не требует КП для финиша'));
+    return this.commit(candidate, { selectionUid: uids[0], warnings });
+  };
+
   TrackDraftSession.prototype.setLock = function (uid, flags) {
     const d = this.draft;
     if (!d.nodes.some((x) => x.uid === uid)) return { ok: false, issues: [issue('E_NO_NODE', 'Тайл не найден.')] };
