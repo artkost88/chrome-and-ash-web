@@ -518,6 +518,11 @@
     const roadIds = new Set(main);
     pitNodes.forEach((id) => roadIds.add(id));
     shortcutNodes.forEach((id) => roadIds.add(id));
+    const roadCoordKeys = new Set();
+    roadIds.forEach((id) => {
+      const node = byId.get(id);
+      if (node) roadCoordKeys.add(coordKey(node));
+    });
 
     if (input.size != null && input.size !== main.length) add('E_SIZE', 'size не совпадает с длиной main');
     if (main.length < 24 || main.length > 36) add('E_LENGTH', 'длина круга вне 24..36');
@@ -714,6 +719,9 @@
     });
 
     const cpNodes = nodes.filter((n) => n.type === 'checkpoint');
+    if ((input.checkpoints || [])[0] !== input.startNode) {
+      add('E_CHECKPOINT', 'checkpoints[0] должен совпадать со startNode');
+    }
     const cps = (input.checkpoints || []).filter((id) => id !== input.startNode);
     if (cpNodes.length !== 1) add('E_CHECKPOINT', 'должен быть ровно один узел КП, найдено: ' + cpNodes.length);
     if (cps.length !== 1) add('E_CHECKPOINT', 'должен быть ровно один не-стартовый КП');
@@ -759,6 +767,18 @@
       const road = [...roadIds].map((rid) => byId.get(rid)).find((rn) => rn && coordKey(rn) === key);
       if (road) add('E_DUPLICATE_COORD', 'декор стоит на дороге', id);
     });
+    const seenDecorKeys = new Set(decorSet);
+    (input.decor || []).forEach((d) => {
+      if (typeof d !== 'object') return;
+      if (!d || !isInt(d.q) || !isInt(d.r)) {
+        add('E_COORD', 'объектный декор вне осевой сетки');
+        return;
+      }
+      const key = d.q + ',' + d.r;
+      if (roadCoordKeys.has(key)) add('E_DUPLICATE_COORD', 'объектный декор стоит на дороге');
+      if (seenDecorKeys.has(key)) add('E_DUPLICATE_COORD', 'объектный декор в занятой клетке');
+      seenDecorKeys.add(key);
+    });
 
     return { ok: !hasError(issues), issues };
   }
@@ -796,6 +816,9 @@
     }
     const stageA = CnA.validateTrackSpec(spec);
     if (!stageA.ok) return { ok: false, readOnly: false, issues: stageA.issues, warnings: [] };
+    if ((spec.checkpoints || [])[0] !== spec.startNode) {
+      return { ok: false, readOnly: false, issues: [issue('E_CHECKPOINT', 'checkpoints[0] должен совпадать со startNode')], warnings: [] };
+    }
 
     const canon = canonicalizeRepresentation(spec);
     if (!canon.ok) return { ok: false, readOnly: false, issues: canon.issues, warnings: [] };
@@ -1343,6 +1366,15 @@
     }
     const lock = this.draft.locks && this.draft.locks.nodes[uid];
     if (lock && lock.type) return { ok: false, issues: [issue('E_LOCKED_TYPE', 'Тип тайла заблокирован.')] };
+    if (isHazardType(type) && !isHazardType(node.type)) {
+      const mainHazards = this.draft.main.filter((mainUid) => {
+        const mn = this.draft.nodes.find((x) => x.uid === mainUid);
+        return mn && isHazardType(mn.type);
+      }).length;
+      if (mainHazards >= MAX_HAZARDS) {
+        return { ok: false, issues: [issue('E_HAZARD_MAX', 'Нельзя ставить больше ' + MAX_HAZARDS + ' опасностей на круг.')] };
+      }
+    }
     const onShortcut = !!(this.draft.shortcut && this.draft.shortcut.nodes.includes(uid));
     if (onShortcut && (type === 'tunnel' || type === 'bridge')) {
       return { ok: false, issues: [issue('E_TILE_ROLE', 'Этот тип доступен только основной петле.')] };
@@ -1638,12 +1670,23 @@
     const idx = mainIndexOf(d, uid);
     const newMain = d.main.slice(idx).concat(d.main.slice(0, idx));
     const issues = [];
+    const warnings = [];
     zoneBufferUids(newMain, uid, [], 3, 0).forEach((zid) => {
       const zn = d.nodes.find((x) => x.uid === zid);
       if (zn && (isHazardType(zn.type) || zn.type === 'ramp')) {
-        issues.push(issue('E_START_ZONE', 'Стартовая зона/зона КП не может содержать опасность/трамплин.'));
+        issues.push(issue('E_START_ZONE', 'Стартовая зона не может содержать опасность/трамплин.'));
       }
     });
+    const newCpIdx = newMain.indexOf(d.checkpointUid);
+    if (newCpIdx >= 0) {
+      for (let dd = -2; dd <= 2; dd++) {
+        const zid = newMain[(newCpIdx + dd + newMain.length) % newMain.length];
+        const zn = d.nodes.find((x) => x.uid === zid);
+        if (zn && (isHazardType(zn.type) || zn.type === 'ramp')) {
+          warnings.push(issue('W_CP_BUFFER', 'Опасность/трамплин в буфере КП ±2 (предупреждение, генератор это допускает).', zid));
+        }
+      }
+    }
     const cp = newMain.indexOf(d.checkpointUid);
     if (cp / n < 0.25 || cp / n > 0.65) {
       issues.push(issue('E_START_CP_RANGE', 'КП выйдет за пределы 25..65% круга.'));
@@ -1679,7 +1722,7 @@
     candidate.grid = newGrid;
     candidate.nodes.find((x) => x.uid === d.startUid).type = 'straight';
     candidate.nodes.find((x) => x.uid === uid).type = 'start';
-    return this.commit(candidate, { selectionUid: uid });
+    return this.commit(candidate, { selectionUid: uid, warnings });
   };
 
   TrackDraftSession.prototype.setCheckpoint = function (uid) {
@@ -1973,7 +2016,7 @@
 
   function maxPaintHazards(n, protectedIds) {
     const protectedSet = protectedIds instanceof Set ? protectedIds : new Set(protectedIds || []);
-    return maxHazardsCycle(n, (i) => !protectedSet.has(i), 2);
+    return Math.min(MAX_HAZARDS, maxHazardsCycle(n, (i) => !protectedSet.has(i), 2));
   }
 
   function maxGeneratedHazards(spec) {
@@ -2001,8 +2044,8 @@
   }
 
   function hazardBudgetReport(spec, requestedMin, requestedMax) {
-    const min = Math.max(0, Math.floor(Number(requestedMin) || 0));
-    const max = Math.max(min, Math.floor(Number(requestedMax) || min));
+    const min = Math.max(0, Math.min(MAX_HAZARDS, Math.floor(Number(requestedMin) || 0)));
+    const max = Math.min(MAX_HAZARDS, Math.max(min, Math.floor(Number(requestedMax) || min)));
     const stats = statsFor(spec);
     const actual = stats ? stats.hazards : 0;
     const achievable = Math.min(MAX_HAZARDS, Math.max(actual, maxGeneratedHazards(spec)));

@@ -819,7 +819,8 @@ test('B4: hazard budget DP matches brute force for n=6..12', () => {
       const rng = CnA.mulberry32(n * 101 + t);
       const protectedSet = new Set();
       for (let i = 0; i < n; i++) if (rng() < 0.25) protectedSet.add(i);
-      assert.equal(TD.maxPaintHazards(n, protectedSet), bruteMaxHazards(n, protectedSet, 2), 'n=' + n + ' t=' + t);
+      assert.equal(TD.maxPaintHazards(n, protectedSet), Math.min(TD.MAX_HAZARDS, bruteMaxHazards(n, protectedSet, 2)),
+        'n=' + n + ' t=' + t);
     }
   }
 });
@@ -1496,6 +1497,138 @@ test('B4-fix: hazard capacity is capped at 6 across all archetypes', () => {
       assert.equal(r.budget.sliderMax, r.budget.achievable);
       assert.ok(r.budget.actual <= r.budget.achievable);
     }
+  }
+});
+
+/* ==================================================================== */
+/* task-18: final dual-review fixes.                                    */
+/* ==================================================================== */
+
+test('B4-fix: CP±2 is warning-only in editable flow, start±3 stays hard', () => {
+  const s = sessionFor(gen('club', 1, [0, 0]));
+  const n = s.draft.main.length;
+  const cpIdx = s.draft.main.indexOf(s.draft.checkpointUid);
+  const cpNext = s.draft.main[(cpIdx + 1) % n];
+  draftNode(s.draft, cpNext).type = 'sand';
+  const startIdx = (() => {
+    for (let i = 1; i < n; i++) {
+      const uid = s.draft.main[i];
+      if (featureUids(s.draft).has(uid)) continue;
+      const node = draftNode(s.draft, uid);
+      if (!node || isHazardType(node.type) || node.type === 'ramp') continue;
+      const newCp = (cpIdx - i + n) % n;
+      if (newCp < Math.ceil(n * 0.25) || newCp > Math.floor(n * 0.65)) continue;
+      const g1 = draftNode(s.draft, s.draft.main[(i - 1 + n) % n]);
+      const g2 = draftNode(s.draft, s.draft.main[(i - 2 + n) % n]);
+      if (!['straight', 'turn'].includes(g1.type) || !['straight', 'turn'].includes(g2.type)) continue;
+      if (isHazardType(g1.type) || isHazardType(g2.type)) continue;
+      let zoneOk = true;
+      for (let d = -3; d <= 3; d++) {
+        const zid = s.draft.main[(i + d + n) % n];
+        const zn = draftNode(s.draft, zid);
+        if (zid === cpNext || (zn && (isHazardType(zn.type) || zn.type === 'ramp'))) zoneOk = false;
+      }
+      if (!zoneOk) continue;
+      return i;
+    }
+    return -1;
+  })();
+  assert.ok(startIdx > 0);
+  const r = s.apply({ op: 'setStart', uid: s.draft.main[startIdx] });
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.ok((r.warnings || []).some((w) => w.code === 'W_CP_BUFFER'), JSON.stringify(r.warnings));
+
+  const hard = sessionFor(gen('club', 1, [0, 0]));
+  draftNode(hard.draft, hard.draft.main[1]).type = 'sand';
+  const hardStart = hard.draft.main[3];
+  const bad = hard.apply({ op: 'setStart', uid: hardStart });
+  assert.equal(bad.ok, false);
+  assert.ok(bad.issues.some((i) => i.code === 'E_START_ZONE'));
+
+  const cpSpec = gen('club', 1, [0, 0]);
+  cpSpec.nodes.find((x) => x.id === cpSpec.main[(cpSpec.main.indexOf(cpSpec.checkpoints[1]) + 1) % cpSpec.main.length]).type = 'sand';
+  const from = TD.fromSpec(cpSpec);
+  assert.equal(from.ok, true, JSON.stringify(from.issues));
+  assert.ok((from.warnings || []).some((w) => w.code === 'W_CP_BUFFER'));
+});
+
+test('B4-fix: object decor coordinates/type/overlap are enforced structurally', () => {
+  const base = gen('club', 1);
+  const roadNode = base.nodes.find((x) => x.id === base.main[0]);
+  const overlap = clone(base);
+  overlap.decor = (overlap.decor || []).concat([{ q: roadNode.q, r: roadNode.r, type: 'building' }]);
+  assert.ok(TD.validateStructural(overlap).issues.some((i) => i.code === 'E_DUPLICATE_COORD'));
+  expectRejectedEverywhere(overlap, 'E_DUPLICATE_COORD');
+
+  const nan = clone(base);
+  nan.decor = (nan.decor || []).concat([{ q: NaN, r: 0, type: 'ruin' }]);
+  assert.ok(TD.validateStructural(nan).issues.some((i) => i.code === 'E_COORD'));
+  expectRejectedEverywhere(nan, 'E_COORD');
+
+  const dup = clone(base);
+  dup.decor = (dup.decor || []).concat([
+    { q: 70, r: -70, type: 'building' },
+    { q: 70, r: -70, type: 'ruin' },
+  ]);
+  assert.ok(TD.validateStructural(dup).issues.some((i) => i.code === 'E_DUPLICATE_COORD'));
+  expectRejectedEverywhere(dup, 'E_DUPLICATE_COORD');
+
+  const horse = gen('horseshoe', 1);
+  const decorNode = horse.nodes.find((x) => x.id === horse.decor[0]);
+  const numericOverlap = clone(horse);
+  numericOverlap.decor = numericOverlap.decor.concat([{ q: decorNode.q, r: decorNode.r, type: 'building' }]);
+  assert.ok(TD.validateStructural(numericOverlap).issues.some((i) => i.code === 'E_DUPLICATE_COORD'));
+  expectRejectedEverywhere(numericOverlap, 'E_DUPLICATE_COORD');
+});
+
+test('B4-fix: manual paint cannot exceed MAX_HAZARDS on any archetype', () => {
+  assert.equal(TD.maxPaintHazards(24, new Set()), 6);
+  assert.equal(TD.maxPaintHazards(31, new Set()), 6);
+  assert.equal(TD.maxPaintHazards(36, new Set()), 6);
+  for (const archetype of ['club', 'horseshoe', 'snake']) {
+    const spec = gen(archetype, 1, [0, 0]);
+    const main = spec.main;
+    const cp = spec.checkpoints.find((id) => id !== spec.startNode);
+    const startIdx = main.indexOf(spec.startNode);
+    const cpIdx = main.indexOf(cp);
+    const byId = new Map(spec.nodes.map((n) => [n.id, n]));
+    const forbidden = new Set([...spec.grid, cp, spec.pit && spec.pit.entry, spec.pit && spec.pit.exit, spec.pit && spec.pit.tile]);
+    const addBuf = (idx, radius) => { for (let d = -radius; d <= radius; d++) forbidden.add(main[(idx + d + main.length) % main.length]); };
+    addBuf(startIdx, 3); addBuf(cpIdx, 2);
+    forbidden.delete(undefined);
+    const chosen = [];
+    for (let i = 0; i < main.length && chosen.length < 6; i++) {
+      if (forbidden.has(main[i])) continue;
+      const node = byId.get(main[i]);
+      if (!['straight', 'turn'].includes(node.type)) continue;
+      if (chosen.some((idx) => (idx - i + main.length) % main.length <= 1 || (i - idx + main.length) % main.length <= 1)) continue;
+      chosen.push(i);
+    }
+    assert.equal(chosen.length, 6, archetype + ' needs six hazard slots');
+    chosen.forEach((i) => { byId.get(main[i]).type = 'sand'; });
+    const s = sessionFor(spec);
+    const target = paintable(s)[0];
+    assert.ok(target, archetype + ' needs a paintable tile');
+    assert.ok(s.apply({ op: 'paint', uid: target, type: 'debris' }).issues.some((i) => i.code === 'E_HAZARD_MAX'));
+  }
+});
+
+test('B4-fix: checkpoints[0] must be startNode', () => {
+  const spec = gen('snake', 2);
+  spec.checkpoints = [spec.checkpoints[1], spec.checkpoints[0]];
+  assert.ok(TD.validateStructural(spec).issues.some((i) => i.code === 'E_CHECKPOINT'));
+  expectRejectedEverywhere(spec, 'E_CHECKPOINT');
+});
+
+test('B4-fix: hazardBudgetReport clamps requestedMin before deriving max', () => {
+  for (const archetype of ['club', 'horseshoe', 'snake']) {
+    const spec = gen(archetype, 1);
+    const b = TD.hazardBudgetReport(spec, 9, 12);
+    assert.equal(b.requestedMin, 6);
+    assert.equal(b.requestedMax, 6);
+    assert.equal(b.maxHazards, 6);
+    assert.ok(b.achievable <= 6);
+    assert.equal(b.sliderMax, b.achievable);
   }
 });
 
