@@ -239,6 +239,11 @@
             <div id="constructor-canvas" class="constructor-canvas"></div>
           </div>
           <div id="constructor-status" class="constructor-status" role="status">Сгенерируйте трассу или загрузите сохранённую.</div>
+          <div id="constructor-shared-banner" class="constructor-shared-banner" hidden>
+            <b>ПУБЛИЧНАЯ ТРАССА · ТОЛЬКО ЧТЕНИЕ</b>
+            <span id="constructor-shared-meta"></span>
+            <button id="constructor-shared-import" class="chip-btn" type="button">ИМПОРТИРОВАТЬ КОПИЮ</button>
+          </div>
           <div id="constructor-live" class="sr-only" aria-live="polite"></div>
           <div id="constructor-stats" class="constructor-stats"></div>
           <div id="constructor-dirty" class="constructor-dirty" hidden>● не сохранено</div>
@@ -276,6 +281,28 @@
               <button id="constructor-pit-branch" class="chip-btn" type="button">ПИТ-ВЕТКА</button>
               <button id="constructor-shortcut" class="chip-btn" type="button">СРЕЗ</button>
               <button id="constructor-clear-shortcut" class="chip-btn" type="button">УБРАТЬ СРЕЗ</button>
+            </div>
+          </div>
+          <div id="constructor-library-block" class="constructor-library">
+            <h3>БИБЛИОТЕКА</h3>
+            <div id="constructor-server-status" class="constructor-server-status">проверка сервера…</div>
+            <div class="inspector-row">
+              <button id="constructor-server-save" class="chip-btn primary" type="button">В БИБЛИОТЕКУ</button>
+              <button id="constructor-server-copy" class="chip-btn" type="button">КОПИЯ</button>
+              <button id="constructor-server-delete" class="chip-btn danger" type="button">УДАЛИТЬ</button>
+            </div>
+            <div id="constructor-library" class="constructor-library-list"></div>
+            <div id="constructor-share-block" class="constructor-share-block">
+              <h3>ССЫЛКА</h3>
+              <div id="constructor-share-status" class="constructor-server-status">Трасса не в библиотеке</div>
+              <div class="inspector-row">
+                <button id="constructor-share-create" class="chip-btn" type="button">СОЗДАТЬ ССЫЛКУ</button>
+                <button id="constructor-share-revoke" class="chip-btn danger" type="button">ОТОЗВАТЬ</button>
+              </div>
+              <div id="constructor-share-url-row" class="share-url-row" hidden>
+                <input id="constructor-share-url" readonly aria-label="Публичная ссылка">
+                <button id="constructor-share-copy" class="chip-btn" type="button">КОПИРОВАТЬ</button>
+              </div>
             </div>
           </div>
           <h3>ВАЛИДАЦИЯ</h3>

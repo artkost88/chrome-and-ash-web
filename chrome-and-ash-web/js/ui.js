@@ -1779,6 +1779,9 @@
       showScreen('auth');
       return;
     }
+    if (CnA.TrackEditorUI && CnA.TrackEditorUI.openPendingShared && CnA.TrackEditorUI.openPendingShared()) {
+      return;
+    }
     showScreen('lobby');
     renderLobby();
     loadDaily();
@@ -2151,6 +2154,20 @@
   /* Инициализация и события                                            */
   /* ------------------------------------------------------------------ */
   async function bootstrap() {
+    const shared = new URLSearchParams(location.search).get('track');
+    if (shared && CnA.TrackEditorUI && CnA.TrackEditorUI.openShared) {
+      // Public share route открывается до auth-гейта; cookie-сессия, если есть,
+      // всё равно подхватывается для «импортировать копию»/тест-драйва.
+      try {
+        const me = await API.me();
+        UI.account = me.account;
+        UI.stats = me.stats;
+        UI.activeRun = me.activeRun || null;
+        UI.activeSave = me.activeSave || null;
+      } catch (e) { /* анонимный зритель */ }
+      CnA.TrackEditorUI.openShared(shared);
+      return;
+    }
     try {
       const me = await API.me();
       UI.account = me.account;
@@ -2995,6 +3012,7 @@
     showScreen,
     showToast,
     startCustomTrack,
+    get account() { return UI.account; },
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

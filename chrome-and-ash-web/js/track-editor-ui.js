@@ -24,6 +24,151 @@
   let panStart = null;
   let spaceHeld = false;
   let stroke = null;
+  let activeServer = null;
+  let serverTracks = [];
+  let serverOnline = false;
+  let serverLoading = false;
+  let sharedPreview = false;
+  let sharedToken = null;
+  let sharedMeta = null;
+  let pendingSharedToken = null;
+  const SERVER_MAP_KEY = 'cna.serverTrackMap.v1';
+
+  function readServerMap() {
+    try { return JSON.parse(window.localStorage.getItem(SERVER_MAP_KEY) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+  function writeServerMap(map) {
+    try { window.localStorage.setItem(SERVER_MAP_KEY, JSON.stringify(map)); }
+    catch (e) { /* mapping is optional */ }
+  }
+  function rememberServerTrack(localId, track) {
+    if (!track || !track.id) return;
+    const map = readServerMap();
+    map[localId || ('server:' + track.id)] = {
+      serverId: track.id, serverRevision: track.revision, updatedAt: track.updatedAt,
+    };
+    writeServerMap(map);
+  }
+  function forgetServerTrack(serverId) {
+    const map = readServerMap();
+    Object.keys(map).forEach((key) => { if (map[key] && map[key].serverId === serverId) delete map[key]; });
+    writeServerMap(map);
+  }
+  function isAuthed() { return !!(CnA.UI && CnA.UI.account); }
+
+  function serverStatus(text, kind) {
+    const el = $('constructor-server-status');
+    if (!el) return;
+    el.textContent = String(text || '');
+    el.className = 'constructor-server-status' + (kind ? ' ' + kind : '');
+  }
+
+  function renderLibrary() {
+    const box = $('constructor-library');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!isAuthed()) {
+      const d = document.createElement('div');
+      d.className = 'saved-empty'; d.textContent = 'Войдите, чтобы использовать библиотеку.'; box.appendChild(d); return;
+    }
+    if (serverLoading) {
+      const d = document.createElement('div');
+      d.className = 'saved-empty'; d.textContent = 'Загрузка библиотеки…'; box.appendChild(d); return;
+    }
+    if (!serverOnline) {
+      const d = document.createElement('div');
+      d.className = 'saved-empty'; d.textContent = 'Сервер недоступен — работаем локально.'; box.appendChild(d); return;
+    }
+    if (!serverTracks.length) {
+      const d = document.createElement('div');
+      d.className = 'saved-empty'; d.textContent = 'В библиотеке пока нет трасс.'; box.appendChild(d); return;
+    }
+    serverTracks.forEach((track) => {
+      const row = document.createElement('div');
+      row.className = 'library-row' + (activeServer && activeServer.id === track.id ? ' active' : '');
+      const load = document.createElement('button');
+      load.type = 'button'; load.className = 'lib-load'; load.textContent = track.name;
+      load.title = 'Загрузить из библиотеки (rev ' + track.revision + ')';
+      load.addEventListener('click', () => loadServerTrack(track.id));
+      const badge = document.createElement('span');
+      badge.className = 'lib-badge';
+      badge.textContent = 'r' + track.revision + (track.share && track.share.active ? ' · link' : '');
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'st-del'; del.textContent = '×';
+      del.title = 'Удалить из библиотеки';
+      del.addEventListener('click', () => deleteServerTrack(track.id, track.name));
+      row.appendChild(load); row.appendChild(badge); row.appendChild(del); box.appendChild(row);
+    });
+  }
+
+  function renderServerControls() {
+    const ro = !session || session.readOnly || sharedPreview;
+    setDisabled('constructor-server-save', ro);
+    setDisabled('constructor-server-copy', ro);
+    setDisabled('constructor-server-delete', ro || !activeServer);
+    setDisabled('constructor-share-create', ro || !activeServer);
+    setDisabled('constructor-share-revoke', ro || !activeServer);
+    const label = $('constructor-server-save');
+    if (label) label.textContent = activeServer ? 'ОБНОВИТЬ В БИБЛИОТЕКЕ' : 'В БИБЛИОТЕКУ';
+    const banner = $('constructor-shared-banner');
+    if (banner) banner.hidden = !sharedPreview;
+    if (sharedPreview && sharedMeta) {
+      const meta = $('constructor-shared-meta');
+      if (meta) meta.textContent = '«' + sharedMeta.name + '» · автор: ' + (sharedMeta.author || '—');
+    }
+  }
+
+  async function refreshServerLibrary() {
+    if (!isAuthed()) {
+      serverOnline = false; serverLoading = false;
+      serverStatus('Войдите, чтобы использовать библиотеку.', 'error');
+      renderLibrary(); renderServerControls();
+      return;
+    }
+    serverLoading = true; renderLibrary();
+    try {
+      const data = await CnA.API.tracks.list({ limit: 100 });
+      serverTracks = data.tracks || [];
+      serverOnline = true; serverLoading = false;
+      serverStatus('Сервер: ' + serverTracks.length + ' трасс(ы).');
+      if (activeServer) {
+        const found = serverTracks.find((t) => t.id === activeServer.id);
+        if (found) activeServer = Object.assign({}, activeServer, {
+          revision: found.revision, updatedAt: found.updatedAt, name: found.name,
+        });
+      }
+    } catch (e) {
+      serverOnline = false; serverLoading = false;
+      serverStatus('Сервер недоступен — работаем локально.', 'error');
+    }
+    renderLibrary(); renderServerControls();
+  }
+
+  async function refreshShareStatus() {
+    const status = $('constructor-share-status');
+    if (!status) return;
+    if (!activeServer) {
+      status.textContent = 'Трасса не в библиотеке';
+      const row = $('constructor-share-url-row'); if (row) row.hidden = true;
+      return;
+    }
+    try {
+      const data = await CnA.API.share.status(activeServer.id);
+      const share = data.share || { active: false };
+      const create = $('constructor-share-create');
+      if (share.active) {
+        status.textContent = 'Ссылка активна · обновлена ' + (share.updatedAt || '');
+        if (create) create.textContent = 'ОБНОВИТЬ ССЫЛКУ';
+      } else {
+        status.textContent = 'Ссылка не создана';
+        if (create) create.textContent = 'СОЗДАТЬ ССЫЛКУ';
+        const row = $('constructor-share-url-row'); if (row) row.hidden = true;
+      }
+    } catch (e) {
+      status.textContent = 'Статус ссылки недоступен';
+    }
+  }
 
   function $(id) { return document.getElementById(id); }
   function val(id) { const el = $(id); return el ? el.value : ''; }
@@ -377,6 +522,7 @@
     renderIssues();
     renderInspector();
     renderDirty();
+    renderServerControls();
   }
 
   function loadSession(spec, opts) {
@@ -410,6 +556,11 @@
   function generate() {
     if (session && !session.readOnly && (session.dirty || session.unsavedNew) &&
       !window.confirm('Несохранённые правки будут потеряны. Сгенерировать заново?')) return;
+    activeServer = null;
+    sharedPreview = false;
+    sharedToken = null;
+    sharedMeta = null;
+    pendingSharedToken = null;
     const o = optionsFromControls();
     const r = E.generate(o);
     if (!r.spec) {
@@ -802,6 +953,7 @@
     }
     editingId = r.track.id;
     session.markSaved(editingId);
+    if (activeServer) rememberServerTrack(editingId, activeServer);
     renderAll();
     renderSaved();
     setStatus(copy ? 'Сохранено копией.' : 'Трасса сохранена.', false);
@@ -895,6 +1047,10 @@
   function loadEnvelope(env) {
     if (!env || !env.spec) return;
     if (session && (session.dirty || session.unsavedNew) && !window.confirm('Несохранённые изменения будут потеряны. Продолжить?')) return;
+    activeServer = null;
+    sharedPreview = false;
+    sharedToken = null;
+    sharedMeta = null;
     loadSession(env.spec, { kind: 'saved', trackId: env.id });
     const name = $('constructor-name');
     if (name) name.value = env.name || env.spec.name || 'Моя трасса';
@@ -907,6 +1063,11 @@
 
   function testDrive() {
     if (!session) return;
+    if (sharedPreview && !isAuthed()) {
+      toast('Войдите, чтобы запустить тест-драйв.', 'event');
+      if (CnA.UI) CnA.UI.showScreen('auth');
+      return;
+    }
     if (session.readOnly) {
       const spec = currentSpecForExport();
       if (spec) CnA.UI.startCustomTrack(spec);
@@ -916,6 +1077,274 @@
     if (!rep.ok) { renderIssues(); setStatus('Трасса не проходит валидацию.', true); return; }
     if (session.dirty && !window.confirm('Трасса не сохранена. Запустить тест-драйв?')) return;
     CnA.UI.startCustomTrack(session.toSpec());
+  }
+
+  function chooseServerConflict() {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'constructor-modal';
+      const card = document.createElement('div');
+      card.className = 'constructor-modal-card';
+      const h = document.createElement('h3');
+      h.textContent = 'Трасса изменена на сервере';
+      const p = document.createElement('p');
+      p.textContent = 'Версия в библиотеке новее. Перезагрузить, перезаписать, сохранить копией или отменить?';
+      const row = document.createElement('div');
+      row.className = 'inspector-row';
+      const mk = (label, value, cls) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'chip-btn' + (cls ? ' ' + cls : ''); b.textContent = label;
+        b.addEventListener('click', () => { overlay.remove(); resolve(value); });
+        row.appendChild(b); return b;
+      };
+      mk('ПЕРЕЗАГРУЗИТЬ', 'reload');
+      mk('ПЕРЕЗАПИСАТЬ', 'overwrite');
+      const copyBtn = mk('СОХРАНИТЬ КОПИЕЙ', 'copy', 'primary');
+      mk('ОТМЕНА', 'cancel');
+      card.appendChild(h); card.appendChild(p); card.appendChild(row);
+      overlay.appendChild(card);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve('cancel'); } });
+      document.body.appendChild(overlay);
+      copyBtn.focus();
+    });
+  }
+
+  function adoptServerTrack(track, message) {
+    if (!track || !track.id) return;
+    activeServer = {
+      id: track.id, name: track.name, revision: track.revision, updatedAt: track.updatedAt,
+    };
+    rememberServerTrack(editingId, track);
+    renderServerControls();
+    renderLibrary();
+    refreshServerLibrary().catch(() => {});
+    refreshShareStatus().catch(() => {});
+    serverStatus(message || 'Сохранено в библиотеке.');
+    setStatus(message || 'Сохранено в библиотеке.', false);
+    live(message || 'Сохранено в библиотеке');
+  }
+
+  async function saveToServer(copy) {
+    if (!session || session.readOnly || sharedPreview) {
+      setStatus('Библиотека недоступна для этой трассы.', true);
+      return;
+    }
+    const rep = session.report();
+    if (!rep.ok) { renderIssues(); setStatus('Есть ошибки — библиотека недоступна.', true); return; }
+    if (!isAuthed()) {
+      pendingSharedToken = null;
+      if (CnA.UI) CnA.UI.showScreen('auth');
+      toast('Войдите, чтобы сохранять в библиотеку.', 'event');
+      return;
+    }
+    const name = E.cleanName(val('constructor-name') || session.draft.name);
+    const spec = session.toSpec();
+    try {
+      if (!copy && activeServer) {
+        const data = await CnA.API.tracks.update(activeServer.id, {
+          revision: activeServer.revision, name, spec,
+        });
+        adoptServerTrack(data.track, 'Обновлено в библиотеке.');
+        return;
+      }
+      const data = await CnA.API.tracks.create({ name, spec });
+      adoptServerTrack(data.track, copy ? 'Сохранено копией в библиотеке.' : 'Сохранено в библиотеку.');
+    } catch (e) {
+      if (e && e.status === 409) {
+        const choice = await chooseServerConflict();
+        if (choice === 'cancel') { setStatus('Сохранение отменено.', false); return; }
+        if (choice === 'copy') {
+          try {
+            const data = await CnA.API.tracks.create({ name, spec });
+            adoptServerTrack(data.track, 'Сохранено копией в библиотеке.');
+          } catch (err) { serverStatus('Не удалось сохранить копию: ' + (err.message || ''), 'error'); }
+          return;
+        }
+        if (choice === 'reload') {
+          try {
+            const data = await CnA.API.tracks.get(activeServer.id);
+            loadSession(data.track.spec, { kind: 'saved' });
+            activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
+            const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
+            refreshShareStatus().catch(() => {});
+            renderServerControls();
+            setStatus('Загружена серверная версия.', false);
+          } catch (err) { serverStatus('Не удалось загрузить версию: ' + (err.message || ''), 'error'); }
+          return;
+        }
+        if (choice === 'overwrite') {
+          try {
+            const latest = await CnA.API.tracks.get(activeServer.id);
+            const data = await CnA.API.tracks.update(activeServer.id, {
+              revision: latest.track.revision, name, spec,
+            });
+            adoptServerTrack(data.track, 'Серверная версия перезаписана.');
+          } catch (err) {
+            serverStatus('Не удалось перезаписать: ' + (err.message || ''), 'error');
+          }
+          return;
+        }
+      }
+      serverOnline = false;
+      serverStatus('Сервер недоступен — работаем локально.', 'error');
+      setStatus('Не удалось сохранить в библиотеку: ' + (e.message || 'ошибка'), true);
+    }
+  }
+
+  async function loadServerTrack(id) {
+    if (!id) return;
+    if (session && (session.dirty || session.unsavedNew) && !window.confirm('Несохранённые изменения будут потеряны. Загрузить серверную версию?')) return;
+    try {
+      const data = await CnA.API.tracks.get(id);
+      sharedPreview = false; sharedToken = null; sharedMeta = null;
+      loadSession(data.track.spec, { kind: 'saved' });
+      activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
+      const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
+      renderServerControls();
+      renderLibrary();
+      refreshShareStatus().catch(() => {});
+      serverStatus('Загружено из библиотеки.');
+      setStatus('Загружено из библиотеки.', false);
+    } catch (e) {
+      serverStatus('Не удалось загрузить: ' + (e.message || ''), 'error');
+    }
+  }
+
+  async function deleteServerTrack(id, name) {
+    if (!id) return;
+    if (!window.confirm('Удалить «' + (name || 'трассу') + '» из библиотеки?')) return;
+    try {
+      await CnA.API.tracks.remove(id);
+      forgetServerTrack(id);
+      if (activeServer && activeServer.id === id) activeServer = null;
+      refreshShareStatus().catch(() => {});
+      await refreshServerLibrary();
+      renderServerControls();
+      serverStatus('Удалено из библиотеки.');
+      setStatus('Удалено из библиотеки.', false);
+    } catch (e) {
+      serverStatus('Не удалось удалить: ' + (e.message || ''), 'error');
+    }
+  }
+
+  async function createOrRotateShare() {
+    if (!activeServer) { setStatus('Сначала сохраните трассу в библиотеку.', true); return; }
+    try {
+      const data = await CnA.API.share.create(activeServer.id);
+      const url = location.origin + data.share.url;
+      const input = $('constructor-share-url');
+      const row = $('constructor-share-url-row');
+      if (input) input.value = url;
+      if (row) row.hidden = false;
+      const status = $('constructor-share-status');
+      if (status) status.textContent = 'Ссылка активна. Показывается один раз — скопируйте сейчас.';
+      const create = $('constructor-share-create');
+      if (create) create.textContent = 'ОБНОВИТЬ ССЫЛКУ';
+      setStatus('Ссылка создана.', false);
+      refreshServerLibrary().catch(() => {});
+    } catch (e) {
+      setStatus('Не удалось создать ссылку: ' + (e.message || ''), true);
+    }
+  }
+
+  async function revokeShare() {
+    if (!activeServer) return;
+    if (!window.confirm('Отозвать публичную ссылку?')) return;
+    try {
+      await CnA.API.share.revoke(activeServer.id);
+      const row = $('constructor-share-url-row'); if (row) row.hidden = true;
+      const input = $('constructor-share-url'); if (input) input.value = '';
+      const status = $('constructor-share-status'); if (status) status.textContent = 'Ссылка отозвана';
+      const create = $('constructor-share-create'); if (create) create.textContent = 'СОЗДАТЬ ССЫЛКУ';
+      setStatus('Ссылка отозвана.', false);
+    } catch (e) {
+      setStatus('Не удалось отозвать ссылку: ' + (e.message || ''), true);
+    }
+  }
+
+  function copyShareUrl() {
+    const input = $('constructor-share-url');
+    if (!input || !input.value) return;
+    const value = input.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(() => setStatus('Ссылка скопирована.', false)).catch(() => {
+        input.select(); document.execCommand('copy'); setStatus('Ссылка скопирована.', false);
+      });
+    } else {
+      input.select();
+      try { document.execCommand('copy'); setStatus('Ссылка скопирована.', false); } catch (e) { setStatus('Скопируйте ссылку вручную.', true); }
+    }
+  }
+
+  async function importSharedTrack() {
+    if (!sharedPreview || !session) return;
+    if (!isAuthed()) {
+      toast('Войдите, чтобы импортировать трассу в библиотеку.', 'event');
+      if (CnA.UI) CnA.UI.showScreen('auth');
+      return;
+    }
+    const spec = session.originalSpec || (sharedMeta && sharedMeta.spec);
+    if (!spec) return;
+    try {
+      const name = E.cleanName((sharedMeta && sharedMeta.name ? sharedMeta.name : 'Трасса') + ' (копия)');
+      const data = await CnA.API.tracks.create({ name, spec });
+      sharedPreview = false; sharedToken = null; sharedMeta = null;
+      loadSession(data.track.spec, { kind: 'saved' });
+      activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
+      const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
+      renderServerControls();
+      refreshServerLibrary().catch(() => {});
+      refreshShareStatus().catch(() => {});
+      setStatus('Копия импортирована в библиотеку.', false);
+    } catch (e) {
+      setStatus('Импорт отклонён: ' + (e.message || ''), true);
+    }
+  }
+
+  async function openShared(token) {
+    ensureStore();
+    bind();
+    if (CnA.UI) CnA.UI.showScreen('constructor');
+    fillArchetypes();
+    sharedPreview = true;
+    sharedToken = token || null;
+    pendingSharedToken = token || null;
+    activeServer = null;
+    try { history.replaceState({}, '', location.pathname); } catch (e) { /* ignore */ }
+    try {
+      const data = await CnA.API.shared.get(token);
+      const spec = data.track && data.track.spec;
+      if (!spec) throw new Error('пустой ответ');
+      session = makeReadOnlyShell(spec, 'shared', []);
+      sharedMeta = {
+        name: data.track.name || 'Публичная трасса',
+        author: (data.track.author && data.track.author.displayName) || '—',
+        updatedAt: data.track.updatedAt,
+        spec,
+      };
+      editingId = null;
+      view = null;
+      const nameEl = $('constructor-name'); if (nameEl) nameEl.value = sharedMeta.name;
+      const archEl = $('constructor-archetype'); if (archEl && spec.archetype) archEl.value = spec.archetype;
+      renderAll();
+      setStatus('Публичная ссылка: только чтение. Экспорт — локальный JSON.', false);
+    } catch (e) {
+      session = null;
+      sharedMeta = { name: 'Ссылка недоступна', author: '—', spec: null };
+      renderAll();
+      setStatus('Ссылка не найдена или отозвана.', true);
+      await refreshShareStatus();
+    }
+    renderServerControls();
+    refreshServerLibrary().catch(() => {});
+  }
+
+  function openPendingShared() {
+    if (!pendingSharedToken) return false;
+    const token = pendingSharedToken;
+    pendingSharedToken = null;
+    openShared(token).catch(() => {});
+    return true;
   }
 
   function back() {
@@ -966,6 +1395,13 @@
       'constructor-pit-branch': () => activateFeature('pit-branch', null),
       'constructor-shortcut': () => activateFeature('shortcut', null),
       'constructor-clear-shortcut': doClearShortcut,
+      'constructor-server-save': () => saveToServer(false),
+      'constructor-server-copy': () => saveToServer(true),
+      'constructor-server-delete': () => { if (activeServer) deleteServerTrack(activeServer.id, activeServer.name); },
+      'constructor-share-create': createOrRotateShare,
+      'constructor-share-revoke': revokeShare,
+      'constructor-share-copy': copyShareUrl,
+      'constructor-shared-import': importSharedTrack,
     };
     Object.keys(bindings).forEach((id) => { const el = $(id); if (el) el.addEventListener('click', bindings[id]); });
     const importBtn = $('constructor-import'), file = $('constructor-import-file');
@@ -1033,13 +1469,19 @@
     if (!session) generate();
     renderSaved();
     if (session) renderAll();
+    refreshServerLibrary().catch(() => {});
+    refreshShareStatus().catch(() => {});
   }
 
   CnA.TrackEditorUI = {
     open,
+    openShared,
+    openPendingShared,
     close: back,
     generate,
     get session() { return session; },
+    get activeServer() { return activeServer; },
+    get sharedPreview() { return sharedPreview; },
     get current() {
       if (!session) return null;
       const rep = session.report();
