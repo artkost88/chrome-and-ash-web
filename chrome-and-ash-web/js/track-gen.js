@@ -33,6 +33,18 @@
       hazardBudget: [3, 5], pit: 'none', shortcut: true,
       kind: 'mosaic',
     },
+    clover: {
+      id: 'clover', name: 'Клевер', label: 'Клевер',
+      minSize: 31, maxSize: 31, defaultSize: 31,
+      hazardBudget: [2, 4], pit: 'tile', shortcut: false,
+      kind: 'ring',
+    },
+    rift: {
+      id: 'rift', name: 'Разлом', label: 'Разлом',
+      minSize: 32, maxSize: 32, defaultSize: 32,
+      hazardBudget: [3, 5], pit: 'tile', shortcut: false,
+      kind: 'mosaic',
+    },
   };
 
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
@@ -234,6 +246,52 @@
     return coords;
   }
 
+  function axialRound(x, y, z) {
+    let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+    const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+    if (dx > dy && dx > dz) rx = -ry - rz;
+    else if (dy > dz) ry = -rx - rz;
+    else rz = -rx - ry;
+    return [rx, rz];
+  }
+
+  function axialLine(a, b) {
+    const ax = a[0], az = a[1], ay = -ax - az;
+    const bx = b[0], bz = b[1], by = -bx - bz;
+    const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay), Math.abs(bz - az));
+    const out = [];
+    for (let i = 0; i <= n; i++) {
+      const t = n ? i / n : 0;
+      out.push(axialRound(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t));
+    }
+    return out;
+  }
+
+  /* Замкнутый осевой контур по вершинам: каждая сторона — гекс-линия. */
+  function polygonCoords(waypoints) {
+    const out = [];
+    for (let i = 0; i < waypoints.length; i++) {
+      const a = waypoints[i], b = waypoints[(i + 1) % waypoints.length];
+      const seg = axialLine(a, b);
+      out.push(...seg.slice(0, -1));
+    }
+    return out;
+  }
+
+  function cloverCoords() {
+    return polygonCoords([
+      [0, -4], [1, -4], [1, -1], [4, -1], [4, 1], [1, 1],
+      [1, 4], [-1, 4], [-1, 1], [-4, 1], [-4, -1], [-1, -1],
+    ]);
+  }
+
+  function riftCoords() {
+    return polygonCoords([
+      [-6, 0], [-2, 0], [0, 1], [2, 0], [6, 0],
+      [6, 3], [2, 3], [0, 2], [-2, 3], [-6, 3],
+    ]);
+  }
+
   function stadiumCoords() {
     const coords = [];
     // верхняя полоса с шиканой
@@ -267,6 +325,22 @@
       pit: false, shortcut: { entry: 11, exit: 16, node: [[9, 1], [9, 2]], hazardIndex: 1 },
     });
     return spec;
+  }
+
+  function buildCloverSpec(seed, size) {
+    const coords = cloverCoords();
+    return buildAxialSpec(seed + 300003, coords, {
+      id: 'clover', name: 'Клевер', hazardBudget: [1, 3],
+      pit: true, shortcut: null,
+    });
+  }
+
+  function buildRiftSpec(seed, size) {
+    const coords = riftCoords();
+    return buildAxialSpec(seed + 400003, coords, {
+      id: 'rift', name: 'Разлом', hazardBudget: [3, 5],
+      pit: true, shortcut: null,
+    });
   }
 
   function buildPolarMain(seed, size, opt) {
@@ -662,6 +736,8 @@
     let spec;
     if (arch.id === 'club') spec = buildClubSpec(s, size);
     else if (arch.id === 'snake') spec = buildSnakeSpec(s, size);
+    else if (arch.id === 'clover') spec = buildCloverSpec(s, size);
+    else if (arch.id === 'rift') spec = buildRiftSpec(s, size);
     else spec = buildHorseshoeSpec(s, size || 36);
     if (opts && typeof opts === 'object' && Array.isArray(opts.hazardBudget)) {
       spec = applyHazardBudget(spec, opts.hazardBudget, s);
@@ -671,6 +747,8 @@
       // Детерминированный fallback: тот же архетип, seed 0; если и он плох — вернуть как есть.
       let fallback = arch.id === 'club' ? buildClubSpec(0, arch.defaultSize)
         : arch.id === 'snake' ? buildSnakeSpec(0, arch.defaultSize)
+        : arch.id === 'clover' ? buildCloverSpec(0, arch.defaultSize)
+        : arch.id === 'rift' ? buildRiftSpec(0, arch.defaultSize)
         : buildHorseshoeSpec(0, 36);
       if (opts && typeof opts === 'object' && Array.isArray(opts.hazardBudget)) {
         fallback = applyHazardBudget(fallback, opts.hazardBudget, 0);
@@ -692,5 +770,8 @@
   CnA.generateTrack = generateTrack;
   CnA.validateTrackSpec = validateTrackSpec;
   CnA.validateTrack = validateTrack;
-  CnA.CnATrackGen = { buildClubSpec, buildHorseshoeSpec, buildSnakeSpec };
+  CnA.CnATrackGen = { buildClubSpec, buildHorseshoeSpec, buildSnakeSpec, buildCloverSpec, buildRiftSpec };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
+
+
+

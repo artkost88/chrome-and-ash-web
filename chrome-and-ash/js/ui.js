@@ -216,9 +216,9 @@
 
   function readMenuOptions() {
     const tv = $('#opt-track').value;
-    UI.trackArchetype = tv === 'ring' ? 'club' : tv === 'snake' ? 'snake' : 'horseshoe';
-    UI.trackKind = tv === 'ring' ? 'ring' : 'mosaic';
-    UI.trackSize = UI.trackArchetype === 'club' ? 24 : UI.trackArchetype === 'snake' ? 31 : 36;
+    UI.trackArchetype = tv === 'ring' ? 'club' : tv === 'snake' ? 'snake' : tv === 'clover' ? 'clover' : tv === 'rift' ? 'rift' : 'horseshoe';
+    UI.trackKind = tv === 'ring' || tv === 'clover' ? 'ring' : 'mosaic';
+    UI.trackSize = UI.trackArchetype === 'club' ? 24 : UI.trackArchetype === 'snake' ? 31 : UI.trackArchetype === 'clover' ? 31 : UI.trackArchetype === 'rift' ? 32 : 36;
     UI.laps = Number($('#opt-laps').value) === 2 ? 2 : 1;
     UI.speed = Number($('#opt-speed').value) || 1;
     UI.patch = $('#opt-patch').checked;

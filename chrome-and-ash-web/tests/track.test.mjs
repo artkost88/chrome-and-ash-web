@@ -9,7 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const js = path.join(here, '..', 'js');
 for (const f of ['data.js', 'track-gen.js', 'track.js', 'engine.js', 'ai.js']) require(path.join(js, f));
 const CnA = globalThis.CnA;
-const ARCHETYPES = ['club', 'horseshoe', 'snake'];
+const ARCHETYPES = ['club', 'horseshoe', 'snake', 'clover', 'rift'];
 
 function specFor(archetype, seed) {
   return CnA.generateTrackSpec(seed, { archetype, size: CnA.TRACK_ARCHETYPES[archetype].defaultSize });
@@ -113,8 +113,26 @@ test('snake has a shortcut and no pit', () => {
   assert.ok(shortcutTypes.some((t) => ['sand', 'debris', 'event'].includes(t)), 'срез должен иметь риск');
 });
 
+test('clover and rift have expected closed shapes', () => {
+  const clover = specFor('clover', 11);
+  const rift = specFor('rift', 12);
+  assert.equal(clover.size, 31);
+  assert.equal(rift.size, 32);
+  for (const spec of [clover, rift]) {
+    assert.equal(CnA.validateTrackSpec(spec).ok, true);
+    assert.equal(new Set(spec.nodes.map((n) => n.q + ',' + n.r)).size, spec.size);
+    assert.equal(spec.main.length, spec.size);
+    const byId = new Map(spec.nodes.map((n) => [n.id, n]));
+    for (let i = 0; i < spec.main.length; i++) {
+      const a = byId.get(spec.main[i]);
+      const b = byId.get(spec.main[(i + 1) % spec.main.length]);
+      assert.equal(Math.abs(a.q - b.q) + Math.abs(a.r - b.r) <= 2, true);
+    }
+  }
+});
+
 test('hazard budget override is valid and respected', () => {
-  for (const archetype of ['club', 'horseshoe', 'snake']) {
+  for (const archetype of ['club', 'horseshoe', 'snake', 'clover', 'rift']) {
     for (const budget of [[0, 0], [2, 2], [5, 5]]) {
       for (let seed = 1; seed <= 20; seed++) {
         const spec = CnA.generateTrackSpec(seed, {

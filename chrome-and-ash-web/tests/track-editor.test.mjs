@@ -79,7 +79,7 @@ test('export/import round-trips and rejects broken input', () => {
 /* ==================================================================== */
 
 const TD = CnA.TrackDraft;
-const ARCH = ['club', 'horseshoe', 'snake'];
+const ARCH = ['club', 'horseshoe', 'snake', 'clover', 'rift'];
 
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 

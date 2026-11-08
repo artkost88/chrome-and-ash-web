@@ -36,7 +36,7 @@ test('C1: report/prepareSpec expose the shared client validator', () => {
 });
 
 test('C1: prepareLibrarySpec stores dense canonical editable specs', () => {
-  for (const archetype of ['club', 'snake']) {
+  for (const archetype of ['club', 'snake', 'clover', 'rift']) {
     const spec = sample(archetype, 3);
     const res = prepareLibrarySpec(spec);
     assert.equal(res.ok, true, archetype + ': ' + JSON.stringify(res.issues));
