@@ -48,13 +48,13 @@ CREATE TABLE IF NOT EXISTS track_shares (
 CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 ```
 
-- `server/schema.sql` содержит только базовые v2-таблицы и **не содержит `PRAGMA user_version`**. Bootstrap в `db.js`: `user_version=0` → выполнить base schema, выставить 2; затем `2 → 3` — ordered v3 DDL в транзакции (WAL/pragma вне транзакции); `3` → no-op. `user_version` выставляется только после успеха; failed migration оставляет 2.
-- **Старый v2-бинарник после миграции v3 не поддерживается**: его старый `schema.sql` может перезаписать `user_version`. Rollback — restore WAL-aware backup (`VACUUM INTO`) и запуск старого образа; это явное ограничение, а не совместимость. Тест с реальным v2 snapshot: новый код мигрирует, старый код на v3 не запускаем.
+- `server/schema.sql` содержит только базовые v2-таблицы и **не содержит `PRAGMA user_version`**. Bootstrap в `db.js`: `user_version < 2` (0 или 1) → идемпотентно выполнить base schema, выставить 2; затем `2 → 3` — ordered v3 DDL в транзакции (WAL/pragma вне транзакции); `3` → no-op. `user_version` выставляется только после успеха; failed migration оставляет 2.
+- **Старый v2-бинарник после миграции v3 не поддерживается**: его старый `schema.sql` может перезаписать `user_version`. Rollback — restore WAL-aware backup (`VACUUM INTO`) и запуск старого образа; старый v2 работает только на восстановленном v2-backup и не открывает v3 DB. Это явное ограничение. Тест с реальным v1/v2 snapshot: новый код мигрирует; старый код на v3 не запускаем.
 - Share **hard delete**: revoke/rotate удаляет строку; `revoked_at` нет. Одна активная строка на track, `updated_at` для статуса.
 - `ON DELETE CASCADE` удаляет share при удалении трассы/аккаунта.
 - Inactive share (`GET /api/tracks/:id/share`) → `{share:{active:false,createdAt:null,updatedAt:null}}`; list `share.active=false` with null timestamps.
-- Перед миграцией — WAL-aware backup (`VACUUM INTO` или SQLite backup API), не простое копирование файла; rollback = restore backup, старый код совместим с новыми таблицами.
-- Тест на **файловой populated v2 DB**: старые accounts/runs/saves/daily/PvP читаются после миграции; повторный open, failed migration (user_version остаётся 2), fresh v3, old-v2-server compatibility.
+- Перед миграцией — WAL-aware backup (`VACUUM INTO` или SQLite backup API), не простое копирование файла; rollback = restore backup, старый код работает только на восстановленном v2-backup.
+- Тест на **файловой populated v1/v2 DB**: старые accounts/runs/saves/daily/PvP читаются после миграции; повторный open, failed migration (user_version остаётся 2), fresh v3; old v2 only on restored backup, never opens v3.
 
 ---
 
@@ -131,7 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 ## 6. Тесты и приёмка
 
 **Server**
-- migration v2 file DB → v3, old rows intact, idempotent; fresh v3; failed migration keeps user_version=2; cascade delete; inactive share null fields.
+- migration v1/v2 file DB → v3, old rows intact, idempotent; fresh v3; failed migration keeps user_version=2; cascade delete; inactive share null fields; old v2 only on restored backup.
 - `track-spec.js` VM canonical storage, rejects readOnly/originalSpec only, no global VM mutation.
 - auth/IDOR matrix A/B для `GET/PUT/DELETE /api/tracks/:id`, `GET/POST/DELETE /api/tracks/:id/share`, `GET /api/share/:token`; malformed UUID, foreign/missing → 404; list only own; no raw token in list/status; public payload без account/email/PII; exact headers.
 - CRUD/revision 409; conditional UPDATE; transactional 40-track quota; concurrent create/update/delete; pagination cursor `(updated_at,id)` with equal timestamps/deletion.
