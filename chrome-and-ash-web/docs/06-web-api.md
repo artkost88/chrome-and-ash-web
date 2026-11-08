@@ -963,3 +963,48 @@ CREATE INDEX idx_daily_account ON daily_results(account_id, daily_date);
 - [ ] `PUT /api/save/:id` отклоняет устаревший `revision` (`409`) и чужой save (`403`).
 - [ ] Терминальное сохранение пишет `runs.score/damage/kills/result` и, для daily, `daily_results` с удержанием максимума.
 - [ ] `GET /api/leaderboard` для `daily` читает `daily_results`, для `race/championship` — личный максимум из `runs`.
+
+---
+
+## 11. Stage C: серверная библиотека трасс и unlisted share-ссылки
+
+Контракт: `chrome-and-ash/docs/08-track-library-sharing.md`. `TrackSpec schemaVersion: 1`; в библиотеку принимается только **канонический editable axial** spec. Локальный `cna.customTracks.v1` остаётся offline-режимом.
+
+### 11.1. Миграция БД
+
+`server/schema.sql` — базовая схема v2 без `PRAGMA user_version`. `server/src/db.js`:
+`user_version < 2` → идемпотентно применить базу, выставить 2; затем `2 → 3` — ordered DDL в транзакции (`tracks`, `track_shares`, индексы). `user_version` выставляется только после успешного COMMIT; failed migration оставляет 2. Перед миграцией файловой БД пишется WAL-aware backup `VACUUM INTO <db>.pre-v3-<timestamp>.db`. Rollback — restore backup и старый бинарник; старый v2-код не открывает v3 DB.
+
+### 11.2. Ошибки и лимиты
+
+`{error:{code,message}}`: `401 unauthorized`, `404 not_found` (чужая/несуществующая трасса или токен), `409 stale_revision`, `422 invalid_name | invalid_track | invalid_cursor | quota_exceeded`, `413 payload_too_large`, `429 rate_limited`.
+Лимиты: 40 трасс на аккаунт (транзакционная проверка), spec JSON ≤100 КБ, body ≤512 КБ, list limit ≤100, auth library 30 req/min, public share 60 req/min на IP + 10 req/min на IP+token-hash для неверных токенов.
+
+### 11.3. Приватные эндпоинты (cookie-auth)
+
+| Метод | Путь | Тело | Успех |
+|---|---|---|---|
+| GET | `/api/tracks?limit=&cursor=` | — | `200 {tracks:[{id,name,size,archetype,revision,updatedAt,share:{active,updatedAt}}],nextCursor}` |
+| POST | `/api/tracks` | `{name,spec}` | `201 {track:{id,name,spec,specSchema,revision,createdAt,updatedAt}}` |
+| GET | `/api/tracks/:id` | — | `200 {track}`; чужая/нет → `404` |
+| PUT | `/api/tracks/:id` | `{revision,name,spec}` | `200 {track}`; `revision` обязателен; stale → `409` |
+| DELETE | `/api/tracks/:id` | — | `204`; share удаляется каскадом |
+| GET | `/api/tracks/:id/share` | — | `200 {share:{active,createdAt,updatedAt}}`; нет ссылки → `active:false`, timestamps `null` |
+| POST | `/api/tracks/:id/share` | — | `201` создать / `200` rotate → `{share:{token,url}}`; raw token один раз |
+| DELETE | `/api/tracks/:id/share` | — | `204` hard delete; повторно `204` |
+
+`cursor` — opaque base64url `[updated_at,id]`; list order `updated_at DESC, id DESC`. `PUT` использует `UPDATE ... WHERE revision = ?`; при `changes=0` — `409`. ID всегда `req.account`, никогда из body/query; чужие id → `404` (не `403`).
+
+### 11.4. Публичный share
+
+`GET /api/share/:token` (без auth) → `200 {track:{name,spec,author:{displayName},updatedAt}}`; invalid/rotated/revoked → `404`; сохранённый spec повторно валидируется, невалидный → `404`. Ответ не содержит account id/email/session/token hash. Заголовки: `Cache-Control: no-store`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer` (также для shell `GET /?track=<token>`).
+
+Токен: `crypto.randomBytes(32).toString('base64url')` (43 символа); в БД только `sha256Hex(token)` в `track_shares.token_hash`; одна активная ссылка на трассу; rotate/revoke немедленно инвалидируют старую.
+
+### 11.5. Серверная валидация
+
+`server/src/track-spec.js` исполняет те же клиентские `data.js → track-gen.js → track-editor.js` в изолированном `vm`-контексте и экспортирует `report`, `prepareSpec`, `prepareLibrarySpec`, `cleanName`, `validateTrackSpec`. Сохраняется только `prepared.canonical`; `readOnly`/`originalSpec`/legacy fork/polar/object-decor → `422 invalid_track`; имя очищается от HTML, trim, 1–40. В ответах валидации возвращаются только первые issue codes, не полный spec.
+
+### 11.6. Клиент (C3–C5)
+
+`api.js`: `tracks.list/get/create/update/delete`, `share.create/status/revoke`, `shared.get(token)`; private — `credentials:'include'`, public — без auth. UI: секция «БИБЛИОТЕКА», mapping `localId ↔ {serverId,serverRevision,updatedAt}` в `localStorage['cna.serverTrackMap.v1']`, конфликт `409` с default «Сохранить копией», share-блок, offline local fallback. `?track=<token>` обрабатывается до auth-гейта; анонимно — read-only preview/export, import copy/test-drive после login; токен не пишется в localStorage/DOM вне share-блока.

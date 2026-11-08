@@ -1,6 +1,8 @@
 import express from 'express';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { dailyChallenge, today } from './daily.js';
+import { prepareLibrarySpec, cleanName } from './track-spec.js';
 import { nowIso, utcDateString, uuidv7, sha256Hex, hashPassword, verifyPassword, newSessionToken, dummyVerifyPassword, createRateLimiter } from './util.js';
 
 const USERNAME_RE = /^[A-Za-z0-9_.-]+$/;
@@ -15,6 +17,11 @@ const SAVE_STATUSES = new Set(['active', 'finished']);
 const RUN_STATUSES = new Set(['active', 'finished', 'abandoned']);
 const STAGES = new Set(['race', 'results', 'shop', 'final']);
 const SAVE_STATE_KEYS = ['schemaVersion', 'engineVersion', 'seed', 'mode', 'raceIndex', 'stage', 'nextUid', 'savedAt', 'engine'];
+const MAX_TRACKS = 40;
+const MAX_TRACK_BYTES = 100 * 1024;
+const TRACK_LIST_LIMIT = 100;
+const TRACK_NAME_MAX = 40;
+const SHARE_TOKEN_RE = /^[A-Za-z0-9_-]{20,128}$/;
 
 /* ------------------------------------------------------------------ */
 /* Чистые помощники                                                    */
@@ -88,6 +95,95 @@ function saveJson(row) {
   return { ...saveRefJson(row), state: row.state ? safeJson(row.state) : null };
 }
 
+/* --- Stage C: track library helpers --- */
+function cleanTrackName(raw) {
+  if (typeof raw !== 'string') return null;
+  const stripped = raw.replace(/<[^>]*>/g, '').trim();
+  if (!stripped || stripped.length > TRACK_NAME_MAX) return null;
+  const cleaned = cleanName(stripped);
+  if (!cleaned || cleaned.length > TRACK_NAME_MAX) return null;
+  return cleaned;
+}
+
+function jsonBytes(value) {
+  try { return Buffer.byteLength(JSON.stringify(value), 'utf8'); } catch { return Infinity; }
+}
+
+function validateTrackBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { status: 400, code: 'invalid_request', message: 'Требуется объект {name,spec}' };
+  }
+  const name = cleanTrackName(body.name);
+  if (!name) return { status: 422, code: 'invalid_name', message: 'Имя трассы: 1–40 символов после очистки' };
+  const rawBytes = jsonBytes(body.spec);
+  if (rawBytes > MAX_TRACK_BYTES) {
+    return { status: 413, code: 'payload_too_large', message: 'spec больше 100 КБ' };
+  }
+  const prepared = prepareLibrarySpec(body.spec);
+  if (!prepared.ok) {
+    return {
+      status: 422,
+      code: 'invalid_track',
+      message: 'TrackSpec не прошёл серверную валидацию',
+      details: { issues: (prepared.issues || []).slice(0, 6).map((i) => ({ code: i.code, nodeId: i.nodeId })) },
+    };
+  }
+  const canonical = prepared.spec;
+  if (jsonBytes(canonical) > MAX_TRACK_BYTES) {
+    return { status: 413, code: 'payload_too_large', message: 'spec больше 100 КБ после нормализации' };
+  }
+  return { ok: true, name, spec: canonical };
+}
+
+function trackJson(row) {
+  const spec = safeJson(row.spec_json);
+  return {
+    id: row.id,
+    name: row.name,
+    spec,
+    specSchema: row.spec_schema,
+    revision: row.revision,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function trackSummaryJson(row) {
+  const spec = safeJson(row.spec_json) || {};
+  return {
+    id: row.id,
+    name: row.name,
+    size: spec.size ?? null,
+    archetype: spec.archetype ?? null,
+    revision: row.revision,
+    updatedAt: row.updated_at,
+    share: {
+      active: !!row.share_created_at,
+      updatedAt: row.share_updated_at ?? null,
+    },
+  };
+}
+
+function encodeTrackCursor(row) {
+  return Buffer.from(JSON.stringify([row.updated_at, row.id]), 'utf8').toString('base64url');
+}
+
+function decodeTrackCursor(value) {
+  if (typeof value !== 'string' || value.length > 512) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    if (!Array.isArray(parsed) || parsed.length !== 2) return null;
+    if (typeof parsed[0] !== 'string' || typeof parsed[1] !== 'string') return null;
+    return { updatedAt: parsed[0], id: parsed[1] };
+  } catch { return null; }
+}
+
+function trackShareJson(share) {
+  return share
+    ? { active: true, createdAt: share.created_at, updatedAt: share.updated_at }
+    : { active: false, createdAt: null, updatedAt: null };
+}
+
 function detailFromResult(resultJson, row) {
   const obj = resultJson ? safeJson(resultJson) : null;
   if (obj && obj.detail) return obj.detail;
@@ -153,6 +249,18 @@ export function createApp({ db, config, pvpRouter }) {
     const username = (req.body && typeof req.body.username === 'string') ? req.body.username.toLowerCase() : '';
     if (username && !byAccountLimiter.allow(ip + '|' + username)) {
       return err(res, 429, 'rate_limited', 'Слишком много попыток для этого имени.');
+    }
+    next();
+  }
+
+  /* Stage C: separate buckets for the authenticated library and public shares. */
+  const libraryLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30 });
+  const shareIpLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60 });
+  const shareFailLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
+
+  function trackLibraryRateLimit(req, res, next) {
+    if (!libraryLimiter.allow(req.account.id)) {
+      return err(res, 429, 'rate_limited', 'Слишком много запросов к библиотеке.');
     }
     next();
   }
@@ -549,8 +657,185 @@ export function createApp({ db, config, pvpRouter }) {
     res.json({ mode, date: null, rows: out });
   });
 
+  /* --- Stage C: библиотека трасс и unlisted share-ссылки --- */
+  function loadOwnedTrack(req, res) {
+    const id = String(req.params.id || '');
+    if (!UUID_RE.test(id)) { err(res, 404, 'not_found', 'Трасса не найдена'); return null; }
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id);
+    if (!row || row.account_id !== req.account.id) {
+      err(res, 404, 'not_found', 'Трасса не найдена');
+      return null;
+    }
+    return row;
+  }
+
+  app.get('/api/tracks', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const limit = clampInt(req.query.limit, 1, TRACK_LIST_LIMIT, 50);
+    let cursor = null;
+    if (req.query.cursor !== undefined) {
+      cursor = decodeTrackCursor(req.query.cursor);
+      if (!cursor) return err(res, 422, 'invalid_cursor', 'Некорректный cursor');
+    }
+    const conds = ['t.account_id = ?'];
+    const params = [req.account.id];
+    if (cursor) {
+      conds.push('(t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))');
+      params.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
+    }
+    const rows = db.prepare(`
+      SELECT t.*, s.created_at AS share_created_at, s.updated_at AS share_updated_at
+      FROM tracks t
+      LEFT JOIN track_shares s ON s.track_id = t.id
+      WHERE ${conds.join(' AND ')}
+      ORDER BY t.updated_at DESC, t.id DESC
+      LIMIT ?`).all(...params, limit + 1);
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit);
+    res.json({
+      tracks: page.map(trackSummaryJson),
+      nextCursor: hasMore && page.length ? encodeTrackCursor(page[page.length - 1]) : null,
+    });
+  });
+
+  app.post('/api/tracks', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const v = validateTrackBody(req.body);
+    if (!v.ok) return err(res, v.status, v.code, v.message, v.details);
+    const now = nowIso();
+    const id = uuidv7();
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const count = db.prepare('SELECT COUNT(*) AS c FROM tracks WHERE account_id = ?').get(req.account.id).c;
+      if (count >= MAX_TRACKS) {
+        db.exec('ROLLBACK');
+        return err(res, 422, 'quota_exceeded', 'Лимит библиотеки: ' + MAX_TRACKS + ' трасс');
+      }
+      db.prepare('INSERT INTO tracks (id, account_id, name, spec_json, spec_schema, revision, created_at, updated_at) VALUES (?,?,?,?,1,0,?,?)')
+        .run(id, req.account.id, v.name, JSON.stringify(v.spec), now, now);
+      db.exec('COMMIT');
+    } catch (e) {
+      try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+      throw e;
+    }
+    res.status(201).json({ track: trackJson(db.prepare('SELECT * FROM tracks WHERE id = ?').get(id)) });
+  });
+
+  app.get('/api/tracks/:id', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const row = loadOwnedTrack(req, res);
+    if (!row) return;
+    res.json({ track: trackJson(row) });
+  });
+
+  app.put('/api/tracks/:id', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const row = loadOwnedTrack(req, res);
+    if (!row) return;
+    const b = req.body || {};
+    if (!Number.isInteger(b.revision) || b.revision < 0) {
+      return err(res, 400, 'invalid_request', 'revision обязателен (неотрицательное целое)');
+    }
+    if (b.revision !== row.revision) return err(res, 409, 'stale_revision', 'Устаревшая версия трассы');
+    const v = validateTrackBody(b);
+    if (!v.ok) return err(res, v.status, v.code, v.message, v.details);
+    const updatedAt = nowIso();
+    const result = db.prepare(
+      'UPDATE tracks SET name = ?, spec_json = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND account_id = ? AND revision = ?'
+    ).run(v.name, JSON.stringify(v.spec), updatedAt, row.id, req.account.id, row.revision);
+    if (result.changes !== 1) return err(res, 409, 'stale_revision', 'Устаревшая версия трассы');
+    res.json({ track: trackJson(db.prepare('SELECT * FROM tracks WHERE id = ?').get(row.id)) });
+  });
+
+  app.delete('/api/tracks/:id', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const row = loadOwnedTrack(req, res);
+    if (!row) return;
+    db.prepare('DELETE FROM tracks WHERE id = ? AND account_id = ?').run(row.id, req.account.id);
+    res.status(204).end();
+  });
+
+  app.get('/api/tracks/:id/share', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const row = loadOwnedTrack(req, res);
+    if (!row) return;
+    const share = db.prepare('SELECT * FROM track_shares WHERE track_id = ?').get(row.id) || null;
+    res.json({ share: trackShareJson(share) });
+  });
+
+  app.post('/api/tracks/:id/share', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const row = loadOwnedTrack(req, res);
+    if (!row) return;
+    const existing = db.prepare('SELECT id FROM track_shares WHERE track_id = ?').get(row.id) || null;
+    const token = crypto.randomBytes(32).toString('base64url');
+    const now = nowIso();
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare('DELETE FROM track_shares WHERE track_id = ?').run(row.id);
+      db.prepare('INSERT INTO track_shares (id, track_id, token_hash, created_at, updated_at) VALUES (?,?,?,?,?)')
+        .run(uuidv7(), row.id, sha256Hex(token), now, now);
+      db.exec('COMMIT');
+    } catch (e) {
+      try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+      throw e;
+    }
+    res.status(existing ? 200 : 201).json({ share: { token, url: '/?track=' + token } });
+  });
+
+  app.delete('/api/tracks/:id/share', requireAuth, trackLibraryRateLimit, (req, res) => {
+    const row = loadOwnedTrack(req, res);
+    if (!row) return;
+    db.prepare('DELETE FROM track_shares WHERE track_id = ?').run(row.id);
+    res.status(204).end();
+  });
+
+  app.get('/api/share/:token', (req, res) => {
+    const ip = req.ip || 'unknown';
+    if (!shareIpLimiter.allow(ip)) return err(res, 429, 'rate_limited', 'Слишком много запросов к ссылкам.');
+    const token = String(req.params.token || '');
+    if (!SHARE_TOKEN_RE.test(token)) {
+      if (!shareFailLimiter.allow(ip + '|' + sha256Hex(token))) {
+        return err(res, 429, 'rate_limited', 'Слишком много неверных ссылок.');
+      }
+      return err(res, 404, 'not_found', 'Ссылка не найдена');
+    }
+    const row = db.prepare(`
+      SELECT t.name, t.spec_json, t.updated_at, a.display_name
+      FROM track_shares s
+      JOIN tracks t ON t.id = s.track_id
+      JOIN accounts a ON a.id = t.account_id
+      WHERE s.token_hash = ?`).get(sha256Hex(token));
+    if (!row) {
+      if (!shareFailLimiter.allow(ip + '|' + sha256Hex(token))) {
+        return err(res, 429, 'rate_limited', 'Слишком много неверных ссылок.');
+      }
+      return err(res, 404, 'not_found', 'Ссылка не найдена');
+    }
+    const stored = safeJson(row.spec_json);
+    const prepared = prepareLibrarySpec(stored);
+    if (!prepared.ok) {
+      console.warn('[cna] share: сохранённый TrackSpec не прошёл валидацию', row.name);
+      return err(res, 404, 'not_found', 'Ссылка не найдена');
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.json({
+      track: {
+        name: row.name,
+        spec: prepared.spec,
+        author: { displayName: row.display_name },
+        updatedAt: row.updated_at,
+      },
+    });
+  });
+
   /* --- PvP (фаза 2): лобби REST, монтируется до статики и 404 --- */
   if (pvpRouter) app.use(pvpRouter);
+
+  /* --- share shell (`/?track=<token>`) не кэшируется и не индексируется --- */
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && req.path === '/' && typeof req.query.track === 'string') {
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Robots-Tag', 'noindex');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+    }
+    next();
+  });
 
   /* --- статический веб-клиент (t7) --- */
   if (config.clientDir && fs.existsSync(config.clientDir)) {
