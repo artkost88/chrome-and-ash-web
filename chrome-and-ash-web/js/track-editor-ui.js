@@ -32,6 +32,7 @@
   let sharedToken = null;
   let sharedMeta = null;
   let pendingSharedToken = null;
+  let shareActive = false;
   const SERVER_MAP_KEY = 'cna.serverTrackMap.v1';
 
   function readServerMap() {
@@ -108,7 +109,8 @@
     setDisabled('constructor-server-copy', ro);
     setDisabled('constructor-server-delete', ro || !activeServer);
     setDisabled('constructor-share-create', ro || !activeServer);
-    setDisabled('constructor-share-revoke', ro || !activeServer);
+    setDisabled('constructor-share-revoke', ro || !activeServer || !shareActive);
+    setDisabled('constructor-save-copy', sharedPreview);
     const label = $('constructor-server-save');
     if (label) label.textContent = activeServer ? 'ОБНОВИТЬ В БИБЛИОТЕКЕ' : 'В БИБЛИОТЕКУ';
     const banner = $('constructor-shared-banner');
@@ -157,6 +159,7 @@
       const data = await CnA.API.share.status(activeServer.id);
       const share = data.share || { active: false };
       const create = $('constructor-share-create');
+      shareActive = !!share.active;
       if (share.active) {
         status.textContent = 'Ссылка активна · обновлена ' + (share.updatedAt || '');
         if (create) create.textContent = 'ОБНОВИТЬ ССЫЛКУ';
@@ -165,8 +168,11 @@
         if (create) create.textContent = 'СОЗДАТЬ ССЫЛКУ';
         const row = $('constructor-share-url-row'); if (row) row.hidden = true;
       }
+      renderServerControls();
     } catch (e) {
+      shareActive = false;
       status.textContent = 'Статус ссылки недоступен';
+      renderServerControls();
     }
   }
 
@@ -554,6 +560,7 @@
   }
 
   function generate() {
+    if (sharedPreview && !window.confirm('Выйти из публичной трассы и сгенерировать новую?')) return;
     if (session && !session.readOnly && (session.dirty || session.unsavedNew) &&
       !window.confirm('Несохранённые правки будут потеряны. Сгенерировать заново?')) return;
     activeServer = null;
@@ -561,6 +568,7 @@
     sharedToken = null;
     sharedMeta = null;
     pendingSharedToken = null;
+    shareActive = false;
     const o = optionsFromControls();
     const r = E.generate(o);
     if (!r.spec) {
@@ -931,6 +939,10 @@
 
   function save(copy) {
     if (!session) return;
+    if (sharedPreview) {
+      setStatus('Публичная трасса: локальная копия недоступна. Сохраните JSON или импортируйте в библиотеку после входа.', true);
+      return;
+    }
     if (session.readOnly) {
       if (!copy) { setStatus('Только чтение: доступна только «КОПИЯ».', true); return; }
       ensureStore();
@@ -1013,6 +1025,7 @@
 
   function importTrack(file) {
     if (!file) return;
+    if (sharedPreview && !window.confirm('Выйти из публичной трассы и импортировать файл?')) return;
     const reader = new FileReader();
     reader.onload = async () => {
       ensureStore();
@@ -1046,12 +1059,20 @@
 
   function loadEnvelope(env) {
     if (!env || !env.spec) return;
+    if (sharedPreview && !window.confirm('Выйти из публичной трассы и загрузить локальную?')) return;
     if (session && (session.dirty || session.unsavedNew) && !window.confirm('Несохранённые изменения будут потеряны. Продолжить?')) return;
-    activeServer = null;
     sharedPreview = false;
     sharedToken = null;
     sharedMeta = null;
+    shareActive = false;
     loadSession(env.spec, { kind: 'saved', trackId: env.id });
+    const savedMap = readServerMap()[env.id];
+    activeServer = savedMap && savedMap.serverId ? {
+      id: savedMap.serverId,
+      name: env.name || env.spec.name || 'Моя трасса',
+      revision: Number.isInteger(savedMap.serverRevision) ? savedMap.serverRevision : 0,
+      updatedAt: savedMap.updatedAt || null,
+    } : null;
     const name = $('constructor-name');
     if (name) name.value = env.name || env.spec.name || 'Моя трасса';
     const arch = $('constructor-archetype');
@@ -1059,6 +1080,11 @@
     const seed = $('constructor-seed');
     if (seed) seed.value = String(env.spec.seed == null ? 1 : env.spec.seed);
     renderAll();
+    if (activeServer) {
+      rememberServerTrack(env.id, activeServer);
+      refreshShareStatus().catch(() => {});
+      refreshServerLibrary().catch(() => {});
+    }
   }
 
   function testDrive() {
@@ -1114,6 +1140,7 @@
     activeServer = {
       id: track.id, name: track.name, revision: track.revision, updatedAt: track.updatedAt,
     };
+    shareActive = false;
     rememberServerTrack(editingId, track);
     renderServerControls();
     renderLibrary();
@@ -1165,6 +1192,10 @@
             const data = await CnA.API.tracks.get(activeServer.id);
             loadSession(data.track.spec, { kind: 'saved' });
             activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
+      shareActive = false;
+      rememberServerTrack(editingId, data.track);
+            shareActive = false;
+            rememberServerTrack(editingId, data.track);
             const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
             refreshShareStatus().catch(() => {});
             renderServerControls();
@@ -1199,6 +1230,8 @@
       sharedPreview = false; sharedToken = null; sharedMeta = null;
       loadSession(data.track.spec, { kind: 'saved' });
       activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
+      shareActive = false;
+      rememberServerTrack(editingId, data.track);
       const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
       renderServerControls();
       renderLibrary();
@@ -1216,7 +1249,7 @@
     try {
       await CnA.API.tracks.remove(id);
       forgetServerTrack(id);
-      if (activeServer && activeServer.id === id) activeServer = null;
+      if (activeServer && activeServer.id === id) { activeServer = null; shareActive = false; }
       refreshShareStatus().catch(() => {});
       await refreshServerLibrary();
       renderServerControls();
@@ -1231,6 +1264,8 @@
     if (!activeServer) { setStatus('Сначала сохраните трассу в библиотеку.', true); return; }
     try {
       const data = await CnA.API.share.create(activeServer.id);
+      shareActive = true;
+      renderServerControls();
       const url = location.origin + data.share.url;
       const input = $('constructor-share-url');
       const row = $('constructor-share-url-row');
@@ -1252,6 +1287,8 @@
     if (!window.confirm('Отозвать публичную ссылку?')) return;
     try {
       await CnA.API.share.revoke(activeServer.id);
+      shareActive = false;
+      renderServerControls();
       const row = $('constructor-share-url-row'); if (row) row.hidden = true;
       const input = $('constructor-share-url'); if (input) input.value = '';
       const status = $('constructor-share-status'); if (status) status.textContent = 'Ссылка отозвана';
@@ -1291,6 +1328,8 @@
       sharedPreview = false; sharedToken = null; sharedMeta = null;
       loadSession(data.track.spec, { kind: 'saved' });
       activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
+      shareActive = false;
+      rememberServerTrack(editingId, data.track);
       const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
       renderServerControls();
       refreshServerLibrary().catch(() => {});
@@ -1310,11 +1349,13 @@
     sharedToken = token || null;
     pendingSharedToken = token || null;
     activeServer = null;
-    try { history.replaceState({}, '', location.pathname); } catch (e) { /* ignore */ }
+    shareActive = false;
     try {
       const data = await CnA.API.shared.get(token);
       const spec = data.track && data.track.spec;
       if (!spec) throw new Error('пустой ответ');
+      pendingSharedToken = null;
+      try { history.replaceState({}, '', location.pathname); } catch (e) { /* ignore */ }
       session = makeReadOnlyShell(spec, 'shared', []);
       sharedMeta = {
         name: data.track.name || 'Публичная трасса',
@@ -1340,8 +1381,8 @@
   }
 
   function openPendingShared() {
-    if (!pendingSharedToken) return false;
-    const token = pendingSharedToken;
+    const token = pendingSharedToken || sharedToken;
+    if (!token) return false;
     pendingSharedToken = null;
     openShared(token).catch(() => {});
     return true;
