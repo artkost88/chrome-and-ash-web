@@ -28,6 +28,7 @@
   let serverTracks = [];
   let serverOnline = false;
   let serverLoading = false;
+  let serverError = null;
   let sharedPreview = false;
   let sharedToken = null;
   let sharedMeta = null;
@@ -77,7 +78,15 @@
       const d = document.createElement('div');
       d.className = 'saved-empty'; d.textContent = 'Загрузка библиотеки…'; box.appendChild(d); return;
     }
-    if (!serverOnline) {
+    if (serverError === 'rate') {
+      const d = document.createElement('div');
+      d.className = 'saved-empty'; d.textContent = 'Лимит запросов к библиотеке. Повторите через минуту.'; box.appendChild(d); return;
+    }
+    if (serverError === 'auth') {
+      const d = document.createElement('div');
+      d.className = 'saved-empty'; d.textContent = 'Требуется вход в аккаунт.'; box.appendChild(d); return;
+    }
+    if (serverError === 'offline' || !serverOnline) {
       const d = document.createElement('div');
       d.className = 'saved-empty'; d.textContent = 'Сервер недоступен — работаем локально.'; box.appendChild(d); return;
     }
@@ -121,28 +130,51 @@
     }
   }
 
+  function setServerRetry(visible) {
+    const btn = $('constructor-server-retry');
+    if (btn) btn.hidden = !visible;
+  }
+
   async function refreshServerLibrary() {
     if (!isAuthed()) {
-      serverOnline = false; serverLoading = false;
+      serverOnline = false; serverLoading = false; serverError = 'auth';
       serverStatus('Войдите, чтобы использовать библиотеку.', 'error');
+      setServerRetry(false);
       renderLibrary(); renderServerControls();
       return;
     }
-    serverLoading = true; renderLibrary();
+    serverLoading = true; serverError = null; setServerRetry(false); renderLibrary();
     try {
       const data = await CnA.API.tracks.list({ limit: 100 });
       serverTracks = data.tracks || [];
-      serverOnline = true; serverLoading = false;
+      serverOnline = true; serverLoading = false; serverError = null;
+      setServerRetry(false);
       serverStatus('Сервер: ' + serverTracks.length + ' трасс(ы).');
       if (activeServer) {
         const found = serverTracks.find((t) => t.id === activeServer.id);
-        if (found) activeServer = Object.assign({}, activeServer, {
-          revision: found.revision, updatedAt: found.updatedAt, name: found.name,
-        });
+        if (found) {
+          activeServer = Object.assign({}, activeServer, {
+            revision: found.revision, updatedAt: found.updatedAt, name: found.name,
+          });
+          shareActive = !!(found.share && found.share.active);
+          renderServerControls();
+        }
       }
     } catch (e) {
-      serverOnline = false; serverLoading = false;
-      serverStatus('Сервер недоступен — работаем локально.', 'error');
+      serverLoading = false;
+      if (e && e.status === 429) {
+        serverOnline = true; serverError = 'rate';
+        serverStatus('Лимит запросов к библиотеке. Повторите через минуту.', 'error');
+        setServerRetry(true);
+      } else if (e && e.status === 401) {
+        serverOnline = false; serverError = 'auth';
+        serverStatus('Сессия истекла — требуется вход.', 'error');
+        setServerRetry(false);
+      } else {
+        serverOnline = false; serverError = 'offline';
+        serverStatus('Сервер недоступен — работаем локально.', 'error');
+        setServerRetry(true);
+      }
     }
     renderLibrary(); renderServerControls();
   }
@@ -170,8 +202,15 @@
       }
       renderServerControls();
     } catch (e) {
-      shareActive = false;
-      status.textContent = 'Статус ссылки недоступен';
+      if (e && e.status === 429) {
+        status.textContent = 'Лимит запросов к статусу ссылки. Повторите позже.';
+      } else if (e && e.status === 401) {
+        status.textContent = 'Требуется вход.';
+        shareActive = false;
+      } else {
+        status.textContent = 'Статус ссылки недоступен; действие доступно из списка.';
+      }
+      // shareActive уже мог быть получен из library list (share.active) — не сбрасываем.
       renderServerControls();
     }
   }
@@ -1192,8 +1231,6 @@
             const data = await CnA.API.tracks.get(activeServer.id);
             loadSession(data.track.spec, { kind: 'saved' });
             activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
-      shareActive = false;
-      rememberServerTrack(editingId, data.track);
             shareActive = false;
             rememberServerTrack(editingId, data.track);
             const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
@@ -1216,9 +1253,22 @@
           return;
         }
       }
-      serverOnline = false;
-      serverStatus('Сервер недоступен — работаем локально.', 'error');
-      setStatus('Не удалось сохранить в библиотеку: ' + (e.message || 'ошибка'), true);
+      if (e && e.status === 429) {
+        serverOnline = true; serverError = 'rate';
+        serverStatus('Лимит запросов к библиотеке. Повторите через минуту.', 'error');
+        setServerRetry(true);
+        setStatus('Лимит запросов: повторите сохранение через минуту.', true);
+      } else if (e && e.status === 401) {
+        serverOnline = false; serverError = 'auth';
+        serverStatus('Сессия истекла — требуется вход.', 'error');
+        setStatus('Требуется вход в аккаунт.', true);
+      } else {
+        serverOnline = false; serverError = 'offline';
+        serverStatus('Сервер недоступен — работаем локально.', 'error');
+        setServerRetry(true);
+        setStatus('Не удалось сохранить в библиотеку: ' + (e.message || 'ошибка'), true);
+      }
+      renderLibrary(); renderServerControls();
     }
   }
 
@@ -1230,7 +1280,8 @@
       sharedPreview = false; sharedToken = null; sharedMeta = null;
       loadSession(data.track.spec, { kind: 'saved' });
       activeServer = { id: data.track.id, name: data.track.name, revision: data.track.revision, updatedAt: data.track.updatedAt };
-      shareActive = false;
+      const listed = serverTracks.find((t) => t.id === data.track.id);
+      shareActive = !!(listed && listed.share && listed.share.active);
       rememberServerTrack(editingId, data.track);
       const nameEl = $('constructor-name'); if (nameEl) nameEl.value = data.track.name;
       renderServerControls();
@@ -1443,6 +1494,10 @@
       'constructor-share-revoke': revokeShare,
       'constructor-share-copy': copyShareUrl,
       'constructor-shared-import': importSharedTrack,
+      'constructor-server-retry': () => {
+        refreshServerLibrary().catch(() => {});
+        refreshShareStatus().catch(() => {});
+      },
     };
     Object.keys(bindings).forEach((id) => { const el = $(id); if (el) el.addEventListener('click', bindings[id]); });
     const importBtn = $('constructor-import'), file = $('constructor-import-file');
