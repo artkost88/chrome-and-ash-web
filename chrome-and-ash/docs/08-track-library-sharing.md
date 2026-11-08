@@ -16,7 +16,7 @@
 5. **IDOR:** для чужих/несуществующих приватных id — **404** (не 403), чтобы не раскрывать существование. Владелец — только из `req.account`, никогда из body/query.
 6. **Публичный share:** без auth, только `{name, spec, author.displayName, updatedAt}`; без account id/email/других трасс. `Cache-Control: no-store`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`.
 7. **Клиентский share route:** query `?track=<token>` (без path-SPA-fallback). Обрабатывается до `/api/me`/auth-гейта; после загрузки — read-only preview. Анонимный зритель **не** может test-drive/import-to-server: кнопки ведут на login; экспорт preview — только локальный JSON. После логина доступны «Импортировать копию» и «Тест-драйв».
-8. **Лимиты:** 40 трасс на аккаунт; имя 1–40 (trim, strip HTML); spec JSON ≤100 КБ; body ≤512 КБ; list limit ≤100; auth library 30 req/min; public share 60 req/min **per-IP total** + 10 req/min per IP+token hash (failed-token bucket).
+8. **Лимиты:** 40 трасс на аккаунт; имя 1–40 (trim, strip HTML); spec JSON ≤100 КБ; body ≤512 КБ; list limit ≤100; auth library **120 req/min** по умолчанию (env `TRACK_LIBRARY_MAX`/`TRACK_LIBRARY_WINDOW_MS`, чтобы UI-опросы list/share-status не упирались в лимит); public share 60 req/min **per-IP total** + 10 req/min per IP+token hash (failed-token bucket).
 9. **Run metadata:** не входит в C v1. `runs`/daily/PvP/leaderboard не меняются.
 
 ---

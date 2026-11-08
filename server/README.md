@@ -70,8 +70,11 @@ npm run db:init    # явно создать/проверить server/cna.db (�
 Путь к БД задаётся переменной `DB_PATH` (по умолчанию `./cna.db` относительно `server/`).
 Для тестов можно указать `DB_PATH=:memory:` (данные исчезнут при остановке).
 
-Таблицы (схема `schema.sql`, `user_version = 2`): `accounts`, `sessions`, `runs`,
-`saves`, `daily_results` (фаза 1) и PvP-таблицы `games` / `game_players` (фаза 2).
+Таблицы (схема `schema.sql` = базовая v2, миграция в v3 — `src/db.js`, `user_version = 3`):
+`accounts`, `sessions`, `runs`, `saves`, `daily_results` (фаза 1), PvP — `games` /
+`game_players` (фаза 2), библиотека трасс — `tracks` / `track_shares` (Stage C).
+Перед миграцией существующей файловой БД v1/v2 создаётся WAL-aware backup
+`cna.db.pre-v3-<timestamp>.db` (`VACUUM INTO`).
 
 - `games` — одно PvP-лобби/игра: `lobby_code` (6 символов base32), `owner_account_id`
   (владелец = слот 0), `status` (`waiting`/`playing`/`finished`), `config_json`
@@ -101,6 +104,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # г�
 | `NODE_ENV` | `development` | `production` включает `Secure` у cookie (нужен HTTPS) |
 | `PEPPER` | — | Серверный секрет для scrypt; **не менять после создания аккаунтов** |
 | `ENGINE_DIR` | `../chrome-and-ash-web/js` | Каталог, откуда сервер грузит движок CnA (для PvP-движка) |
+| `TRACK_LIBRARY_MAX` | `120` | Лимит запросов к библиотеке трасс на аккаунт |
+| `TRACK_LIBRARY_WINDOW_MS` | `60000` | Окно лимита библиотеки, мс |
 
 > `PEPPER` можно оставить пустым для локальной игры, но тогда он одинаков у всех
 > локальных копий. Для сколь-нибудь долгой базы сгенерируйте уникальное значение.
@@ -133,6 +138,10 @@ node ../chrome-and-ash-web/verify.mjs   # 29/29 PASS — логика, дете�
 | POST/GET | `/api/runs` | Создать/список заездов (один активный на аккаунт) |
 | GET/PUT/DELETE | `/api/save/:id` | Сохранения (revision-блокировка, финализация результата) |
 | GET | `/api/leaderboard` | Рейтинг (daily/race/championship) |
+| GET/POST | `/api/tracks` | Библиотека трасс: список / создание (Stage C) |
+| GET/PUT/DELETE | `/api/tracks/:id` | Трасса владельца; revision-блокировка, IDOR → 404 |
+| GET/POST/DELETE | `/api/tracks/:id/share` | Статус / создать-rotate / отозвать unlisted-ссылку |
+| GET | `/api/share/:token` | Публичное чтение share-ссылки без auth |
 | POST | `/api/lobbies` | Создать PvP-лобби (владелец = слот 0) |
 | GET | `/api/lobbies/:code` | Состояние лобби по коду |
 | POST | `/api/lobbies/:code/join` / `leave` / `start` | Войти / выйти / стартовать |
@@ -149,7 +158,7 @@ server/
 ├── src/
 │   ├── server.js     # точка входа (БД + HTTP-сервер + attach PvP WebSocket)
 │   ├── app.js        # createApp: REST-эндпоинты + монтирование pvp.router + статика
-│   ├── db.js         # открытие БД + schema.sql + очистка сессий
+│   ├── db.js         # открытие БД + миграции v2->v3 + backup + очистка сессий
 │   ├── init-db.js    # явная инициализация (npm run db:init)
 │   ├── config.js     # env-конфигурация
 │   ├── util.js       # scrypt / uuidv7 / session-токены / rate-limit
@@ -158,8 +167,8 @@ server/
 │   └── pvp.js        # PvP: WS /ws + лобби REST + авторитетный движок + таймер + боты
 ├── test/             # node:test (smoke + integration + pvp + pvp-e2e)
 ├── docs/07-pvp-protocol.md  # wire-контракт фазы 2 (WS + лобби + проекции)
-├── schema.sql        # DDL (идемпотентный, user_version=2)
-├── api-schemas.json  # JSON Schema пакет (REST, фаза 1)
+├── schema.sql        # базовая схема v2 (без user_version); миграция v3 в src/db.js
+├── api-schemas.json  # JSON Schema пакет (REST, включая Stage C tracks/share)
 ├── package.json
 └── .env.example
 ```

@@ -253,8 +253,12 @@ export function createApp({ db, config, pvpRouter }) {
     next();
   }
 
-  /* Stage C: separate buckets for the authenticated library and public shares. */
-  const libraryLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30 });
+  /* Stage C: separate buckets for the authenticated library and public shares.
+     Library лимит должен быть выше частоты UI-опросов (list + share status после
+     каждого действия); 120/min по умолчанию, настраивается env. */
+  const libraryMax = clampInt(process.env.TRACK_LIBRARY_MAX, 1, 100000, 120);
+  const libraryWindowMs = clampInt(process.env.TRACK_LIBRARY_WINDOW_MS, 1000, 3600000, 60 * 1000);
+  const libraryLimiter = createRateLimiter({ windowMs: libraryWindowMs, max: libraryMax });
   const shareIpLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60 });
   const shareFailLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
 
@@ -751,6 +755,7 @@ export function createApp({ db, config, pvpRouter }) {
   });
 
   app.get('/api/tracks/:id/share', requireAuth, trackLibraryRateLimit, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const row = loadOwnedTrack(req, res);
     if (!row) return;
     const share = db.prepare('SELECT * FROM track_shares WHERE track_id = ?').get(row.id) || null;
@@ -758,6 +763,7 @@ export function createApp({ db, config, pvpRouter }) {
   });
 
   app.post('/api/tracks/:id/share', requireAuth, trackLibraryRateLimit, (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const row = loadOwnedTrack(req, res);
     if (!row) return;
     const existing = db.prepare('SELECT id FROM track_shares WHERE track_id = ?').get(row.id) || null;
@@ -784,6 +790,10 @@ export function createApp({ db, config, pvpRouter }) {
   });
 
   app.get('/api/share/:token', (req, res) => {
+    // Заголовки нужны и для 404/429, не только для успешного ответа.
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex');
+    res.setHeader('Referrer-Policy', 'no-referrer');
     const ip = req.ip || 'unknown';
     if (!shareIpLimiter.allow(ip)) return err(res, 429, 'rate_limited', 'Слишком много запросов к ссылкам.');
     const token = String(req.params.token || '');

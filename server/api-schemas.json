@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cna.example/api/v1/schemas.json",
   "title": "ХРОМ И ПЕПЕЛ — web API v1 (JSON Schema)",
-  "description": "Машиночитаемый пакет схем, описанных в chrome-and-ash-web/docs/06-web-api.md. Контракт фазы 1.",
+  "description": "Машиночитаемый пакет схем, описанных в chrome-and-ash-web/docs/06-web-api.md. Контракт фаз 1–2 + Stage C (tracks/share).",
   "$defs": {
     "Uuid": {
       "type": "string",
@@ -348,6 +348,104 @@
         "mode": { "$ref": "#/$defs/Mode" },
         "date": { "anyOf": [ { "$ref": "#/$defs/IsoDate" }, { "type": "null" } ] },
         "rows": { "type": "array", "items": { "$ref": "#/$defs/LeaderboardRow" } }
+      },
+      "additionalProperties": false
+    },
+
+    "TrackSpec": {
+      "type": "object",
+      "required": ["schemaVersion", "layout", "levels", "hexSize", "startNode", "main", "nodes", "grid", "checkpoints"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "layout": { "const": "axial" },
+        "levels": { "const": 1 },
+        "hexSize": { "type": "number", "exclusiveMinimum": 0 },
+        "startNode": { "type": "integer", "minimum": 0 },
+        "main": { "type": "array", "items": { "type": "integer" }, "minItems": 24, "maxItems": 36 },
+        "nodes": { "type": "array", "minItems": 24, "items": { "type": "object" } },
+        "grid": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "integer" } },
+        "checkpoints": { "type": "array", "items": { "type": "integer" } },
+        "pit": { "type": ["object", "null"] },
+        "shortcut": { "type": ["object", "null"] },
+        "decor": { "type": "array" }
+      },
+      "additionalProperties": true
+    },
+    "Track": {
+      "type": "object",
+      "required": ["id", "name", "spec", "specSchema", "revision", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "spec": { "$ref": "#/$defs/TrackSpec" },
+        "specSchema": { "type": "integer", "const": 1 },
+        "revision": { "type": "integer", "minimum": 0 },
+        "createdAt": { "$ref": "#/$defs/Timestamp" },
+        "updatedAt": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+    "TrackSummary": {
+      "type": "object",
+      "required": ["id", "name", "size", "archetype", "revision", "updatedAt", "share"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "size": { "type": ["integer", "null"] },
+        "archetype": { "type": ["string", "null"] },
+        "revision": { "type": "integer", "minimum": 0 },
+        "updatedAt": { "$ref": "#/$defs/Timestamp" },
+        "share": {
+          "type": "object",
+          "required": ["active", "updatedAt"],
+          "properties": {
+            "active": { "type": "boolean" },
+            "updatedAt": { "anyOf": [ { "$ref": "#/$defs/Timestamp" }, { "type": "null" } ] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrackListResponse": {
+      "type": "object",
+      "required": ["tracks", "nextCursor"],
+      "properties": {
+        "tracks": { "type": "array", "items": { "$ref": "#/$defs/TrackSummary" } },
+        "nextCursor": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "TrackShareStatus": {
+      "type": "object",
+      "required": ["active", "createdAt", "updatedAt"],
+      "properties": {
+        "active": { "type": "boolean" },
+        "createdAt": { "anyOf": [ { "$ref": "#/$defs/Timestamp" }, { "type": "null" } ] },
+        "updatedAt": { "anyOf": [ { "$ref": "#/$defs/Timestamp" }, { "type": "null" } ] }
+      },
+      "additionalProperties": false
+    },
+    "PublicTrackShare": {
+      "type": "object",
+      "required": ["track"],
+      "properties": {
+        "track": {
+          "type": "object",
+          "required": ["name", "spec", "author", "updatedAt"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+            "spec": { "$ref": "#/$defs/TrackSpec" },
+            "author": {
+              "type": "object",
+              "required": ["displayName"],
+              "properties": { "displayName": { "$ref": "#/$defs/DisplayName" } },
+              "additionalProperties": false
+            },
+            "updatedAt": { "$ref": "#/$defs/Timestamp" }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     }

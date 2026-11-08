@@ -226,6 +226,7 @@ test('C2: share lifecycle is single-link, hashed, rotating and revokable', async
 
   const first = await fetch(base + '/api/tracks/' + id + '/share', { method: 'POST', headers: cookieHeader(a) });
   assert.equal(first.status, 201);
+  assert.equal(first.headers.get('cache-control'), 'no-store');
   const token = (await first.json()).share.token;
   assert.match(token, /^[A-Za-z0-9_-]{43}$/);
   const row = db.prepare('SELECT * FROM track_shares WHERE track_id=?').get(id);
@@ -257,6 +258,7 @@ test('C2: share lifecycle is single-link, hashed, rotating and revokable', async
 
   const rotate = await fetch(base + '/api/tracks/' + id + '/share', { method: 'POST', headers: cookieHeader(a) });
   assert.equal(rotate.status, 200);
+  assert.equal(rotate.headers.get('cache-control'), 'no-store');
   const token2 = (await rotate.json()).share.token;
   assert.notEqual(token2, token);
   assert.equal((await fetch(base + '/api/share/' + token)).status, 404);
@@ -282,8 +284,18 @@ test('C2: deleting a track cascades its share', async (t) => {
 
 test('C2: public share rejects invalid tokens and throttles failures', async (t) => {
   const { base } = await setup(t);
-  for (let i = 0; i < 10; i++) assert.equal((await fetch(base + '/api/share/bad-token-same')).status, 404);
-  assert.equal((await fetch(base + '/api/share/bad-token-same')).status, 429);
+  for (let i = 0; i < 10; i++) {
+    const r = await fetch(base + '/api/share/bad-token-same');
+    assert.equal(r.status, 404);
+    assert.equal(r.headers.get('cache-control'), 'no-store');
+    assert.equal(r.headers.get('x-robots-tag'), 'noindex');
+    assert.equal(r.headers.get('referrer-policy'), 'no-referrer');
+  }
+  const limited = await fetch(base + '/api/share/bad-token-same');
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get('cache-control'), 'no-store');
+  assert.equal(limited.headers.get('x-robots-tag'), 'noindex');
+  assert.equal(limited.headers.get('referrer-policy'), 'no-referrer');
 });
 
 test('C2: public read is no-auth and total per-IP limited', async (t) => {
@@ -295,9 +307,9 @@ test('C2: public read is no-auth and total per-IP limited', async (t) => {
   assert.equal((await fetch(base + '/api/share/' + token)).status, 429);
 });
 
-test('C2: authenticated library is rate limited per account', async (t) => {
+test('C2: authenticated library is rate limited at 120/min per account', async (t) => {
   const { base } = await setup(t);
   const a = await register(base, 'tracks_a10');
-  for (let i = 0; i < 30; i++) assert.equal((await listTracks(base, a)).status, 200, 'request ' + i);
+  for (let i = 0; i < 120; i++) assert.equal((await listTracks(base, a)).status, 200, 'request ' + i);
   assert.equal((await listTracks(base, a)).status, 429);
 });

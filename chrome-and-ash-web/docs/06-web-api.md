@@ -825,7 +825,7 @@ function fromSaveState(s) {
 ```sql
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
-PRAGMA user_version = 1;   -- версия схемы, использовать для миграций
+PRAGMA user_version = 3;   -- v3: + tracks/track_shares (Stage C); миграции в server/src/db.js
 
 CREATE TABLE accounts (
   id            TEXT PRIMARY KEY,            -- UUIDv7
@@ -916,6 +916,25 @@ CREATE INDEX idx_daily_account ON daily_results(account_id, daily_date);
 - **`runs` vs `daily_results`** — `runs` хранит каждый проход; `daily_results` хранит *лучший* результат игрока за день (для ежедневного лидерборда).
 - **`ON DELETE CASCADE`** — удаление аккаунта чистит сессии/заезды/сохранения/дневные результаты.
 
+### 7.1. Stage C: таблицы библиотеки (schema v3)
+
+`server/schema.sql` — базовая схема v2 без `PRAGMA user_version`; `server/src/db.js` применяет ordered v3 DDL в транзакции и выставляет `user_version=3` только после успеха. Перед миграцией файловой БД пишется WAL-aware backup `VACUUM INTO <db>.pre-v3-<timestamp>.db`.
+
+```sql
+CREATE TABLE tracks (
+  id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, spec_json TEXT NOT NULL, spec_schema INTEGER NOT NULL DEFAULT 1,
+  revision INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_tracks_owner_updated ON tracks(account_id, updated_at DESC);
+
+CREATE TABLE track_shares (
+  id TEXT PRIMARY KEY, track_id TEXT NOT NULL UNIQUE REFERENCES tracks(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_track_shares_track ON track_shares(track_id);
+```
+
 ---
 
 ## 8. Готовность к фазе 2 (WebSocket / PvP)
@@ -956,7 +975,7 @@ CREATE INDEX idx_daily_account ON daily_results(account_id, daily_date);
 
 ## 10. Контрольный список приёмки (для реализации)
 
-- [ ] `server/schema.sql` применяется в пустую БД без ошибок; `PRAGMA user_version = 1`.
+- [ ] `server/schema.sql` применяется в пустую БД без ошибок; `server/src/db.js` доводит `user_version` до 3 (v3: `tracks`/`track_shares`).
 - [ ] `server/api-schemas.json` валиден как JSON и проходит `JSON.parse`/валидатор draft-2020-12.
 - [ ] Каждый эндпоинт из таблицы раздела 6 реализован с заявленными кодами и формой тела.
 - [ ] Сессия — только cookie; сырой токен в БД и JSON не появляется.
@@ -978,7 +997,7 @@ CREATE INDEX idx_daily_account ON daily_results(account_id, daily_date);
 ### 11.2. Ошибки и лимиты
 
 `{error:{code,message}}`: `401 unauthorized`, `404 not_found` (чужая/несуществующая трасса или токен), `409 stale_revision`, `422 invalid_name | invalid_track | invalid_cursor | quota_exceeded`, `413 payload_too_large`, `429 rate_limited`.
-Лимиты: 40 трасс на аккаунт (транзакционная проверка), spec JSON ≤100 КБ, body ≤512 КБ, list limit ≤100, auth library 30 req/min, public share 60 req/min на IP + 10 req/min на IP+token-hash для неверных токенов.
+Лимиты: 40 трасс на аккаунт (транзакционная проверка), spec JSON ≤100 КБ, body ≤512 КБ, list limit ≤100, auth library **120 req/min** (env `TRACK_LIBRARY_MAX`/`TRACK_LIBRARY_WINDOW_MS`), public share 60 req/min на IP + 10 req/min на IP+token-hash для неверных токенов.
 
 ### 11.3. Приватные эндпоинты (cookie-auth)
 
