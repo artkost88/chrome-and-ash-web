@@ -18,10 +18,10 @@
     return s ? '?' + s : '';
   }
 
-  async function request(method, path, body) {
+  async function request(method, path, body, options) {
     const opts = {
       method,
-      credentials: 'include',
+      credentials: (options && options.credentials) || 'include',
       headers: {},
     };
     if (body !== undefined) {
@@ -82,6 +82,23 @@
     /* лидерборд */
     leaderboard: (params) => request('GET', '/leaderboard' + query(params)),
 
+    /* библиотека трасс (Stage C) */
+    tracks: {
+      list: (params) => request('GET', '/tracks' + query(params)),
+      get: (id) => request('GET', '/tracks/' + encodeURIComponent(id)),
+      create: (payload) => request('POST', '/tracks', payload),
+      update: (id, payload) => request('PUT', '/tracks/' + encodeURIComponent(id), payload),
+      remove: (id) => request('DELETE', '/tracks/' + encodeURIComponent(id)),
+    },
+    share: {
+      create: (id) => request('POST', '/tracks/' + encodeURIComponent(id) + '/share'),
+      status: (id) => request('GET', '/tracks/' + encodeURIComponent(id) + '/share'),
+      revoke: (id) => request('DELETE', '/tracks/' + encodeURIComponent(id) + '/share'),
+    },
+    shared: {
+      get: (token) => request('GET', '/share/' + encodeURIComponent(token), undefined, { credentials: 'omit' }),
+    },
+
     /* лобби PvP (фаза 2, server/docs/07-pvp-protocol.md §5) */
     lobbyCreate: (config) => request('POST', '/lobbies', config ? { config } : {}),
     lobbyGet: (code) => request('GET', '/lobbies/' + encodeURIComponent(code)),
@@ -89,5 +106,7 @@
     lobbyLeave: (code) => request('POST', '/lobbies/' + encodeURIComponent(code) + '/leave'),
     lobbyStart: (code) => request('POST', '/lobbies/' + encodeURIComponent(code) + '/start'),
   };
+  // Удобный доступ для модулей, которые живут в namespace CnA (Stage C UI).
+  if (root.CnA) root.CnA.API = root.API;
 
 })(typeof globalThis !== 'undefined' ? globalThis : window);
