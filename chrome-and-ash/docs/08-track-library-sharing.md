@@ -15,8 +15,8 @@
 4. **Share:** одна unlisted-ссылка на трассу, живая (при обновлении трассы ссылка отдаёт актуальный spec). Rotate заменяет токен, revoke удаляет. Токен показывается один раз; в БД только `sha256(token)`.
 5. **IDOR:** для чужих/несуществующих приватных id — **404** (не 403), чтобы не раскрывать существование. Владелец — только из `req.account`, никогда из body/query.
 6. **Публичный share:** без auth, только `{name, spec, author.displayName, updatedAt}`; без account id/email/других трасс. `Cache-Control: no-store`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`.
-7. **Клиентский share route:** query `?track=<token>` (без path-SPA-fallback). Обрабатывается до `/api/me`/auth-гейта; после загрузки — read-only preview с кнопками «Импортировать копию» / «Тест-драйв», без записи до явного действия.
-8. **Лимиты:** 40 трасс на аккаунт; имя 1–40 (trim, strip HTML); spec JSON ≤100 КБ; body ≤512 КБ; list limit ≤100; auth library 30 req/min, public share 60 req/min per IP+token hash.
+7. **Клиентский share route:** query `?track=<token>` (без path-SPA-fallback). Обрабатывается до `/api/me`/auth-гейта; после загрузки — read-only preview. Анонимный зритель **не** может test-drive/import-to-server: кнопки ведут на login; экспорт preview — только локальный JSON. После логина доступны «Импортировать копию» и «Тест-драйв».
+8. **Лимиты:** 40 трасс на аккаунт; имя 1–40 (trim, strip HTML); spec JSON ≤100 КБ; body ≤512 КБ; list limit ≤100; auth library 30 req/min; public share 60 req/min **per-IP total** + 10 req/min per IP+token hash (failed-token bucket).
 9. **Run metadata:** не входит в C v1. `runs`/daily/PvP/leaderboard не меняются.
 
 ---
@@ -43,16 +43,16 @@ CREATE TABLE IF NOT EXISTS track_shares (
   track_id TEXT NOT NULL UNIQUE REFERENCES tracks(id) ON DELETE CASCADE,
   token_hash TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
-  revoked_at TEXT
+  updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 ```
 
-- `openDb()` применяет миграцию v3 **транзакционно**; `PRAGMA user_version` выставляется в 3 только после успеха.
-- Повторное открытие v3 — no-op. Старый сервер v2 игнорирует новые таблицы.
+- `openDb()` **не выполняет schema.sql целиком** для миграции: читает `PRAGMA user_version`, применяет ordered v3 DDL в транзакции, выставляет 3 только после успеха. `schema.sql` не должен содержать безусловный `PRAGMA user_version=2`; базовый bootstrap ставит версию только для пустой БД. Повторный open v3 — no-op; старый v2-сервер видит неизвестные таблицы и не откатывает user_version.
+- Share **hard delete**: revoke/rotate удаляет строку; `revoked_at` нет. Одна активная строка на track, `updated_at` для статуса.
 - `ON DELETE CASCADE` удаляет share при удалении трассы/аккаунта.
-- Тест на **файловой populated v2 DB** (не только `:memory:`): старые accounts/runs/saves/daily/PvP читаются после миграции; повторный open идемпотентен.
-- Перед миграцией — backup `DB_PATH`; rollback = restore backup, новый код с новыми таблицами старый не ломает.
+- Перед миграцией — WAL-aware backup (`VACUUM INTO` или SQLite backup API), не простое копирование файла; rollback = restore backup, старый код совместим с новыми таблицами.
+- Тест на **файловой populated v2 DB**: старые accounts/runs/saves/daily/PvP читаются после миграции; повторный open, failed migration (user_version остаётся 2), fresh v3, old-v2-server compatibility.
 
 ---
 
@@ -62,22 +62,22 @@ CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 
 | Метод | Путь | Тело | Успех |
 |---|---|---|---|
-| GET | `/api/tracks?limit=&cursor=` | — | `200 {tracks:[{id,name,size,archetype,revision,updatedAt,share:{active,updatedAt}}],nextCursor}` |
-| POST | `/api/tracks` | `{name,spec}` | `201 {track:{id,name,spec,revision,...}}` |
+| GET | `/api/tracks?limit=&cursor=` | — | `200 {tracks:[{id,name,size,archetype,revision,updatedAt,share:{active,updatedAt}}],nextCursor}`; cursor = opaque `(updated_at,id)` |
+| POST | `/api/tracks` | `{name,spec}` | `201 {track:{id,name,spec,revision,...}}`; transactional quota check (≤40) |
 | GET | `/api/tracks/:id` | — | `200 {track}` (own) |
-| PUT | `/api/tracks/:id` | `{revision,name,spec}` | `200 {track}`; stale → `409 stale_revision` |
+| PUT | `/api/tracks/:id` | `{revision,name,spec}` | `200 {track}`; conditional `UPDATE ... WHERE revision=?`; stale → `409 stale_revision` |
 | DELETE | `/api/tracks/:id` | — | `204`; share каскадно удаляется |
 | GET | `/api/tracks/:id/share` | — | `200 {share:{active,createdAt,updatedAt}}`; raw token не возвращается |
-| POST | `/api/tracks/:id/share` | — | `200/201 {share:{token,url}}`; rotate/create, raw token один раз |
-| DELETE | `/api/tracks/:id/share` | — | `204`; повторный revoke — `204` (идемпотентно) |
+| POST | `/api/tracks/:id/share` | — | `200/201 {share:{token,url}}`; rotate/create, raw token один раз; old token invalid immediately |
+| DELETE | `/api/tracks/:id/share` | — | `204`; hard delete; повторный revoke — `204` (идемпотентно) |
 | GET | `/api/share/:token` | — | `200 {track:{name,spec,author:{displayName},updatedAt}}`; иначе `404` |
 
 Статусы: `401 unauthorized`, `404 not_found` (чужая/нет трассы/токена), `409 stale_revision`, `422 invalid_track | invalid_name`, `413 payload_too_large`, `429 rate_limited`.
 
-`POST /api/tracks/:id/share`: `token = crypto.randomBytes(32).toString('base64url')`; URL `/?track=<token>`; в БД `token_hash=sha256Hex(token)`. Rotate удаляет/заменяет старую запись в одной транзакции.
+`POST /api/tracks/:id/share`: `token = crypto.randomBytes(32).toString('base64url')`; URL `/?track=<token>`; в БД `token_hash=sha256Hex(token)`. Rotate удаляет старую строку и вставляет новую в одной транзакции; revoke hard-delete; повторный revoke — 204.
 
 Публичный `GET /api/share/:token`:
-- `token_hash` lookup, `revoked_at IS NULL`, track существует.
+- `token_hash` lookup, share row exists (revoked/rotated → нет строки), track существует.
 - Тело проходит серверную валидацию перед отдачей; если сохранённый spec когда-то стал невалиден — `404` и лог без spec.
 - Никаких `account_id`, email, session, token_hash, других трасс.
 - `Cache-Control: no-store`, `X-Robots-Tag: noindex`, `Referrer-Policy: no-referrer`.
@@ -88,7 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 
 Новый `server/src/track-spec.js` загружает **тот же** клиентский pure-код через изолированный `vm`-контекст:
 `data.js → track-gen.js → track-editor.js`; экспортирует `report(spec)`, `prepareSpec`, `cleanName`, `validateTrackSpec`.
-Не дублировать правила и не доверять `readOnly`/canonical-флагам клиента.
+Не дублировать правила и не доверять `readOnly`/canonical-флагам клиента. Сохраняется **только `prepared.canonical`**, не сырой `spec`; `prepared.readOnly`/`originalSpec` → `422`; migrated legacy horseshoe принимается только в canonical-виде (warning не сохраняется).
 
 Проверки перед записью:
 - объект, `schemaVersion===1`, `layout==='axial'`, `levels===1`, `hexSize` finite;
@@ -110,12 +110,12 @@ CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 
 ### UI конструктора
 - Новая секция «БИБЛИОТЕКА»: список серверных трасс, «В библиотеку» (create/update), «Сохранить копию», «Удалить».
-- Локальный стор остаётся; локальные и серверные трассы показываются раздельно; mapping `serverId` хранится в local envelope (`serverId`, `serverRevision`).
+- Локальный стор остаётся; локальные и серверные трассы показываются раздельно. Mapping `localId ↔ {serverId,serverRevision,updatedAt}` хранится **отдельно** в `localStorage['cna.serverTrackMap.v1']`, не внутри envelope (текущий `normalizeEnvelope` отбрасывает лишние поля); при потере mapping серверная трасса всё равно открывается по serverId.
 - Конфликт `409`: модал «Перезагрузить / Перезаписать / Сохранить копией / Отмена»; default — «Сохранить копией».
 - «Поделиться»: показать URL один раз + copy; статус «Ссылка активна»; «Обновить ссылку» (rotate); «Отозвать».
 - Сервер недоступен: local-only продолжает работать, показывается offline-статус; никаких потерь dirty.
-- Shared `?track=<token>`: до auth-гейта; read-only preview/стата; «Импортировать копию» создаёт новую локальную/серверную трассу; «Тест-драйв» разрешён; edit/save/share disabled.
-- XSS: `textContent`/`esc` для имён/ошибок; не вставлять токен в DOM вне share-блока.
+- Shared `?track=<token>`: до auth-гейта; read-only preview/стата; «Импортировать копию» и «Тест-драйв» требуют login и показывают login prompt анонимно; экспорт preview — локальный JSON. После логина копия создаётся новой трассой; edit/save/share disabled.
+- XSS: `textContent`/`esc` для имён/ошибок; не вставлять токен в DOM вне share-блока. После загрузки share — `history.replaceState` без токена; shell для `/?track=…` отдаётся с `Referrer-Policy:no-referrer`, `Cache-Control:no-store`, `X-Robots-Tag:noindex`; токен не попадает в логи/третьи запросы.
 
 ### Синхронизация
 - Server create/update only explicit; никогда не автосинхронизировать локальные трассы.
@@ -130,10 +130,11 @@ CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 
 **Server**
 - migration v2 file DB → v3, old rows intact, idempotent; fresh v3; cascade delete.
-- auth/IDOR matrix A/B for GET/PUT/DELETE/share; foreign/missing → 404; list only own.
-- CRUD/revision 409; quota 40; validation invalid/oversized/read-only/polar/object-decor; name XSS/length.
-- share token entropy/hash/no token in responses except create; rotate old 404; revoke 404/idempotent; public read no auth/no PII; no token in list.
-- rate limit 429; no partial DB writes; daily/runs/saves/PvP regressions.
+- auth/IDOR matrix A/B для `GET/PUT/DELETE /api/tracks/:id`, `GET/POST/DELETE /api/tracks/:id/share`, `GET /api/share/:token`; malformed UUID, foreign/missing → 404; list only own; no raw token in list/status; public payload без account/email/PII; exact headers.
+- CRUD/revision 409; conditional UPDATE; transactional 40-track quota; concurrent create/update/delete; pagination cursor `(updated_at,id)` with equal timestamps/deletion.
+- share token entropy/hash/no token in responses except create; rotate old 404; revoke hard delete 404/idempotent; public read no auth/no PII; per-IP total rate + failed-token bucket; shell headers.
+- validation invalid/oversized/read-only/polar/object-decor; name XSS/length; canonical storage from shared VM validator.
+- daily/runs/saves/PvP regressions.
 
 **Web**
 - Existing 100/77/31 suites green.
