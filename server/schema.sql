@@ -6,13 +6,9 @@
 --     заполняется только первым PUT /api/save/:id;
 --   * daily_results дополнен pos и finished_at — лидерборд по сиду сортируется
 --     как «позиция → урон → время».
--- Идемпотентность (t10): все CREATE TABLE / CREATE INDEX используют IF NOT EXISTS,
--- поэтому схему безопасно применять к уже существующему файлу БД при каждом запуске.
--- Миграция v1→v2 (t17): добавлены games и game_players (IF NOT EXISTS), user_version=2.
-
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
-PRAGMA user_version = 2;
+-- Идемпотентность (t10): все CREATE TABLE / CREATE INDEX используют IF NOT EXISTS.
+-- Это БАЗОВАЯ схема v2: user_version здесь не выставляется — версией и ordered
+-- миграциями управляет server/src/db.js (v1/v2 -> v3, Stage C).
 
 -- ---------------------------------------------------------------------------
 -- Аккаунты
