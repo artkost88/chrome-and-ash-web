@@ -2154,7 +2154,9 @@
   /* Инициализация и события                                            */
   /* ------------------------------------------------------------------ */
   async function bootstrap() {
-    const shared = new URLSearchParams(location.search).get('track');
+    const shared = CnA.TrackEditorUI && CnA.TrackEditorUI.parseSharedToken
+      ? CnA.TrackEditorUI.parseSharedToken(location.search)
+      : new URLSearchParams(location.search).get('track');
     if (shared && CnA.TrackEditorUI && CnA.TrackEditorUI.openShared) {
       // Public share route открывается до auth-гейта; cookie-сессия, если есть,
       // всё равно подхватывается для «импортировать копию»/тест-драйва.
@@ -3013,6 +3015,7 @@
     showToast,
     startCustomTrack,
     get account() { return UI.account; },
+    get accountId() { return UI.account ? UI.account.id : null; },
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -35,13 +35,53 @@
   let pendingSharedToken = null;
   let shareActive = false;
   const SERVER_MAP_KEY = 'cna.serverTrackMap.v1';
+  const SHARE_TOKEN_RE = /^[A-Za-z0-9_-]{20,128}$/;
+
+  function parseSharedToken(search) {
+    try {
+      const token = new URLSearchParams(search || '').get('track');
+      return token && SHARE_TOKEN_RE.test(token) ? token : null;
+    } catch (e) { return null; }
+  }
+  function serverMapKey(accountId) {
+    return accountId ? SERVER_MAP_KEY + '.' + accountId : SERVER_MAP_KEY;
+  }
+  function sharedActionAllowed(action, opts) {
+    const shared = !!(opts && opts.sharedPreview);
+    const accountId = (opts && opts.accountId) || null;
+    if (!shared) return { allowed: true, reason: null };
+    if (action === 'export') return { allowed: true, reason: null };
+    if (action === 'local-save' || action === 'local-copy') return { allowed: false, reason: 'shared' };
+    if (action === 'test' || action === 'import') {
+      return accountId ? { allowed: true, reason: null } : { allowed: false, reason: 'login' };
+    }
+    return { allowed: true, reason: null };
+  }
+  function currentAccountId() {
+    return (CnA.UI && typeof CnA.UI.accountId === 'string' && CnA.UI.accountId) || null;
+  }
 
   function readServerMap() {
-    try { return JSON.parse(window.localStorage.getItem(SERVER_MAP_KEY) || '{}') || {}; }
-    catch (e) { return {}; }
+    const accountId = currentAccountId();
+    const key = serverMapKey(accountId);
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw) return JSON.parse(raw) || {};
+      const legacy = window.localStorage.getItem(SERVER_MAP_KEY);
+      if (legacy) {
+        const parsed = JSON.parse(legacy) || {};
+        if (accountId) {
+          // Однократное усыновление старого global-map первым вошедшим аккаунтом.
+          window.localStorage.setItem(key, legacy);
+          window.localStorage.removeItem(SERVER_MAP_KEY);
+        }
+        return parsed;
+      }
+      return {};
+    } catch (e) { return {}; }
   }
   function writeServerMap(map) {
-    try { window.localStorage.setItem(SERVER_MAP_KEY, JSON.stringify(map)); }
+    try { window.localStorage.setItem(serverMapKey(currentAccountId()), JSON.stringify(map)); }
     catch (e) { /* mapping is optional */ }
   }
   function rememberServerTrack(localId, track) {
@@ -1128,7 +1168,8 @@
 
   function testDrive() {
     if (!session) return;
-    if (sharedPreview && !isAuthed()) {
+    const testGate = sharedActionAllowed('test', { sharedPreview, accountId: currentAccountId() });
+    if (!testGate.allowed) {
       toast('Войдите, чтобы запустить тест-драйв.', 'event');
       if (CnA.UI) CnA.UI.showScreen('auth');
       return;
@@ -1366,7 +1407,8 @@
 
   async function importSharedTrack() {
     if (!sharedPreview || !session) return;
-    if (!isAuthed()) {
+    const importGate = sharedActionAllowed('import', { sharedPreview, accountId: currentAccountId() });
+    if (!importGate.allowed) {
       toast('Войдите, чтобы импортировать трассу в библиотеку.', 'event');
       if (CnA.UI) CnA.UI.showScreen('auth');
       return;
@@ -1406,7 +1448,7 @@
       const spec = data.track && data.track.spec;
       if (!spec) throw new Error('пустой ответ');
       pendingSharedToken = null;
-      try { history.replaceState({}, '', location.pathname); } catch (e) { /* ignore */ }
+      const retryBtn = $('constructor-shared-retry'); if (retryBtn) retryBtn.hidden = true;
       session = makeReadOnlyShell(spec, 'shared', []);
       sharedMeta = {
         name: data.track.name || 'Публичная трасса',
@@ -1423,10 +1465,14 @@
     } catch (e) {
       session = null;
       sharedMeta = { name: 'Ссылка недоступна', author: '—', spec: null };
+      const retryBtn = $('constructor-shared-retry'); if (retryBtn) retryBtn.hidden = false;
       renderAll();
       setStatus('Ссылка не найдена или отозвана.', true);
       await refreshShareStatus();
     }
+    // Токен не должен оставаться в URL/истории даже для битой/отозванной ссылки;
+    // retry/copy сохраняются в памяти (sharedToken + кнопка ПОВТОРИТЬ).
+    try { history.replaceState({}, '', location.pathname); } catch (e) { /* ignore */ }
     renderServerControls();
     refreshServerLibrary().catch(() => {});
   }
@@ -1494,6 +1540,7 @@
       'constructor-share-revoke': revokeShare,
       'constructor-share-copy': copyShareUrl,
       'constructor-shared-import': importSharedTrack,
+      'constructor-shared-retry': () => { if (sharedToken) openShared(sharedToken).catch(() => {}); },
       'constructor-server-retry': () => {
         refreshServerLibrary().catch(() => {});
         refreshShareStatus().catch(() => {});
@@ -1578,6 +1625,9 @@
     get session() { return session; },
     get activeServer() { return activeServer; },
     get sharedPreview() { return sharedPreview; },
+    parseSharedToken,
+    serverMapKey,
+    sharedActionAllowed,
     get current() {
       if (!session) return null;
       const rep = session.report();
