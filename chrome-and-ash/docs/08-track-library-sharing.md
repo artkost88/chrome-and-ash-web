@@ -48,9 +48,11 @@ CREATE TABLE IF NOT EXISTS track_shares (
 CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 ```
 
-- `openDb()` **не выполняет schema.sql целиком** для миграции: читает `PRAGMA user_version`, применяет ordered v3 DDL в транзакции, выставляет 3 только после успеха. `schema.sql` не должен содержать безусловный `PRAGMA user_version=2`; базовый bootstrap ставит версию только для пустой БД. Повторный open v3 — no-op; старый v2-сервер видит неизвестные таблицы и не откатывает user_version.
+- `server/schema.sql` содержит только базовые v2-таблицы и **не содержит `PRAGMA user_version`**. Bootstrap в `db.js`: `user_version=0` → выполнить base schema, выставить 2; затем `2 → 3` — ordered v3 DDL в транзакции (WAL/pragma вне транзакции); `3` → no-op. `user_version` выставляется только после успеха; failed migration оставляет 2.
+- **Старый v2-бинарник после миграции v3 не поддерживается**: его старый `schema.sql` может перезаписать `user_version`. Rollback — restore WAL-aware backup (`VACUUM INTO`) и запуск старого образа; это явное ограничение, а не совместимость. Тест с реальным v2 snapshot: новый код мигрирует, старый код на v3 не запускаем.
 - Share **hard delete**: revoke/rotate удаляет строку; `revoked_at` нет. Одна активная строка на track, `updated_at` для статуса.
 - `ON DELETE CASCADE` удаляет share при удалении трассы/аккаунта.
+- Inactive share (`GET /api/tracks/:id/share`) → `{share:{active:false,createdAt:null,updatedAt:null}}`; list `share.active=false` with null timestamps.
 - Перед миграцией — WAL-aware backup (`VACUUM INTO` или SQLite backup API), не простое копирование файла; rollback = restore backup, старый код совместим с новыми таблицами.
 - Тест на **файловой populated v2 DB**: старые accounts/runs/saves/daily/PvP читаются после миграции; повторный open, failed migration (user_version остаётся 2), fresh v3, old-v2-server compatibility.
 
@@ -129,10 +131,11 @@ CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 ## 6. Тесты и приёмка
 
 **Server**
-- migration v2 file DB → v3, old rows intact, idempotent; fresh v3; cascade delete.
+- migration v2 file DB → v3, old rows intact, idempotent; fresh v3; failed migration keeps user_version=2; cascade delete; inactive share null fields.
+- `track-spec.js` VM canonical storage, rejects readOnly/originalSpec only, no global VM mutation.
 - auth/IDOR matrix A/B для `GET/PUT/DELETE /api/tracks/:id`, `GET/POST/DELETE /api/tracks/:id/share`, `GET /api/share/:token`; malformed UUID, foreign/missing → 404; list only own; no raw token in list/status; public payload без account/email/PII; exact headers.
 - CRUD/revision 409; conditional UPDATE; transactional 40-track quota; concurrent create/update/delete; pagination cursor `(updated_at,id)` with equal timestamps/deletion.
-- share token entropy/hash/no token in responses except create; rotate old 404; revoke hard delete 404/idempotent; public read no auth/no PII; per-IP total rate + failed-token bucket; shell headers.
+- share token entropy/hash/no token in responses except create; rotate old 404; revoke hard delete 404/idempotent; public read no auth/no PII; per-IP total rate + failed-token bucket; shell headers; anonymous `?track` test-drive/import login prompt.
 - validation invalid/oversized/read-only/polar/object-decor; name XSS/length; canonical storage from shared VM validator.
 - daily/runs/saves/PvP regressions.
 
@@ -147,8 +150,8 @@ CREATE INDEX IF NOT EXISTS idx_track_shares_track ON track_shares(track_id);
 
 ## 7. Этапы и файлы
 
-1. **C1** DB migration v3 + `track-spec.js` shared validator + tests. `server/src/db.js`, `server/src/track-spec.js`, `server/test/migration.test.js`.
-2. **C2** server `/api/tracks`, `/api/share` routes, tokens, limits + tests. `server/src/app.js`, `server/src/track-spec.js`, `server/test/tracks.test.js`, `chrome-and-ash/docs/06-web-api.md`.
+1. **C1** DB migration v2→v3 + `track-spec.js` shared validator + tests. `server/schema.sql`, `server/src/db.js`, `server/src/track-spec.js`, `server/test/migration.test.js`.
+2. **C2** server `/api/tracks`, `/api/share` routes, tokens, limits + tests. `server/src/app.js`, `server/src/track-spec.js`, `server/test/tracks.test.js`, `chrome-and-ash-web/docs/06-web-api.md`.
 3. **C3** client API + local↔server mapping. `chrome-and-ash-web/js/api.js`, `track-editor.js`.
 4. **C4** constructor library/share UI + conflicts/offline. `track-editor-ui.js`, `index.html`, `style.css`.
 5. **C5** public `?track=` route/read-only/import copy + E2E.
