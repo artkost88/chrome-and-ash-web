@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -54,6 +54,23 @@ function backupBeforeMigration(db, dbPath) {
   return target;
 }
 
+/** Оставляет только newest `keep` копий `<db>.pre-v3-*.db` после успешной миграции. */
+function pruneBackups(dbPath, keep = 5) {
+  if (!dbPath || dbPath === ':memory:') return [];
+  const dir = path.dirname(dbPath);
+  const prefix = path.basename(dbPath) + '.pre-v3-';
+  let files;
+  try { files = readdirSync(dir); } catch { return []; }
+  const backups = files
+    .filter((f) => f.startsWith(prefix) && f.endsWith('.db'))
+    .sort((a, b) => b.localeCompare(a)); // timestamp в имени, новые первыми
+  const removed = [];
+  for (const f of backups.slice(keep)) {
+    try { unlinkSync(path.join(dir, f)); removed.push(f); } catch { /* ignore */ }
+  }
+  return removed;
+}
+
 /**
  * Выполняет ordered v3 DDL в транзакции и выставляет user_version только после
  * успешного применения. Ошибка откатывает DDL, оставляя БД на v2.
@@ -101,6 +118,8 @@ export function openDb(dbPath) {
       // WAL-aware backup only for an existing v1/v2 database.
       if (version >= 1) backupBeforeMigration(db, dbPath);
       migrateToV3(db);
+      // Retention применяется только после успешного COMMIT.
+      pruneBackups(dbPath, 5);
     }
 
     cleanupSessions(db);

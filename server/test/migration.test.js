@@ -130,6 +130,22 @@ test('C1: v2 file preserves runs/saves/daily/PvP rows after migration', () => {
   db.close();
 });
 
+test('C1: pre-v3 backup retention keeps the newest five copies', () => {
+  const file = makeLegacyFile(2);
+  const dir = path.dirname(file);
+  const base = path.basename(file);
+  for (let i = 0; i < 7; i++) {
+    fs.writeFileSync(path.join(dir, base + '.pre-v3-2020-01-0' + (i + 1) + 'T00-00-00-000Z.db'), 'old');
+  }
+  const db = openDb(file);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3);
+  db.close();
+  const backups = fs.readdirSync(dir).filter((f) => f.startsWith(base + '.pre-v3-') && f.endsWith('.db'));
+  assert.equal(backups.length, 5, backups.join(','));
+  assert.equal(backups.includes(base + '.pre-v3-2020-01-01T00-00-00-000Z.db'), false);
+  assert.equal(backups.includes(base + '.pre-v3-2020-01-07T00-00-00-000Z.db'), true);
+});
+
 test('C1: failed v3 migration keeps user_version=2 and can be retried', () => {
   const file = makeLegacyFile(2);
   const db = new DatabaseSync(file);

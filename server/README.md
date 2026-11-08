@@ -122,7 +122,7 @@ npm test           # интеграционные тесты (node --test)
 Проверка веб-клиента (независимо от сервера):
 
 ```bash
-node ../chrome-and-ash-web/verify.mjs   # 29/29 PASS — логика, детерминизм, SaveState
+node ../chrome-and-ash-web/verify.mjs   # 31/31 PASS — логика, детерминизм, SaveState, Stage B/C редактор
 ```
 
 ## API (кратко)
